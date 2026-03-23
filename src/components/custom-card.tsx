@@ -18,7 +18,7 @@ export function CustomCard({ component }: CustomCardProps) {
 
 	return (
 		<HomeDraggableLayer cardKey={component.id} x={x} y={y} width={style.width} height={style.height}>
-			<Card order={style.order} width={style.width} height={style.height} x={x} y={y} className='relative max-sm:static max-sm:translate-0'>
+			<Card order={style.order} width={style.width} height={style.height} x={x} y={y} className='max-sm:static max-sm:translate-0'>
 				{type === 'text' && <div className='text-sm'>{content.text}</div>}
 
 				{type === 'image' && content.imageUrl && (
