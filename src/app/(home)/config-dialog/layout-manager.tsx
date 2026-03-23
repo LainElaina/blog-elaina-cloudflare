@@ -15,10 +15,12 @@ export function LayoutManager() {
 		const url = URL.createObjectURL(blob)
 		const a = document.createElement('a')
 		a.href = url
-		a.download = 'layout-config.json'
+		a.download = `layout-${Date.now()}.json`
+		document.body.appendChild(a)
 		a.click()
+		document.body.removeChild(a)
 		URL.revokeObjectURL(url)
-		toast.success('布局已导出')
+		toast.success('布局已导出到下载文件夹')
 	}
 
 	const handleImport = () => {

@@ -18,17 +18,27 @@ export function LayoutSavePanel() {
 
 	const handleSave = async () => {
 		try {
+			// 保存到历史记录
+			const snapshots = JSON.parse(localStorage.getItem('layout-snapshots') || '[]')
+			const newSnapshot = {
+				id: Date.now().toString(),
+				name: `自动保存 ${new Date().toLocaleString('zh-CN')}`,
+				timestamp: Date.now(),
+				data: cardStyles
+			}
+			localStorage.setItem('layout-snapshots', JSON.stringify([newSnapshot, ...snapshots]))
+
 			if (process.env.NODE_ENV === 'development') {
 				await saveLayout()
 				stopEditing()
 				addLog('success', '布局已保存到本地', cardStyles)
-				toast.success('布局已保存到本地')
+				toast.success('布局已保存到本地和历史记录')
 			} else if (isAuth) {
 				const content = JSON.stringify(cardStyles, null, '\t')
 				await githubClient.updateFile('src/config/card-styles.json', content, '修改主页拖拽布局')
 				stopEditing()
 				addLog('success', '布局已推送到 GitHub', cardStyles)
-				toast.success('布局已推送到 GitHub')
+				toast.success('布局已推送到 GitHub 和历史记录')
 			} else {
 				addLog('error', '生产环境需要导入密钥才能保存')
 				toast.error('生产环境需要导入密钥才能保存')
