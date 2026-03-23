@@ -1,7 +1,7 @@
 {
 	"artCard": {
 		"width": 360,
-		"height": 300,
+		"height": 200,
 		"order": 3,
 		"offsetX": null,
 		"offsetY": null,
@@ -11,8 +11,8 @@
 		"width": 360,
 		"height": 288,
 		"order": 1,
-		"offsetX": -183,
-		"offsetY": -167,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"clockCard": {
@@ -20,16 +20,16 @@
 		"height": 132,
 		"offset": 92,
 		"order": 4,
-		"offsetX": 200,
-		"offsetY": -341,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"calendarCard": {
-		"width": 358,
-		"height": 280,
+		"width": 350,
+		"height": 286,
 		"order": 5,
-		"offsetX": 212,
-		"offsetY": -48,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"musicCard": {
@@ -37,56 +37,56 @@
 		"height": 66,
 		"offset": 120,
 		"order": 6,
-		"offsetX": 202,
-		"offsetY": -190,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"socialButtons": {
 		"width": 315,
 		"height": 48,
 		"order": 6,
-		"offsetX": 189,
-		"offsetY": -110,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"shareCard": {
 		"width": 200,
 		"height": 180,
 		"order": 7,
-		"offsetX": -219,
-		"offsetY": 144,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"articleCard": {
-		"width": 248,
-		"height": 165,
+		"width": 266,
+		"height": 160,
 		"order": 8,
-		"offsetX": -480,
-		"offsetY": 138,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"writeButtons": {
 		"height": 42,
 		"width": 180,
 		"order": 8,
-		"offsetX": 268,
-		"offsetY": -462,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"navCard": {
 		"width": 280,
 		"height": 434,
 		"order": 2,
-		"offsetX": -479,
-		"offsetY": -312,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"likePosition": {
 		"width": 54,
-		"height": 50,
+		"height": 54,
 		"order": 8,
-		"offsetX": 115,
-		"offsetY": 169,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"hatCard": {
@@ -109,16 +109,16 @@
 		"width": 48,
 		"height": 48,
 		"order": 100,
-		"offsetX": 208,
-		"offsetY": -401,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	},
 	"componentStoreButton": {
 		"width": 48,
 		"height": 48,
 		"order": 101,
-		"offsetX": 208,
-		"offsetY": -464,
+		"offsetX": null,
+		"offsetY": null,
 		"enabled": true
 	}
 }

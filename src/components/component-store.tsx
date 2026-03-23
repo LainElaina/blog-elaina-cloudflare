@@ -147,8 +147,8 @@ export function ComponentStore() {
 			style: {
 				...template.style,
 				order: 99,
-				offsetX: null,
-				offsetY: null,
+				offsetX: 0,
+				offsetY: 0,
 				enabled: true
 			},
 			content: { text: '双击编辑内容' }
