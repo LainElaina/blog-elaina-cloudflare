@@ -32,7 +32,6 @@ export function ComponentStore() {
 		const customToLoad = savedCustom ? JSON.parse(savedCustom) : customComponentsDefault
 		useCustomComponentStore.setState({ components: customToLoad })
 	}, [])
-	}, [])
 
 	const handleCreateComponent = () => {
 		if (!newComp.name.trim()) {
