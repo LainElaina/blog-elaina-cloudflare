@@ -9,6 +9,8 @@ import { useSize, useSizeInit } from '@/hooks/use-size'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { ScrollTopButton } from '@/components/scroll-top-button'
 import MusicCard from '@/components/music-card'
+import { LogWindow } from '@/app/(home)/log-window'
+import { GlobalErrorHandler } from '@/components/global-error-handler'
 
 export default function Layout({ children }: PropsWithChildren) {
 	useCenterInit()
@@ -51,6 +53,9 @@ export default function Layout({ children }: PropsWithChildren) {
 				/>
 			)}
 			<BlurredBubblesBackground colors={siteContent.backgroundColors} regenerateKey={regenerateKey} />
+
+			<GlobalErrorHandler />
+			<LogWindow />
 
 			<main className='relative z-10 h-full'>
 				{children}
