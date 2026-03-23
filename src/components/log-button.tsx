@@ -2,16 +2,22 @@
 
 import { useLogStore } from '../app/(home)/stores/log-store'
 import { FileText } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function LogButton() {
 	const { enabled, visible, setVisible } = useLogStore()
+	const [mounted, setMounted] = useState(false)
 
-	if (!enabled) return null
+	useEffect(() => {
+		setMounted(true)
+	}, [])
+
+	if (!mounted || !enabled) return null
 
 	return (
 		<button
 			onClick={() => setVisible(!visible)}
-			className='fixed bottom-6 right-6 z-[9998] card squircle p-3 shadow-2xl hover:scale-105 transition-transform'
+			className='fixed top-6 right-6 z-[9998] card squircle p-3 shadow-2xl hover:scale-105 transition-transform'
 			title={visible ? '关闭日志' : '打开日志'}
 		>
 			<FileText className='w-5 h-5 text-brand' />
