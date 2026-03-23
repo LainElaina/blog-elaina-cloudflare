@@ -9,6 +9,7 @@ interface LayoutEditState {
 	editing: boolean
 	snapshot: CardStyles | null
 	startEditing: () => void
+	stopEditing: () => void
 	cancelEditing: () => void
 	saveEditing: () => void
 	setOffset: (key: CardKey, offsetX: number | null, offsetY: number | null) => void
@@ -23,6 +24,12 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 		set({
 			editing: true,
 			snapshot: { ...cardStyles }
+		})
+	},
+	stopEditing: () => {
+		set({
+			editing: false,
+			snapshot: null
 		})
 	},
 	cancelEditing: () => {

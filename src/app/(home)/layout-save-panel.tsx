@@ -18,17 +18,18 @@ export function LayoutSavePanel() {
 		try {
 			if (process.env.NODE_ENV === 'development') {
 				await saveLayout()
+				stopEditing()
 				toast.success('布局已保存到本地')
 			} else if (isAuth) {
-				// 推送到 GitHub
 				const content = JSON.stringify(cardStyles, null, '\t')
 				await githubClient.updateFile('src/config/card-styles.json', content, '修改主页拖拽布局')
+				stopEditing()
 				toast.success('布局已推送到 GitHub')
 			} else {
 				toast.error('生产环境需要导入密钥才能保存')
 			}
-			stopEditing()
 		} catch (error) {
+			console.error('Save error:', error)
 			toast.error('保存失败')
 		}
 	}
