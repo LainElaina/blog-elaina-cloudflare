@@ -47,7 +47,8 @@ export default function BlogPage() {
 		if (!editMode) {
 			setEditableItems(items)
 		}
-	}, [items, editMode])
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [editMode])
 
 	useEffect(() => {
 		setCategoryList(categoriesFromServer || [])
