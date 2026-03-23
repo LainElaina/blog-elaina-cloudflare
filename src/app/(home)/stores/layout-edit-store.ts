@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { useConfigStore, type CardStyles } from './config-store'
+import { useLogStore } from './log-store'
 
 type CardKey = keyof CardStyles
 
@@ -25,6 +26,7 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 			editing: true,
 			snapshot: { ...cardStyles }
 		})
+		useLogStore.getState().addLog('info', '开始编辑布局')
 	},
 	stopEditing: () => {
 		set({
@@ -66,6 +68,7 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 		}
 
 		setCardStyles(next)
+		useLogStore.getState().addLog('info', `调整卡片偏移: ${key}`, { offsetX, offsetY })
 	},
 	setSize: (key, width, height) => {
 		const { cardStyles, setCardStyles } = useConfigStore.getState()

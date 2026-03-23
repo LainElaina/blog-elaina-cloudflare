@@ -12,6 +12,7 @@ import LikePosition from './like-position'
 import HatCard from './hat-card'
 import BeianCard from './beian-card'
 import { LayoutSavePanel } from './layout-save-panel'
+import { LogWindow } from './log-window'
 import { useSize } from '@/hooks/use-size'
 import { useConfigStore } from './stores/config-store'
 import ConfigDialog from './config-dialog/index'
@@ -41,6 +42,7 @@ export default function Home() {
 			{siteContent.enableChristmas && <SnowfallBackground zIndex={0} count={!maxSM ? 125 : 20} />}
 
 			<LayoutSavePanel />
+			<LogWindow />
 
 			<div className='max-sm:flex max-sm:flex-col max-sm:items-center max-sm:gap-6 max-sm:pt-28 max-sm:pb-20'>
 				{cardStyles.artCard?.enabled !== false && <ArtCard />}

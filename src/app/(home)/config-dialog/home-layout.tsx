@@ -3,6 +3,7 @@
 import { motion } from 'motion/react'
 import { useConfigStore, type CardStyles } from '../stores/config-store'
 import { useLayoutEditStore } from '../stores/layout-edit-store'
+import { useLogStore } from '../stores/log-store'
 import cardStylesDefault from '@/config/card-styles-default.json'
 import { LayoutManager } from './layout-manager'
 import { LayoutHistory } from './layout-history'
@@ -33,6 +34,7 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 	const { setCardStyles } = useConfigStore()
 	const startEditing = useLayoutEditStore(state => state.startEditing)
 	const editing = useLayoutEditStore(state => state.editing)
+	const { enabled, setEnabled, setVisible } = useLogStore()
 
 	const handleStartManualLayout = () => {
 		setCardStyles(cardStylesData)
@@ -42,6 +44,12 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 
 	const handleReset = () => {
 		setCardStylesData(cardStylesDefault as CardStyles)
+		setCardStyles(cardStylesDefault as CardStyles)
+	}
+
+	const handleToggleLog = (checked: boolean) => {
+		setEnabled(checked)
+		if (checked) setVisible(true)
 	}
 
 	return (
@@ -50,7 +58,13 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 			<LayoutHistory />
 
 			<div className='mt-6 flex items-center justify-between'>
-				<div className='text-secondary text-sm'>（偏移代表相对中心的偏移）</div>
+				<div className='flex items-center gap-4'>
+					<div className='text-secondary text-sm'>（偏移代表相对中心的偏移）</div>
+					<label className='flex items-center gap-2 text-xs'>
+						<input type='checkbox' checked={enabled} onChange={e => handleToggleLog(e.target.checked)} />
+						<span>启用操作日志</span>
+					</label>
+				</div>
 				<div className='flex shrink-0 items-center gap-2 whitespace-nowrap'>
 					<button type='button' onClick={handleReset} className='bg-card rounded-xl border px-3 py-1.5 text-xs font-medium'>
 						重置
