@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { useConfigStore, type CardStyles } from '../stores/config-store'
 import { useLayoutEditStore } from '../stores/layout-edit-store'
 import cardStylesDefault from '@/config/card-styles-default.json'
+import { LayoutManager } from './layout-manager'
 
 const CARD_LABELS: Record<string, string> = {
 	artCard: '首图',
@@ -44,7 +45,9 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 
 	return (
 		<div className='overflow-x-auto'>
-			<div className='flex items-center justify-between'>
+			<LayoutManager />
+
+			<div className='mt-6 flex items-center justify-between'>
 				<div className='text-secondary text-sm'>（偏移代表相对中心的偏移）</div>
 				<div className='flex shrink-0 items-center gap-2 whitespace-nowrap'>
 					<button type='button' onClick={handleReset} className='bg-card rounded-xl border px-3 py-1.5 text-xs font-medium'>
