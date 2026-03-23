@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import siteContent from '@/config/site-content.json'
 import cardStyles from '@/config/card-styles.json'
+import cardStylesDefault from '@/config/card-styles-default.json'
 import { saveLayoutToServer, undoLayout } from '@/lib/layout-persistence'
 
 export type SiteContent = typeof siteContent
@@ -36,7 +37,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 		set({ siteContent: { ...siteContent } })
 	},
 	resetCardStyles: () => {
-		set({ cardStyles: { ...cardStyles } })
+		set({ cardStyles: { ...cardStylesDefault } as CardStyles })
 	},
 	regenerateBubbles: () => {
 		set(state => ({ regenerateKey: state.regenerateKey + 1 }))
