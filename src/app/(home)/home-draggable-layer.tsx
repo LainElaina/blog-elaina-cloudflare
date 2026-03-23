@@ -3,6 +3,7 @@
 import { useRef, useCallback } from 'react'
 import { useCenterStore } from '@/hooks/use-center'
 import { useLayoutEditStore } from './stores/layout-edit-store'
+import { useConfigStore } from './stores/config-store'
 import type { CardStyles } from './stores/config-store'
 import DraggerSVG from '@/svgs/dragger.svg'
 
@@ -37,6 +38,7 @@ export function HomeDraggableLayer({ cardKey, x, y, width, height, children }: H
 	const editing = useLayoutEditStore(state => state.editing)
 	const setOffset = useLayoutEditStore(state => state.setOffset)
 	const setSize = useLayoutEditStore(state => state.setSize)
+	const saveLayout = useConfigStore(state => state.saveLayout)
 	const center = useCenterStore()
 	const dragStateRef = useRef<DragState>({
 		dragging: false,
@@ -95,7 +97,10 @@ export function HomeDraggableLayer({ cardKey, x, y, width, height, children }: H
 		window.removeEventListener('touchmove', handleTouchMove)
 		window.removeEventListener('touchend', handleEnd)
 		window.removeEventListener('touchcancel', handleEnd)
-	}, [handleMouseMove, handleTouchMove])
+
+		// 保存布局
+		saveLayout()
+	}, [handleMouseMove, handleTouchMove, saveLayout])
 
 	const handleResizeMouseMove = useCallback(
 		(event: MouseEvent) => {
@@ -139,7 +144,10 @@ export function HomeDraggableLayer({ cardKey, x, y, width, height, children }: H
 		window.removeEventListener('touchmove', handleResizeTouchMove)
 		window.removeEventListener('touchend', handleResizeEnd)
 		window.removeEventListener('touchcancel', handleResizeEnd)
-	}, [handleResizeMouseMove, handleResizeTouchMove])
+
+		// 保存布局
+		saveLayout()
+	}, [handleResizeMouseMove, handleResizeTouchMove, saveLayout])
 
 	const startResize = useCallback(
 		(clientX: number, clientY: number) => {
