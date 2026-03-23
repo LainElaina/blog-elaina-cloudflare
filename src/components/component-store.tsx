@@ -71,11 +71,14 @@ export function ComponentStore() {
 
 	useEffect(() => {
 		setMounted(true)
+
+		// 加载模板
 		const savedTemplates = localStorage.getItem('templates')
 		if (savedTemplates) {
 			useTemplateStore.setState({ templates: JSON.parse(savedTemplates) })
 		}
 
+		// 加载自定义组件
 		const savedCustom = localStorage.getItem('custom-components')
 		const customToLoad = savedCustom ? JSON.parse(savedCustom) : customComponentsDefault
 		useCustomComponentStore.setState({ components: customToLoad })
