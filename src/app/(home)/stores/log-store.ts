@@ -35,6 +35,7 @@ interface LogStore {
 	enabled: boolean
 	visible: boolean
 	enabledCategories: Set<LogCategory>
+	logCounter: number
 	addLog: (level: LogEntry['level'], category: LogCategory, action: string, details?: any) => void
 	clearLogs: () => void
 	setEnabled: (enabled: boolean) => void
@@ -48,12 +49,13 @@ export const useLogStore = create<LogStore>((set, get) => ({
 	enabled: false,
 	visible: false,
 	enabledCategories: new Set(['layout', 'history', 'music', 'config']),
+	logCounter: 0,
 	addLog: (level, category, action, details) => {
-		const { enabled, enabledCategories } = get()
+		const { enabled, enabledCategories, logCounter } = get()
 		if (!enabled || !enabledCategories.has(category)) return
 
 		const log: LogEntry = {
-			id: Date.now().toString(),
+			id: `${Date.now()}-${logCounter}`,
 			timestamp: Date.now(),
 			level,
 			category,
@@ -62,7 +64,8 @@ export const useLogStore = create<LogStore>((set, get) => ({
 		}
 
 		set(state => ({
-			logs: [log, ...state.logs].slice(0, 100)
+			logs: [log, ...state.logs].slice(0, 100),
+			logCounter: state.logCounter + 1
 		}))
 	},
 	clearLogs: () => set({ logs: [] }),
