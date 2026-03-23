@@ -16,7 +16,8 @@ export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
 	const [showStore, setShowStore] = useState(false)
 	const [showNewComponent, setShowNewComponent] = useState(false)
-	const { components: customComponents, addComponent: addCustomComponent, deleteComponent: deleteCustomComponent } = useCustomComponentStore()
+	const [editingId, setEditingId] = useState<string | null>(null)
+	const { components: customComponents, addComponent: addCustomComponent, updateComponent, deleteComponent: deleteCustomComponent } = useCustomComponentStore()
 	const { cardStyles } = useConfigStore()
 	const editing = useLayoutEditStore(state => state.editing)
 	const setOffset = useLayoutEditStore(state => state.setOffset)
@@ -65,7 +66,7 @@ export function ComponentStore() {
 		name: '',
 		type: 'text' as const,
 		templateId: 'medium-rect',
-		content: { text: '' }
+		content: { text: '', imageUrl: '', linkUrl: '', iframeUrl: '' }
 	})
 
 	useEffect(() => {
@@ -104,7 +105,31 @@ export function ComponentStore() {
 
 		addCustomComponent(newComponent)
 		toast.success(`组件 "${newComp.name}" 已创建`)
-		setNewComp({ name: '', type: 'text', templateId: 'medium-rect', content: { text: '' } })
+		setNewComp({ name: '', type: 'text', templateId: 'medium-rect', content: { text: '', imageUrl: '', linkUrl: '', iframeUrl: '' } })
+		setShowNewComponent(false)
+	}
+
+	const handleEditComponent = (comp: any) => {
+		setEditingId(comp.id)
+		setNewComp({
+			name: comp.name,
+			type: comp.type,
+			templateId: comp.templateId,
+			content: comp.content
+		})
+		setShowNewComponent(true)
+	}
+
+	const handleSaveEdit = () => {
+		if (!editingId || !newComp.name.trim()) return
+		updateComponent(editingId, {
+			name: newComp.name,
+			type: newComp.type,
+			content: newComp.content
+		})
+		toast.success('组件已更新')
+		setEditingId(null)
+		setNewComp({ name: '', type: 'text', templateId: 'medium-rect', content: { text: '', imageUrl: '', linkUrl: '', iframeUrl: '' } })
 		setShowNewComponent(false)
 	}
 
@@ -180,13 +205,49 @@ export function ComponentStore() {
 								<textarea
 									placeholder='输入文本内容'
 									value={newComp.content.text}
-									onChange={e => setNewComp({ ...newComp, content: { text: e.target.value } })}
+									onChange={e => setNewComp({ ...newComp, content: { ...newComp.content, text: e.target.value } })}
 									className='w-full px-3 py-2 border rounded text-sm'
 									rows={3}
 								/>
 							)}
-							<button onClick={handleCreateComponent} className='w-full px-4 py-2 bg-green-500 text-white rounded text-sm'>
-								创建
+							{newComp.type === 'image' && (
+								<input
+									type='text'
+									placeholder='图片 URL'
+									value={newComp.content.imageUrl}
+									onChange={e => setNewComp({ ...newComp, content: { ...newComp.content, imageUrl: e.target.value } })}
+									className='w-full px-3 py-2 border rounded text-sm'
+								/>
+							)}
+							{newComp.type === 'link' && (
+								<>
+									<input
+										type='text'
+										placeholder='链接文本'
+										value={newComp.content.text}
+										onChange={e => setNewComp({ ...newComp, content: { ...newComp.content, text: e.target.value } })}
+										className='w-full px-3 py-2 border rounded text-sm'
+									/>
+									<input
+										type='text'
+										placeholder='链接 URL'
+										value={newComp.content.linkUrl}
+										onChange={e => setNewComp({ ...newComp, content: { ...newComp.content, linkUrl: e.target.value } })}
+										className='w-full px-3 py-2 border rounded text-sm'
+									/>
+								</>
+							)}
+							{newComp.type === 'iframe' && (
+								<input
+									type='text'
+									placeholder='嵌入页面 URL'
+									value={newComp.content.iframeUrl}
+									onChange={e => setNewComp({ ...newComp, content: { ...newComp.content, iframeUrl: e.target.value } })}
+									className='w-full px-3 py-2 border rounded text-sm'
+								/>
+							)}
+							<button onClick={editingId ? handleSaveEdit : handleCreateComponent} className='w-full px-4 py-2 bg-green-500 text-white rounded text-sm'>
+								{editingId ? '保存' : '创建'}
 							</button>
 						</div>
 					)}
@@ -204,17 +265,25 @@ export function ComponentStore() {
 													{comp.style.width}×{comp.style.height} · {comp.type}
 												</div>
 											</div>
-											<button
-												onClick={() => {
-													if (confirm(`确定删除组件 "${comp.name}"？`)) {
-														deleteCustomComponent(comp.id)
-														toast.success(`已删除 ${comp.name}`)
-													}
-												}}
-												className='px-3 py-1 text-xs rounded bg-red-100 text-red-600'
-											>
-												删除
-											</button>
+											<div className='flex gap-2'>
+												<button
+													onClick={() => handleEditComponent(comp)}
+													className='px-3 py-1 text-xs rounded bg-blue-100 text-blue-600'
+												>
+													编辑
+												</button>
+												<button
+													onClick={() => {
+														if (confirm(`确定删除组件 "${comp.name}"？`)) {
+															deleteCustomComponent(comp.id)
+															toast.success(`已删除 ${comp.name}`)
+														}
+													}}
+													className='px-3 py-1 text-xs rounded bg-red-100 text-red-600'
+												>
+													删除
+												</button>
+											</div>
 										</div>
 									</div>
 								))}
