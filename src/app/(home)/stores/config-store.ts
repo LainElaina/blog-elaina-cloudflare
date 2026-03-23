@@ -4,6 +4,7 @@ import cardStyles from '@/config/card-styles.json'
 import cardStylesDefault from '@/config/card-styles-default.json'
 import { saveLayoutToServer, undoLayout } from '@/lib/layout-persistence'
 import { useLogStore } from './log-store'
+import { COMPONENT_REGISTRY } from '@/config/component-registry'
 
 export type SiteContent = typeof siteContent
 export type CardStyles = typeof cardStyles
@@ -41,8 +42,20 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 		useLogStore.getState().addLog('warning', 'config', '重置站点内容为默认值')
 	},
 	resetCardStyles: () => {
-		set({ cardStyles: { ...cardStylesDefault } as CardStyles })
-		useLogStore.getState().addLog('warning', 'config', '重置卡片样式为默认值')
+		const activeComponents = typeof window !== 'undefined'
+			? JSON.parse(localStorage.getItem('active-components') || '[]')
+			: []
+
+		const resetStyles = {} as CardStyles
+		activeComponents.forEach((id: string) => {
+			const meta = COMPONENT_REGISTRY[id]
+			if (meta) {
+				resetStyles[id as keyof CardStyles] = { ...meta.defaultStyle } as any
+			}
+		})
+
+		set({ cardStyles: resetStyles })
+		useLogStore.getState().addLog('warning', 'config', '重置卡片样式为当前组件默认值')
 	},
 	regenerateBubbles: () => {
 		set(state => ({ regenerateKey: state.regenerateKey + 1 }))
