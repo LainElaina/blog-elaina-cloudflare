@@ -6,7 +6,6 @@ import { useLayoutEditStore } from '../stores/layout-edit-store'
 import cardStylesDefault from '@/config/card-styles-default.json'
 import { LayoutManager } from './layout-manager'
 import { LayoutHistory } from './layout-history'
-import { LogSettings } from './log-settings'
 
 const CARD_LABELS: Record<string, string> = {
 	artCard: '首图',
@@ -50,7 +49,6 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 		<div className='overflow-x-auto'>
 			<LayoutManager />
 			<LayoutHistory />
-			<LogSettings />
 
 			<div className='mt-6 flex items-center justify-between'>
 				<div className='text-secondary text-sm'>（偏移代表相对中心的偏移）</div>
