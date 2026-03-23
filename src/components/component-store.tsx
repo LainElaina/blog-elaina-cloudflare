@@ -142,7 +142,7 @@ export function ComponentStore() {
 
 					{customComponents.length > 0 && (
 						<div className='mb-4'>
-							<h4 className='text-sm font-medium mb-2'>自定义组件</h4>
+							<h4 className='text-sm font-medium mb-2'>我的组件</h4>
 							<div className='space-y-2'>
 								{customComponents.map(comp => (
 									<div key={comp.id} className='border rounded-lg p-3 bg-blue-50'>
@@ -171,44 +171,9 @@ export function ComponentStore() {
 						</div>
 					)}
 
-					<h4 className='text-sm font-medium mb-2'>内置组件</h4>
-					<div className='space-y-3'>
-						{Object.values(COMPONENT_REGISTRY).map(meta => {
-							const isActive = activeComponents.includes(meta.id)
-							return (
-								<div key={meta.id} className='border rounded-lg p-3 hover:bg-gray-50'>
-									<div className='flex items-start justify-between'>
-										<div className='flex-1'>
-											<div className='font-medium text-sm'>{meta.name}</div>
-											<div className='text-xs text-gray-500 mt-1'>
-												{meta.defaultStyle.width}×{meta.defaultStyle.height}
-												{meta.desktopOnly && ' · 仅桌面'}
-											</div>
-										</div>
-										<button
-											onClick={() => {
-												if (isActive) {
-													removeComponent(meta.id)
-													toast.success(`已移除 ${meta.name}`)
-												} else {
-													addComponent(meta.id)
-													toast.success(`已添加 ${meta.name}`)
-												}
-											}}
-											className={`px-3 py-1 text-xs rounded ${
-												isActive ? 'bg-red-100 text-red-600' : 'bg-brand text-white'
-											}`}
-										>
-											{isActive ? '移除' : '添加'}
-										</button>
-									</div>
-								</div>
-							)
-						})}
-					</div>
-
-					<div className='mt-6 pt-4 border-t'>
+					<div className='pt-4 border-t'>
 						<h4 className='text-sm font-medium mb-3'>样式模板</h4>
+						<div className='text-xs text-gray-500 mb-2'>创建新组件时可选择以下模板尺寸</div>
 						<div className='grid grid-cols-2 gap-2'>
 							{CARD_TEMPLATES.map(template => (
 								<div key={template.id} className='border rounded p-2 text-xs'>
