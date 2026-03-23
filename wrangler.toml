@@ -19,3 +19,15 @@ head_sampling_rate = 1
 invocation_logs = true
 # 持久化日志到磁盘（本地开发时有用）
 persist = true
+
+# 环境变量配置
+[vars]
+NEXT_PUBLIC_GITHUB_APP_ID = "3163640"
+NEXT_PUBLIC_GITHUB_BRANCH = "main"
+NEXT_PUBLIC_GITHUB_OWNER = "LainElaina"
+NEXT_PUBLIC_GITHUB_REPO = "2025-blog-public"
+
+# 自定义域名配置 (Wrangler 3.0+ 支持)
+routes = [
+  { pattern = "blog.lainelaina.top", custom_domain = true }
+]
