@@ -111,14 +111,5 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 
 		setCardStyles(next)
 	}
-			[key]: {
-				...cardStyles[key],
-				width,
-				height
-			}
-		}
-
-		setCardStyles(next)
-	}
 }))
 
