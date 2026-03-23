@@ -12,6 +12,7 @@ import MusicCard from '@/components/music-card'
 import { LogWindow } from '@/app/(home)/log-window'
 import { LogButton } from '@/components/log-button'
 import { GlobalErrorHandler } from '@/components/global-error-handler'
+import { ComponentStore } from '@/components/component-store'
 
 export default function Layout({ children }: PropsWithChildren) {
 	useCenterInit()
@@ -58,6 +59,7 @@ export default function Layout({ children }: PropsWithChildren) {
 			<GlobalErrorHandler />
 			<LogWindow />
 			<LogButton />
+			<ComponentStore />
 
 			<main className='relative z-10 h-full'>
 				{children}
