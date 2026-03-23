@@ -166,6 +166,45 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 		}
 	}
 
+	const handleExport = () => {
+		const customComponents = JSON.parse(localStorage.getItem('custom-components') || '[]')
+		const config = {
+			siteContent: formData,
+			cardStyles: cardStylesData,
+			customComponents
+		}
+		const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+		const url = URL.createObjectURL(blob)
+		const a = document.createElement('a')
+		a.href = url
+		a.download = `blog-config-${Date.now()}.json`
+		a.click()
+		URL.revokeObjectURL(url)
+		toast.success('配置已导出')
+	}
+
+	const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0]
+		if (!file) return
+
+		const reader = new FileReader()
+		reader.onload = (event) => {
+			try {
+				const config = JSON.parse(event.target?.result as string)
+				if (config.siteContent) setFormData(config.siteContent)
+				if (config.cardStyles) setCardStylesData(config.cardStyles)
+				if (config.customComponents) {
+					localStorage.setItem('custom-components', JSON.stringify(config.customComponents))
+				}
+				toast.success('配置已导入')
+			} catch (error) {
+				toast.error('导入失败：文件格式错误')
+			}
+		}
+		reader.readAsText(file)
+		e.target.value = ''
+	}
+
 	const handleCancel = () => {
 		// Clean up preview URLs
 		if (faviconItem?.type === 'file') {
@@ -267,6 +306,13 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 					if (e.currentTarget) e.currentTarget.value = ''
 				}}
 			/>
+			<input
+				type='file'
+				accept='.json'
+				className='hidden'
+				id='import-config'
+				onChange={handleImport}
+			/>
 
 			<DialogModal open={open} onClose={handleCancel} className='card scrollbar-none max-h-[90vh] min-h-[600px] w-[640px] overflow-y-auto'>
 				<div className='mb-6 flex items-center justify-between'>
@@ -284,6 +330,20 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 						))}
 					</div>
 					<div className='flex gap-3'>
+						<motion.button
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							onClick={handleExport}
+							className='bg-card rounded-xl border px-4 py-2 text-sm'>
+							导出
+						</motion.button>
+						<motion.button
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							onClick={() => document.getElementById('import-config')?.click()}
+							className='bg-card rounded-xl border px-4 py-2 text-sm'>
+							导入
+						</motion.button>
 						{process.env.NODE_ENV === 'development' && (
 							<motion.button
 								whileHover={{ scale: 1.05 }}
