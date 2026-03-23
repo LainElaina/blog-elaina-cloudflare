@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useLogStore } from '../stores/log-store'
+import { useLogStore } from './stores/log-store'
 import { toast } from 'sonner'
 
 export function LogWindow() {
