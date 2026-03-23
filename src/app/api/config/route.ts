@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 	}
 
 	try {
-		const { siteContent, cardStyles } = await request.json()
+		const { siteContent, cardStyles, customComponents } = await request.json()
 
 		const configDir = path.join(process.cwd(), 'src/config')
 
@@ -21,6 +21,13 @@ export async function POST(request: NextRequest) {
 			path.join(configDir, 'card-styles.json'),
 			JSON.stringify(cardStyles, null, '\t')
 		)
+
+		if (customComponents) {
+			await fs.writeFile(
+				path.join(configDir, 'custom-components.json'),
+				JSON.stringify(customComponents, null, '\t')
+			)
+		}
 
 		return NextResponse.json({ success: true })
 	} catch (error: any) {

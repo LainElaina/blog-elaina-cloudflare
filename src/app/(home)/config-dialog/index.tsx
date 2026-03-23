@@ -142,10 +142,15 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const handleLocalSave = async () => {
 		setIsSaving(true)
 		try {
+			const customComponents = JSON.parse(localStorage.getItem('custom-components') || '[]')
 			const response = await fetch('/api/config', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ siteContent: formData, cardStyles: cardStylesData })
+				body: JSON.stringify({
+					siteContent: formData,
+					cardStyles: cardStylesData,
+					customComponents
+				})
 			})
 			if (!response.ok) throw new Error('保存失败')
 

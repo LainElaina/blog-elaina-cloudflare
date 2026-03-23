@@ -7,6 +7,7 @@ import { useCustomComponentStore } from '../app/(home)/stores/custom-component-s
 import { COMPONENT_REGISTRY } from '@/config/component-registry'
 import { CARD_TEMPLATES } from '@/config/card-templates'
 import { toast } from 'sonner'
+import customComponentsDefault from '@/config/custom-components.json'
 
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
@@ -32,10 +33,11 @@ export function ComponentStore() {
 		if (savedTemplates) {
 			useTemplateStore.setState({ templates: JSON.parse(savedTemplates) })
 		}
+
+		// 优先从配置文件加载，然后从 localStorage 加载
 		const savedCustom = localStorage.getItem('custom-components')
-		if (savedCustom) {
-			useCustomComponentStore.setState({ components: JSON.parse(savedCustom) })
-		}
+		const customToLoad = savedCustom ? JSON.parse(savedCustom) : customComponentsDefault
+		useCustomComponentStore.setState({ components: customToLoad })
 	}, [])
 
 	const handleCreateComponent = () => {
@@ -46,7 +48,7 @@ export function ComponentStore() {
 		const template = CARD_TEMPLATES.find(t => t.id === newComp.templateId)
 		if (!template) return
 
-		addCustomComponent({
+		const newComponent = {
 			name: newComp.name,
 			type: newComp.type,
 			templateId: newComp.templateId,
@@ -58,7 +60,9 @@ export function ComponentStore() {
 				enabled: true
 			},
 			content: newComp.content
-		})
+		}
+
+		addCustomComponent(newComponent)
 		toast.success(`组件 "${newComp.name}" 已创建`)
 		setNewComp({ name: '', type: 'text', templateId: 'medium-rect', content: { text: '' } })
 		setShowNewComponent(false)
@@ -151,8 +155,10 @@ export function ComponentStore() {
 											</div>
 											<button
 												onClick={() => {
-													deleteCustomComponent(comp.id)
-													toast.success(`已删除 ${comp.name}`)
+													if (confirm(`确定删除组件 "${comp.name}"？`)) {
+														deleteCustomComponent(comp.id)
+														toast.success(`已删除 ${comp.name}`)
+													}
 												}}
 												className='px-3 py-1 text-xs rounded bg-red-100 text-red-600'
 											>

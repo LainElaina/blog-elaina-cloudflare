@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import customComponentsDefault from '@/config/custom-components.json'
 
 export interface CustomComponent {
 	id: string
