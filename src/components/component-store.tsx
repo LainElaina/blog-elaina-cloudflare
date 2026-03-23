@@ -4,7 +4,6 @@ import { Store, X, Plus } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTemplateStore } from '../app/(home)/stores/template-store'
 import { useCustomComponentStore } from '../app/(home)/stores/custom-component-store'
-import { COMPONENT_REGISTRY } from '@/config/component-registry'
 import { CARD_TEMPLATES } from '@/config/card-templates'
 import { toast } from 'sonner'
 import customComponentsDefault from '@/config/custom-components.json'
@@ -13,7 +12,6 @@ export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
 	const [showStore, setShowStore] = useState(false)
 	const [showNewComponent, setShowNewComponent] = useState(false)
-	const { activeComponents, addComponent, removeComponent, setActiveComponents } = useTemplateStore()
 	const { components: customComponents, addComponent: addCustomComponent, deleteComponent: deleteCustomComponent } = useCustomComponentStore()
 
 	const [newComp, setNewComp] = useState({
@@ -25,19 +23,15 @@ export function ComponentStore() {
 
 	useEffect(() => {
 		setMounted(true)
-		const saved = localStorage.getItem('active-components')
-		if (saved) {
-			setActiveComponents(JSON.parse(saved))
-		}
 		const savedTemplates = localStorage.getItem('templates')
 		if (savedTemplates) {
 			useTemplateStore.setState({ templates: JSON.parse(savedTemplates) })
 		}
 
-		// 优先从配置文件加载，然后从 localStorage 加载
 		const savedCustom = localStorage.getItem('custom-components')
 		const customToLoad = savedCustom ? JSON.parse(savedCustom) : customComponentsDefault
 		useCustomComponentStore.setState({ components: customToLoad })
+	}, [])
 	}, [])
 
 	const handleCreateComponent = () => {

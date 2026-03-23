@@ -3,7 +3,6 @@
 import { LayoutSavePanel } from './layout-save-panel'
 import { useSize } from '@/hooks/use-size'
 import { useConfigStore } from './stores/config-store'
-import { useTemplateStore } from './stores/template-store'
 import { useCustomComponentStore } from './stores/custom-component-store'
 import ConfigDialog from './config-dialog/index'
 import { useEffect } from 'react'
@@ -14,7 +13,6 @@ import { CustomCard } from '@/components/custom-card'
 export default function Home() {
 	const { maxSM } = useSize()
 	const { cardStyles, configDialogOpen, setConfigDialogOpen, siteContent } = useConfigStore()
-	const { activeComponents } = useTemplateStore()
 	const { components: customComponents } = useCustomComponentStore()
 
 	useEffect(() => {
@@ -38,18 +36,15 @@ export default function Home() {
 			<LayoutSavePanel />
 
 			<div className='max-sm:flex max-sm:flex-col max-sm:items-center max-sm:gap-6 max-sm:pt-28 max-sm:pb-20'>
-				{activeComponents.map(componentId => {
-					const meta = COMPONENT_REGISTRY[componentId]
-					if (!meta) return null
-
-					const style = cardStyles[componentId as keyof typeof cardStyles]
-					if (style?.enabled === false) return null
+				{Object.entries(COMPONENT_REGISTRY).map(([id, meta]) => {
+					const style = cardStyles[id as keyof typeof cardStyles]
+					if (!style || style.enabled === false) return null
 
 					if (meta.desktopOnly && maxSM) return null
 					if (meta.mobileOnly && !maxSM) return null
 
 					const Component = meta.component
-					return <Component key={componentId} />
+					return <Component key={id} />
 				})}
 				{customComponents.filter(c => c.style.enabled).map(comp => (
 					<CustomCard key={comp.id} component={comp} />
