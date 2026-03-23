@@ -46,8 +46,8 @@ interface LogStore {
 
 export const useLogStore = create<LogStore>((set, get) => ({
 	logs: [],
-	enabled: false,
-	visible: false,
+	enabled: typeof window !== 'undefined' ? localStorage.getItem('log-enabled') === 'true' : false,
+	visible: typeof window !== 'undefined' ? localStorage.getItem('log-visible') === 'true' : false,
 	enabledCategories: new Set(['layout', 'history', 'music', 'config']),
 	logCounter: 0,
 	addLog: (level, category, action, details) => {
@@ -69,8 +69,18 @@ export const useLogStore = create<LogStore>((set, get) => ({
 		}))
 	},
 	clearLogs: () => set({ logs: [] }),
-	setEnabled: (enabled) => set({ enabled }),
-	setVisible: (visible) => set({ visible }),
+	setEnabled: (enabled) => {
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('log-enabled', String(enabled))
+		}
+		set({ enabled })
+	},
+	setVisible: (visible) => {
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('log-visible', String(visible))
+		}
+		set({ visible })
+	},
 	toggleCategory: (category) => set(state => {
 		const newCategories = new Set(state.enabledCategories)
 		if (newCategories.has(category)) {

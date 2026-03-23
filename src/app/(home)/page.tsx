@@ -13,6 +13,7 @@ import HatCard from './hat-card'
 import BeianCard from './beian-card'
 import { LayoutSavePanel } from './layout-save-panel'
 import { LogWindow } from './log-window'
+import { GlobalErrorHandler } from '@/components/global-error-handler'
 import { useSize } from '@/hooks/use-size'
 import { useConfigStore } from './stores/config-store'
 import ConfigDialog from './config-dialog/index'
@@ -41,6 +42,7 @@ export default function Home() {
 		<>
 			{siteContent.enableChristmas && <SnowfallBackground zIndex={0} count={!maxSM ? 125 : 20} />}
 
+			<GlobalErrorHandler />
 			<LayoutSavePanel />
 			<LogWindow />
 
