@@ -33,6 +33,7 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 			editing: false,
 			snapshot: null
 		})
+		useLogStore.getState().addLog('info', '结束编辑布局')
 	},
 	cancelEditing: () => {
 		const { snapshot } = get()
@@ -48,12 +49,14 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 			editing: false,
 			snapshot: null
 		})
+		useLogStore.getState().addLog('warning', '取消编辑布局，已恢复快照')
 	},
 	saveEditing: () => {
 		set({
 			editing: false,
 			snapshot: null
 		})
+		useLogStore.getState().addLog('success', '保存编辑布局')
 	},
 	setOffset: (key, offsetX, offsetY) => {
 		const { cardStyles, setCardStyles } = useConfigStore.getState()
@@ -68,7 +71,6 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 		}
 
 		setCardStyles(next)
-		useLogStore.getState().addLog('info', `调整卡片偏移: ${key}`, { offsetX, offsetY })
 	},
 	setSize: (key, width, height) => {
 		const { cardStyles, setCardStyles } = useConfigStore.getState()

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import Card from '@/components/card'
 import { useCenterStore } from '@/hooks/use-center'
 import { useConfigStore } from '../app/(home)/stores/config-store'
+import { useLogStore } from '../app/(home)/stores/log-store'
 import { CARD_SPACING } from '@/consts'
 import MusicSVG from '@/svgs/music.svg'
 import PlaySVG from '@/svgs/play.svg'
@@ -144,13 +145,16 @@ export default function MusicCard() {
 	}
 
 	const togglePlayPause = () => {
-		setIsPlaying(!isPlaying)
+		const next = !isPlaying
+		setIsPlaying(next)
+		useLogStore.getState().addLog('info', next ? '播放音乐' : '暂停音乐', { track: MUSIC_LIST[currentIndex].title })
 	}
 
 	const selectTrack = (index: number) => {
 		setCurrentIndex(index)
 		setIsPlaying(true)
 		setShowPlaylist(false)
+		useLogStore.getState().addLog('info', '切换歌曲', { track: MUSIC_LIST[index].title })
 	}
 
 	// Hide component if not on home page and not playing

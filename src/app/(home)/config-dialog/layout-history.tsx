@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useConfigStore } from '../stores/config-store'
+import { useLogStore } from '../stores/log-store'
 import { toast } from 'sonner'
 
 interface LayoutSnapshot {
@@ -16,6 +17,7 @@ export function LayoutHistory() {
 	const [editingId, setEditingId] = useState<string | null>(null)
 	const [editingName, setEditingName] = useState('')
 	const { cardStyles, setCardStyles } = useConfigStore()
+	const { addLog } = useLogStore()
 
 	useEffect(() => {
 		loadSnapshots()
@@ -46,12 +48,14 @@ export function LayoutHistory() {
 
 		saveSnapshots([newSnapshot, ...snapshots])
 		toast.success('布局已保存到历史记录')
+		addLog('success', '保存布局快照', { name })
 	}
 
 	const handleLoadSnapshot = (snapshot: LayoutSnapshot) => {
 		if (confirm(`确定要加载布局"${snapshot.name}"吗？`)) {
 			setCardStyles(snapshot.data)
 			toast.success('布局已加载')
+			addLog('success', '加载历史布局', { name: snapshot.name })
 		}
 	}
 
@@ -63,18 +67,21 @@ export function LayoutHistory() {
 	const handleSaveRename = (id: string) => {
 		if (!editingName.trim()) return
 
+		const oldName = snapshots.find(s => s.id === id)?.name
 		const updated = snapshots.map(s =>
 			s.id === id ? { ...s, name: editingName } : s
 		)
 		saveSnapshots(updated)
 		setEditingId(null)
 		toast.success('已重命名')
+		addLog('info', '重命名历史布局', { oldName, newName: editingName })
 	}
 
 	const handleDelete = (id: string, name: string) => {
 		if (confirm(`确定要删除布局"${name}"吗？`)) {
 			saveSnapshots(snapshots.filter(s => s.id !== id))
 			toast.success('已删除')
+			addLog('warning', '删除历史布局', { name })
 		}
 	}
 

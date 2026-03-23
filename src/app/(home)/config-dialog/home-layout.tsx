@@ -40,11 +40,13 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 		setCardStyles(cardStylesData)
 		startEditing()
 		onClose?.()
+		useLogStore.getState().addLog('info', '进入拖拽编辑模式')
 	}
 
 	const handleReset = () => {
 		setCardStylesData(cardStylesDefault as CardStyles)
 		setCardStyles(cardStylesDefault as CardStyles)
+		useLogStore.getState().addLog('warning', '重置布局为默认值')
 	}
 
 	const handleToggleLog = (checked: boolean) => {
