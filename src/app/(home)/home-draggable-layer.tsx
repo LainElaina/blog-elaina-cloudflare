@@ -61,8 +61,13 @@ export function HomeDraggableLayer({ cardKey, x, y, width, height, children }: H
 			const dx = event.clientX - state.startX
 			const dy = event.clientY - state.startY
 
-			const nextOffsetX = Math.round(state.initialOffsetX + dx)
-			const nextOffsetY = Math.round(state.initialOffsetY + dy)
+			let nextOffsetX = Math.round(state.initialOffsetX + dx)
+			let nextOffsetY = Math.round(state.initialOffsetY + dy)
+
+			// 网格吸附
+			const gridSize = 20
+			nextOffsetX = Math.round(nextOffsetX / gridSize) * gridSize
+			nextOffsetY = Math.round(nextOffsetY / gridSize) * gridSize
 
 			setOffset(cardKey, nextOffsetX, nextOffsetY)
 		},
