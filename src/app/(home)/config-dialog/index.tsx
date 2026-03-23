@@ -139,6 +139,28 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 		}
 	}
 
+	const handleLocalSave = async () => {
+		setIsSaving(true)
+		try {
+			const response = await fetch('/api/config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: formData, cardStyles: cardStylesData })
+			})
+			if (!response.ok) throw new Error('保存失败')
+
+			setSiteContent(formData)
+			setCardStyles(cardStylesData)
+			updateThemeVariables(formData.theme)
+			toast.success('已保存到本地文件')
+			onClose()
+		} catch (error: any) {
+			toast.error(`本地保存失败: ${error?.message || '未知错误'}`)
+		} finally {
+			setIsSaving(false)
+		}
+	}
+
 	const handleCancel = () => {
 		// Clean up preview URLs
 		if (faviconItem?.type === 'file') {
@@ -257,6 +279,16 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 						))}
 					</div>
 					<div className='flex gap-3'>
+						{process.env.NODE_ENV === 'development' && (
+							<motion.button
+								whileHover={{ scale: 1.05 }}
+								whileTap={{ scale: 0.95 }}
+								onClick={handleLocalSave}
+								disabled={isSaving}
+								className='bg-green-500 text-white rounded-xl px-6 py-2 text-sm'>
+								{isSaving ? '保存中...' : '本地保存'}
+							</motion.button>
+						)}
 						<motion.button
 							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
