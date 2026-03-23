@@ -6,7 +6,7 @@ import { useLayoutEditStore } from './stores/layout-edit-store'
 import type { CardStyles } from './stores/config-store'
 import DraggerSVG from '@/svgs/dragger.svg'
 
-type CardKey = keyof CardStyles
+type CardKey = keyof CardStyles | string
 
 interface HomeDraggableLayerProps {
 	cardKey: CardKey

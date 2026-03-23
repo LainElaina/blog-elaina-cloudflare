@@ -2,9 +2,10 @@
 
 import { create } from 'zustand'
 import { useConfigStore, type CardStyles } from './config-store'
+import { useCustomComponentStore } from './custom-component-store'
 import { useLogStore } from './log-store'
 
-type CardKey = keyof CardStyles
+type CardKey = keyof CardStyles | string
 
 interface LayoutEditState {
 	editing: boolean
@@ -61,10 +62,22 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 	setOffset: (key, offsetX, offsetY) => {
 		const { cardStyles, setCardStyles } = useConfigStore.getState()
 
+		// 检查是否是自定义组件
+		if (typeof key === 'string' && key.startsWith('custom-')) {
+			const { components, updateComponent } = useCustomComponentStore.getState()
+			const comp = components.find(c => c.id === key)
+			if (comp) {
+				updateComponent(key, {
+					style: { ...comp.style, offsetX, offsetY }
+				})
+			}
+			return
+		}
+
 		const next: CardStyles = {
 			...cardStyles,
 			[key]: {
-				...cardStyles[key],
+				...cardStyles[key as keyof CardStyles],
 				offsetX,
 				offsetY
 			}
@@ -75,8 +88,29 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 	setSize: (key, width, height) => {
 		const { cardStyles, setCardStyles } = useConfigStore.getState()
 
+		// 检查是否是自定义组件
+		if (typeof key === 'string' && key.startsWith('custom-')) {
+			const { components, updateComponent } = useCustomComponentStore.getState()
+			const comp = components.find(c => c.id === key)
+			if (comp && width !== undefined && height !== undefined) {
+				updateComponent(key, {
+					style: { ...comp.style, width, height }
+				})
+			}
+			return
+		}
+
 		const next: CardStyles = {
 			...cardStyles,
+			[key as keyof CardStyles]: {
+				...cardStyles[key as keyof CardStyles],
+				...(width !== undefined && { width }),
+				...(height !== undefined && { height })
+			}
+		}
+
+		setCardStyles(next)
+	}
 			[key]: {
 				...cardStyles[key],
 				width,
