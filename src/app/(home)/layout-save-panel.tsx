@@ -1,7 +1,7 @@
 'use client'
 
-import { useLayoutEditStore } from '../stores/layout-edit-store'
-import { useConfigStore } from '../stores/config-store'
+import { useLayoutEditStore } from './stores/layout-edit-store'
+import { useConfigStore } from './stores/config-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { toast } from 'sonner'
 import { githubClient } from '@/lib/github-client'
