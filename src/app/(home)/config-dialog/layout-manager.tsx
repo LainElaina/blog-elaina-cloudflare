@@ -13,14 +13,15 @@ export function LayoutManager() {
 		const json = JSON.stringify(cardStyles, null, 2)
 		const blob = new Blob([json], { type: 'application/json' })
 		const url = URL.createObjectURL(blob)
+		const filename = `layout-${Date.now()}.json`
 		const a = document.createElement('a')
 		a.href = url
-		a.download = `layout-${Date.now()}.json`
+		a.download = filename
 		document.body.appendChild(a)
 		a.click()
 		document.body.removeChild(a)
 		URL.revokeObjectURL(url)
-		toast.success('布局已导出到下载文件夹')
+		toast.success(`布局已导出：${filename}（保存在浏览器下载目录）`)
 	}
 
 	const handleImport = () => {
