@@ -16,6 +16,14 @@ export default function Home() {
 	const { components: customComponents } = useCustomComponentStore()
 
 	useEffect(() => {
+		// 加载自定义组件
+		const saved = localStorage.getItem('custom-components')
+		if (saved) {
+			useCustomComponentStore.setState({ components: JSON.parse(saved) })
+		}
+	}, [])
+
+	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === ',')) {
 				e.preventDefault()

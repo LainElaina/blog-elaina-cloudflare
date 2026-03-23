@@ -152,7 +152,11 @@ export function ComponentStore() {
 		}
 
 		addCustomComponent(newComponent)
-		toast.success(`已创建 ${template.name}`)
+		toast.success(`已创建 ${template.name}，请拖动到合适位置`)
+
+		// 自动进入编辑模式
+		const { startEditing } = useLayoutEditStore.getState()
+		startEditing()
 	}
 
 	if (!mounted) return null
