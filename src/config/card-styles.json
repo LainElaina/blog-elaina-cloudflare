@@ -104,5 +104,21 @@
 		"offsetX": null,
 		"offsetY": null,
 		"enabled": false
+	},
+	"logButton": {
+		"width": 48,
+		"height": 48,
+		"order": 100,
+		"offsetX": null,
+		"offsetY": null,
+		"enabled": true
+	},
+	"componentStoreButton": {
+		"width": 48,
+		"height": 48,
+		"order": 101,
+		"offsetX": null,
+		"offsetY": null,
+		"enabled": true
 	}
 }

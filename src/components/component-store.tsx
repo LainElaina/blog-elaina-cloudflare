@@ -1,18 +1,65 @@
 'use client'
 
 import { Store, X, Plus } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTemplateStore } from '../app/(home)/stores/template-store'
 import { useCustomComponentStore } from '../app/(home)/stores/custom-component-store'
+import { useConfigStore } from '../app/(home)/stores/config-store'
+import { useLayoutEditStore } from '../app/(home)/stores/layout-edit-store'
+import { useCenterStore } from '@/hooks/use-center'
 import { CARD_TEMPLATES } from '@/config/card-templates'
 import { toast } from 'sonner'
 import customComponentsDefault from '@/config/custom-components.json'
+import DraggerSVG from '@/svgs/dragger.svg'
 
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
 	const [showStore, setShowStore] = useState(false)
 	const [showNewComponent, setShowNewComponent] = useState(false)
 	const { components: customComponents, addComponent: addCustomComponent, deleteComponent: deleteCustomComponent } = useCustomComponentStore()
+	const { cardStyles } = useConfigStore()
+	const editing = useLayoutEditStore(state => state.editing)
+	const setOffset = useLayoutEditStore(state => state.setOffset)
+	const center = useCenterStore()
+
+	const styles = cardStyles.componentStoreButton
+	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : window.innerWidth - 24 - 48 - 72
+	const y = styles?.offsetY !== null ? center.y + (styles?.offsetY || 0) : 24
+
+	const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, initialOffsetX: 0, initialOffsetY: 0 })
+
+	const handleMouseDown = useCallback((e: React.MouseEvent) => {
+		if (!editing) return
+		e.preventDefault()
+		e.stopPropagation()
+		dragStateRef.current = {
+			dragging: true,
+			startX: e.clientX,
+			startY: e.clientY,
+			initialOffsetX: styles?.offsetX ?? (x - center.x),
+			initialOffsetY: styles?.offsetY ?? (y - center.y)
+		}
+	}, [editing, styles, x, y, center])
+
+	useEffect(() => {
+		const handleMouseMove = (e: MouseEvent) => {
+			if (!dragStateRef.current.dragging) return
+			const dx = e.clientX - dragStateRef.current.startX
+			const dy = e.clientY - dragStateRef.current.startY
+			setOffset('componentStoreButton', dragStateRef.current.initialOffsetX + dx, dragStateRef.current.initialOffsetY + dy)
+		}
+
+		const handleMouseUp = () => {
+			dragStateRef.current.dragging = false
+		}
+
+		document.addEventListener('mousemove', handleMouseMove)
+		document.addEventListener('mouseup', handleMouseUp)
+		return () => {
+			document.removeEventListener('mousemove', handleMouseMove)
+			document.removeEventListener('mouseup', handleMouseUp)
+		}
+	}, [setOffset])
 
 	const [newComp, setNewComp] = useState({
 		name: '',
@@ -65,13 +112,24 @@ export function ComponentStore() {
 
 	return (
 		<>
-			<button
-				onClick={() => setShowStore(!showStore)}
-				className='fixed top-6 right-24 z-[9998] card squircle p-3 shadow-2xl hover:scale-105 transition-transform'
-				title='组件商店'
+			<div
+				className='fixed z-[9998]'
+				style={{ left: x, top: y }}
+				onMouseDown={handleMouseDown}
 			>
-				<Store className='w-5 h-5 text-brand' />
-			</button>
+				{editing && (
+					<div className='absolute -top-2 -right-2 cursor-move'>
+						<DraggerSVG className='w-4 h-4' />
+					</div>
+				)}
+				<button
+					onClick={() => !editing && setShowStore(!showStore)}
+					className='card squircle p-3 shadow-2xl hover:scale-105 transition-transform'
+					title='组件商店'
+				>
+					<Store className='w-5 h-5 text-brand' />
+				</button>
+			</div>
 
 			{showStore && (
 				<div className='fixed top-20 right-24 z-[9999] card squircle p-6 shadow-2xl w-96 max-h-[600px] overflow-y-auto'>
