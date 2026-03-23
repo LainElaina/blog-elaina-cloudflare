@@ -133,6 +133,28 @@ export function ComponentStore() {
 		setShowNewComponent(false)
 	}
 
+	const handleCreateFromTemplate = (templateId: string) => {
+		const template = CARD_TEMPLATES.find(t => t.id === templateId)
+		if (!template) return
+
+		const newComponent = {
+			name: `${template.name}组件`,
+			type: 'text' as const,
+			templateId,
+			style: {
+				...template.style,
+				order: 99,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			},
+			content: { text: '双击编辑内容' }
+		}
+
+		addCustomComponent(newComponent)
+		toast.success(`已创建 ${template.name}`)
+	}
+
 	if (!mounted) return null
 
 	return (
@@ -296,7 +318,11 @@ export function ComponentStore() {
 						<div className='text-xs text-gray-500 mb-2'>创建新组件时可选择以下模板尺寸</div>
 						<div className='grid grid-cols-2 gap-2'>
 							{CARD_TEMPLATES.map(template => (
-								<div key={template.id} className='border rounded p-2 text-xs'>
+								<div
+									key={template.id}
+									onClick={() => handleCreateFromTemplate(template.id)}
+									className='border rounded p-2 text-xs cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors'
+								>
 									<div className='font-medium'>{template.name}</div>
 									<div className='text-gray-500 text-[10px]'>{template.description}</div>
 									<div className='text-gray-400 text-[10px] mt-1'>
