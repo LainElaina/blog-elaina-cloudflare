@@ -28,10 +28,8 @@ const getInitialActiveComponents = (): string[] => {
 }
 
 export const useTemplateStore = create<TemplateStore>((set, get) => ({
-	templates: typeof window !== 'undefined'
-		? JSON.parse(localStorage.getItem('templates') || '[]')
-		: [],
-	activeComponents: getInitialActiveComponents(),
+	templates: [],
+	activeComponents: Object.keys(COMPONENT_REGISTRY),
 
 	addTemplate: (name, components, styles) => {
 		const template: Template = {

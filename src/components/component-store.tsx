@@ -10,10 +10,18 @@ import { toast } from 'sonner'
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
 	const [showStore, setShowStore] = useState(false)
-	const { activeComponents, addComponent, removeComponent } = useTemplateStore()
+	const { activeComponents, addComponent, removeComponent, setActiveComponents } = useTemplateStore()
 
 	useEffect(() => {
 		setMounted(true)
+		const saved = localStorage.getItem('active-components')
+		if (saved) {
+			setActiveComponents(JSON.parse(saved))
+		}
+		const savedTemplates = localStorage.getItem('templates')
+		if (savedTemplates) {
+			useTemplateStore.setState({ templates: JSON.parse(savedTemplates) })
+		}
 	}, [])
 
 	if (!mounted) return null
