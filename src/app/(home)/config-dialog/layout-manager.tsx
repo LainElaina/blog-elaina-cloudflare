@@ -24,7 +24,7 @@ export function LayoutManager() {
 		document.body.removeChild(a)
 		URL.revokeObjectURL(url)
 		toast.success(`布局已导出：${filename}（保存在浏览器下载目录）`)
-		addLog('success', '导出布局', { filename })
+		addLog('success', 'layout', '导出布局', { filename })
 	}
 
 	const handleImport = () => {
@@ -35,17 +35,17 @@ export function LayoutManager() {
 			if (isDev) {
 				saveLayout()
 				toast.success('布局已导入并保存')
-				addLog('success', '导入布局（已保存到服务器）')
+				addLog('success', 'layout', '导入布局（已保存到服务器）')
 			} else {
 				localStorage.setItem('custom-layout', importText)
 				toast.success('布局已导入（仅本地生效）')
-				addLog('success', '导入布局（仅本地）')
+				addLog('success', 'layout', '导入布局（仅本地）')
 			}
 
 			setImportText('')
 		} catch (error) {
 			toast.error('JSON 格式错误')
-			addLog('error', '导入布局失败：JSON 格式错误')
+			addLog('error', 'layout', '导入布局失败：JSON 格式错误')
 		}
 	}
 
@@ -53,10 +53,10 @@ export function LayoutManager() {
 		try {
 			await undoLayout()
 			toast.success('已撤销到上一个版本')
-			addLog('success', '撤销布局')
+			addLog('success', 'layout', '撤销布局')
 		} catch (error) {
 			toast.error('撤销失败')
-			addLog('error', '撤销布局失败')
+			addLog('error', 'layout', '撤销布局失败')
 		}
 	}
 

@@ -30,19 +30,19 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 	configDialogOpen: false,
 	setSiteContent: (content: SiteContent) => {
 		set({ siteContent: content })
-		useLogStore.getState().addLog('info', '设置站点内容')
+		useLogStore.getState().addLog('info', 'config', '设置站点内容')
 	},
 	setCardStyles: (styles: CardStyles) => {
 		set({ cardStyles: styles })
-		useLogStore.getState().addLog('info', '设置卡片样式')
+		useLogStore.getState().addLog('info', 'config', '设置卡片样式')
 	},
 	resetSiteContent: () => {
 		set({ siteContent: { ...siteContent } })
-		useLogStore.getState().addLog('warning', '重置站点内容为默认值')
+		useLogStore.getState().addLog('warning', 'config', '重置站点内容为默认值')
 	},
 	resetCardStyles: () => {
 		set({ cardStyles: { ...cardStylesDefault } as CardStyles })
-		useLogStore.getState().addLog('warning', '重置卡片样式为默认值')
+		useLogStore.getState().addLog('warning', 'config', '重置卡片样式为默认值')
 	},
 	regenerateBubbles: () => {
 		set(state => ({ regenerateKey: state.regenerateKey + 1 }))

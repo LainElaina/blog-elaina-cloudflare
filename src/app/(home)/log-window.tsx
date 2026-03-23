@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useLogStore } from './stores/log-store'
+import { useLogStore, LOG_CATEGORY_LABELS } from './stores/log-store'
 import { toast } from 'sonner'
 
 export function LogWindow() {
@@ -104,9 +104,14 @@ export function LogWindow() {
 						{logs.map(log => (
 							<div key={log.id} className='text-xs border-b pb-2'>
 								<div className='flex items-center justify-between'>
-									<span className={`font-medium ${getLevelColor(log.level)}`}>
-										[{log.level.toUpperCase()}]
-									</span>
+									<div className='flex items-center gap-2'>
+										<span className={`font-medium ${getLevelColor(log.level)}`}>
+											[{log.level.toUpperCase()}]
+										</span>
+										<span className='px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs'>
+											{LOG_CATEGORY_LABELS[log.category]}
+										</span>
+									</div>
 									<span className='text-secondary'>
 										{new Date(log.timestamp).toLocaleTimeString('zh-CN')}
 									</span>

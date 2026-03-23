@@ -31,21 +31,21 @@ export function LayoutSavePanel() {
 			if (process.env.NODE_ENV === 'development') {
 				await saveLayout()
 				stopEditing()
-				addLog('success', '布局已保存到本地', cardStyles)
+				addLog('success', 'layout', '布局已保存到本地', cardStyles)
 				toast.success('布局已保存到本地和历史记录')
 			} else if (isAuth) {
 				const content = JSON.stringify(cardStyles, null, '\t')
 				await githubClient.updateFile('src/config/card-styles.json', content, '修改主页拖拽布局')
 				stopEditing()
-				addLog('success', '布局已推送到 GitHub', cardStyles)
+				addLog('success', 'layout', '布局已推送到 GitHub', cardStyles)
 				toast.success('布局已推送到 GitHub 和历史记录')
 			} else {
-				addLog('error', '生产环境需要导入密钥才能保存')
+				addLog('error', 'layout', '生产环境需要导入密钥才能保存')
 				toast.error('生产环境需要导入密钥才能保存')
 			}
 		} catch (error) {
 			console.error('Save error:', error)
-			addLog('error', '保存失败', error)
+			addLog('error', 'layout', '保存失败', error)
 			toast.error('保存失败')
 		}
 	}
@@ -53,7 +53,7 @@ export function LayoutSavePanel() {
 	const handleCancel = () => {
 		resetCardStyles()
 		stopEditing()
-		addLog('warning', '取消布局修改')
+		addLog('warning', 'layout', '取消布局修改')
 		toast.info('已取消修改')
 	}
 

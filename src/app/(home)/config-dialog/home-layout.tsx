@@ -3,10 +3,10 @@
 import { motion } from 'motion/react'
 import { useConfigStore, type CardStyles } from '../stores/config-store'
 import { useLayoutEditStore } from '../stores/layout-edit-store'
-import { useLogStore } from '../stores/log-store'
 import cardStylesDefault from '@/config/card-styles-default.json'
 import { LayoutManager } from './layout-manager'
 import { LayoutHistory } from './layout-history'
+import { LogSettings } from './log-settings'
 
 const CARD_LABELS: Record<string, string> = {
 	artCard: '首图',
@@ -34,39 +34,26 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 	const { setCardStyles } = useConfigStore()
 	const startEditing = useLayoutEditStore(state => state.startEditing)
 	const editing = useLayoutEditStore(state => state.editing)
-	const { enabled, setEnabled, setVisible } = useLogStore()
 
 	const handleStartManualLayout = () => {
 		setCardStyles(cardStylesData)
 		startEditing()
 		onClose?.()
-		useLogStore.getState().addLog('info', '进入拖拽编辑模式')
 	}
 
 	const handleReset = () => {
 		setCardStylesData(cardStylesDefault as CardStyles)
 		setCardStyles(cardStylesDefault as CardStyles)
-		useLogStore.getState().addLog('warning', '重置布局为默认值')
-	}
-
-	const handleToggleLog = (checked: boolean) => {
-		setEnabled(checked)
-		if (checked) setVisible(true)
 	}
 
 	return (
 		<div className='overflow-x-auto'>
 			<LayoutManager />
 			<LayoutHistory />
+			<LogSettings />
 
 			<div className='mt-6 flex items-center justify-between'>
-				<div className='flex items-center gap-4'>
-					<div className='text-secondary text-sm'>（偏移代表相对中心的偏移）</div>
-					<label className='flex items-center gap-2 text-xs'>
-						<input type='checkbox' checked={enabled} onChange={e => handleToggleLog(e.target.checked)} />
-						<span>启用操作日志</span>
-					</label>
-				</div>
+				<div className='text-secondary text-sm'>（偏移代表相对中心的偏移）</div>
 				<div className='flex shrink-0 items-center gap-2 whitespace-nowrap'>
 					<button type='button' onClick={handleReset} className='bg-card rounded-xl border px-3 py-1.5 text-xs font-medium'>
 						重置

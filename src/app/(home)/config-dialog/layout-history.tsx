@@ -48,14 +48,14 @@ export function LayoutHistory() {
 
 		saveSnapshots([newSnapshot, ...snapshots])
 		toast.success('布局已保存到历史记录')
-		addLog('success', '保存布局快照', { name })
+		addLog('success', 'history', '保存布局快照', { name })
 	}
 
 	const handleLoadSnapshot = (snapshot: LayoutSnapshot) => {
 		if (confirm(`确定要加载布局"${snapshot.name}"吗？`)) {
 			setCardStyles(snapshot.data)
 			toast.success('布局已加载')
-			addLog('success', '加载历史布局', { name: snapshot.name })
+			addLog('success', 'history', '加载历史布局', { name: snapshot.name })
 		}
 	}
 
@@ -74,14 +74,14 @@ export function LayoutHistory() {
 		saveSnapshots(updated)
 		setEditingId(null)
 		toast.success('已重命名')
-		addLog('info', '重命名历史布局', { oldName, newName: editingName })
+		addLog('info', 'history', '重命名历史布局', { oldName, newName: editingName })
 	}
 
 	const handleDelete = (id: string, name: string) => {
 		if (confirm(`确定要删除布局"${name}"吗？`)) {
 			saveSnapshots(snapshots.filter(s => s.id !== id))
 			toast.success('已删除')
-			addLog('warning', '删除历史布局', { name })
+			addLog('warning', 'history', '删除历史布局', { name })
 		}
 	}
 

@@ -147,14 +147,14 @@ export default function MusicCard() {
 	const togglePlayPause = () => {
 		const next = !isPlaying
 		setIsPlaying(next)
-		useLogStore.getState().addLog('info', next ? '播放音乐' : '暂停音乐', { track: MUSIC_LIST[currentIndex].title })
+		useLogStore.getState().addLog('info', 'music', next ? '播放音乐' : '暂停音乐', { track: MUSIC_LIST[currentIndex].title })
 	}
 
 	const selectTrack = (index: number) => {
 		setCurrentIndex(index)
 		setIsPlaying(true)
 		setShowPlaylist(false)
-		useLogStore.getState().addLog('info', '切换歌曲', { track: MUSIC_LIST[index].title })
+		useLogStore.getState().addLog('info', 'music', '切换歌曲', { track: MUSIC_LIST[index].title })
 	}
 
 	// Hide component if not on home page and not playing
