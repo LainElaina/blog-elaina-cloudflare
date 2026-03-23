@@ -15,6 +15,8 @@ export default function Home() {
 	const { cardStyles, configDialogOpen, setConfigDialogOpen, siteContent } = useConfigStore()
 	const { components: customComponents } = useCustomComponentStore()
 
+	console.log('Home 渲染，自定义组件数量:', customComponents.length, customComponents)
+
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === ',')) {

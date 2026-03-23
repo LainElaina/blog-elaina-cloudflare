@@ -39,10 +39,12 @@ export const useCustomComponentStore = create<CustomComponentStore>((set, get) =
 			...component,
 			id: `custom-${Date.now()}`
 		}
+		console.log('添加自定义组件:', newComponent)
 		set(state => {
 			const newComponents = [...state.components, newComponent]
 			if (typeof window !== 'undefined') {
 				localStorage.setItem('custom-components', JSON.stringify(newComponents))
+				console.log('保存到 localStorage:', newComponents)
 			}
 			return { components: newComponents }
 		})
