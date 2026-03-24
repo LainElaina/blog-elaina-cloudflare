@@ -78,6 +78,7 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 	const cardStylePreset = theme.cardStylePreset ?? 'classic'
 	const enableHomeColorOverlay = theme.enableHomeColorOverlay ?? false
 	const homeColorOverlayMode = theme.homeColorOverlayMode ?? 'atmosphere'
+	const homeColorOverlayMotion = theme.homeColorOverlayMotion ?? 'dynamic'
 	const enableSeasonalEffects = theme.enableSeasonalEffects ?? false
 	const seasonalEffectTheme = theme.seasonalEffectTheme ?? 'spring'
 	const seasonalEffectStyle = theme.seasonalEffectStyle ?? 'light'
@@ -138,6 +139,16 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 			theme: {
 				...prev.theme,
 				homeColorOverlayMode: value
+			}
+		}))
+	}
+
+	const handleHomeColorOverlayMotionChange = (value: 'dynamic' | 'static') => {
+		setFormData(prev => ({
+			...prev,
+			theme: {
+				...prev.theme,
+				homeColorOverlayMotion: value
 			}
 		}))
 	}
@@ -468,6 +479,29 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 								: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
 						}`}>
 						纯色蒙版
+					</button>
+				</div>
+
+				<div className={`grid grid-cols-2 gap-3 transition-opacity ${enableHomeColorOverlay && homeColorOverlayMode === 'atmosphere' ? '' : 'pointer-events-none opacity-50'}`}>
+					<button
+						type='button'
+						onClick={() => handleHomeColorOverlayMotionChange('dynamic')}
+						className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+							homeColorOverlayMotion === 'dynamic'
+								? 'border-brand bg-brand/10 text-primary font-medium'
+								: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+						}`}>
+						动态
+					</button>
+					<button
+						type='button'
+						onClick={() => handleHomeColorOverlayMotionChange('static')}
+						className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+							homeColorOverlayMotion === 'static'
+								? 'border-brand bg-brand/10 text-primary font-medium'
+								: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+						}`}>
+						静态
 					</button>
 				</div>
 			</div>

@@ -15,9 +15,9 @@ interface SeasonalEffectsProps {
 }
 
 const STYLE_PRESETS: Record<SeasonalStyle, { count: number; opacity: number }> = {
-	light: { count: 18, opacity: 0.45 },
-	mixed: { count: 30, opacity: 0.65 },
-	vivid: { count: 44, opacity: 0.85 }
+	light: { count: 10, opacity: 0.24 },
+	mixed: { count: 18, opacity: 0.38 },
+	vivid: { count: 28, opacity: 0.58 }
 }
 
 function FloatingParticles({ count, opacity, colors, sizeRange, durationRange, driftRange, rotate = false, shape = 'circle' }: {
@@ -55,7 +55,7 @@ function FloatingParticles({ count, opacity, colors, sizeRange, durationRange, d
 					className='absolute'
 					style={{ left: `${p.left}%`, top: `${p.top}%`, width: p.size, height: p.size, opacity }}
 					initial={{ x: 0, y: 0, rotate: p.rotate }}
-					animate={{ x: [0, p.driftX, 0], y: [0, p.driftY, 0], rotate: rotate ? [p.rotate, p.rotate + 80, p.rotate + 160] : p.rotate }}
+					animate={{ x: [0, p.driftX, 0], y: [0, p.driftY, 0], rotate: rotate ? [p.rotate, p.rotate + 48, p.rotate + 96] : p.rotate }}
 					transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'easeInOut' }}>
 					{shape === 'circle' && <div className='h-full w-full rounded-full blur-[2px]' style={{ backgroundColor: p.color }} />}
 					{shape === 'petal' && <div className='h-full w-full rounded-[70%_30%_70%_30%/60%_40%_60%_40%] blur-[1px]' style={{ backgroundColor: p.color }} />}
@@ -74,7 +74,7 @@ export default function SeasonalEffects({ theme }: SeasonalEffectsProps) {
 	const preset = STYLE_PRESETS[style]
 
 	if (season === 'winter') {
-		const count = style === 'light' ? 36 : style === 'mixed' ? 72 : 110
+		const count = style === 'light' ? 22 : style === 'mixed' ? 42 : 64
 		return <SnowfallBackground zIndex={0} count={count} />
 	}
 
@@ -84,9 +84,9 @@ export default function SeasonalEffects({ theme }: SeasonalEffectsProps) {
 				count={preset.count}
 				opacity={preset.opacity}
 				colors={['#ffd1dc', '#ffe4e1', '#fff0f5']}
-				sizeRange={[10, 22]}
-				durationRange={[10, 18]}
-				driftRange={[-36, 36]}
+				sizeRange={[8, 16]}
+				durationRange={[14, 24]}
+				driftRange={[-20, 20]}
 				rotate
 				shape='petal'
 			/>
@@ -96,12 +96,12 @@ export default function SeasonalEffects({ theme }: SeasonalEffectsProps) {
 	if (season === 'summer') {
 		return (
 			<FloatingParticles
-				count={style === 'vivid' ? preset.count + 10 : preset.count}
-				opacity={Math.min(0.95, preset.opacity + 0.05)}
+				count={style === 'vivid' ? preset.count + 6 : preset.count}
+				opacity={Math.min(0.68, preset.opacity + 0.04)}
 				colors={['#ffe066', '#ffd43b', '#9bf6ff', '#b9fbc0']}
-				sizeRange={[8, 18]}
-				durationRange={[6, 12]}
-				driftRange={[-22, 22]}
+				sizeRange={[6, 14]}
+				durationRange={[8, 16]}
+				driftRange={[-14, 14]}
 				shape='circle'
 			/>
 		)
@@ -112,9 +112,9 @@ export default function SeasonalEffects({ theme }: SeasonalEffectsProps) {
 			count={preset.count}
 			opacity={preset.opacity}
 			colors={['#f4a261', '#e76f51', '#e9c46a', '#c97b63']}
-			sizeRange={[12, 24]}
-			durationRange={[9, 16]}
-			driftRange={[-28, 28]}
+			sizeRange={[10, 18]}
+			durationRange={[12, 20]}
+			driftRange={[-18, 18]}
 			rotate
 			shape='leaf'
 		/>

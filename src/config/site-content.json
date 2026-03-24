@@ -16,6 +16,7 @@
 		"cardStylePreset": "classic",
 		"enableHomeColorOverlay": false,
 		"homeColorOverlayMode": "atmosphere",
+		"homeColorOverlayMotion": "dynamic",
 		"enableSeasonalEffects": false,
 		"seasonalEffectTheme": "spring",
 		"seasonalEffectStyle": "light"
