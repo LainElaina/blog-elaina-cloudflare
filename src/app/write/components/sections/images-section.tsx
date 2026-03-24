@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useWriteStore } from '../../stores/write-store'
+import { toast } from 'sonner'
 import Link from 'next/link'
 
 type ImagesSectionProps = {
@@ -24,6 +25,9 @@ export function ImagesSection({ delay = 0 }: ImagesSectionProps) {
 					压缩工具
 				</Link>
 			</div>
+			<p className='mt-1 text-[10px] text-secondary/60 leading-relaxed'>
+				拖拽图片到编辑器插入 · 点击图片复制引用 · 粘贴图片自动添加
+			</p>
 
 			<div className='mt-3 flex items-center gap-2'>
 				<input
@@ -85,7 +89,8 @@ export function ImagesSection({ delay = 0 }: ImagesSectionProps) {
 					return (
 						<div
 							key={item.id}
-							className={`group relative aspect-square overflow-hidden rounded-lg border bg-white/50 text-xs ${isCover ? 'ring-2 ring-blue-500' : ''}`}>
+							className={`group relative aspect-square overflow-hidden rounded-lg border bg-white/50 text-xs cursor-pointer ${isCover ? 'ring-2 ring-blue-500' : ''}`}
+							title='点击复制引用 · 拖拽到编辑器插入'>
 							<img
 								src={src}
 								className='h-full w-full object-cover'
@@ -93,6 +98,10 @@ export function ImagesSection({ delay = 0 }: ImagesSectionProps) {
 								onDragStart={e => {
 									e.dataTransfer.setData('text/plain', markdown)
 									e.dataTransfer.setData('text/markdown', markdown)
+								}}
+								onClick={() => {
+									navigator.clipboard.writeText(markdown)
+									toast.success('已复制图片引用，可粘贴到编辑器')
 								}}
 							/>
 							{isCover && <div className='absolute top-1 left-1 rounded-md bg-blue-500 px-1.5 py-0.5 text-white shadow'>封面</div>}

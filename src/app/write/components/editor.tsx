@@ -155,6 +155,34 @@ export function WriteEditor() {
 		}
 	}
 
+	const handleDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
+		// Handle dragged image files from outside
+		const files = e.dataTransfer.files
+		if (files && files.length > 0) {
+			const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
+			if (imageFiles.length > 0) {
+				e.preventDefault()
+				const resultImages = await addFiles(imageFiles).catch(() => [])
+				if (resultImages && resultImages.length > 0) {
+					const markdowns = resultImages.map(item => (item.type === 'url' ? `![](${item.url})` : `![](local-image:${item.id})`)).join('\n')
+					insertText(markdowns)
+				}
+				return
+			}
+		}
+
+		// Handle dragged markdown text from sidebar thumbnails
+		const markdown = e.dataTransfer.getData('text/markdown') || e.dataTransfer.getData('text/plain')
+		if (markdown && markdown.startsWith('![')) {
+			e.preventDefault()
+			insertText(markdown)
+		}
+	}
+
+	const handleDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+		e.preventDefault()
+	}
+
 	return (
 		<motion.div
 			initial={{ opacity: 0, scale: 0.8 }}
@@ -185,6 +213,8 @@ export function WriteEditor() {
 				onChange={e => updateForm({ md: e.target.value })}
 				onKeyDown={handleKeyDown}
 				onPaste={handlePaste}
+				onDrop={handleDrop}
+				onDragOver={handleDragOver}
 			/>
 		</motion.div>
 	)
