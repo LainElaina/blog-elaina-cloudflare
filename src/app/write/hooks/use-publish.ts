@@ -1,9 +1,10 @@
 import { useCallback } from 'react'
-import { readFileAsText } from '@/lib/file-utils'
+import { readFileAsText, hashFileSHA256 } from '@/lib/file-utils'
+import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
 import { pushBlog } from '../services/push-blog'
 import { deleteBlog } from '../services/delete-blog'
-import { useWriteStore } from '../stores/write-store'
+import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
 import { useAuthStore } from '@/hooks/use-auth'
 
 export function usePublish() {
@@ -21,14 +22,11 @@ export function usePublish() {
 	const onPublish = useCallback(async () => {
 		try {
 			setLoading(true)
-			await pushBlog({
-				form,
-				cover,
-				images,
-				mode,
-				originalSlug
-			})
-
+			if (process.env.NODE_ENV === 'development') {
+				await pushBlogLocal()
+			} else {
+				await pushBlog({ form, cover, images, mode, originalSlug })
+			}
 			const successMsg = mode === 'edit' ? '更新成功' : '发布成功'
 			toast.success(successMsg)
 		} catch (err: any) {
@@ -39,6 +37,98 @@ export function usePublish() {
 		}
 	}, [form, cover, images, mode, originalSlug, setLoading])
 
+	const pushBlogLocal = useCallback(async () => {
+		if (!form?.slug) throw new Error('需要 slug')
+
+		const basePath = `public/blogs/${form.slug}`
+		let mdToUpload = form.md
+		let coverPath: string | undefined
+
+		// Upload content images + cover
+		const allLocalImages: Array<{ file: File; id: string; hash?: string }> = []
+		for (const img of images || []) {
+			if (img.type === 'file') {
+				allLocalImages.push({ file: img.file, id: img.id, hash: img.hash })
+			}
+		}
+		if (cover?.type === 'file') {
+			allLocalImages.push({ file: cover.file, id: cover.id, hash: cover.hash })
+		}
+
+		for (const img of allLocalImages) {
+			const hash = img.hash || (await hashFileSHA256(img.file))
+			const ext = getFileExt(img.file.name)
+			const filename = `${hash}${ext}`
+			const publicPath = `/blogs/${form.slug}/${filename}`
+
+			const formData = new FormData()
+			formData.append('file', img.file)
+			formData.append('path', `${basePath}/${filename}`)
+			await fetch('/api/upload-image', { method: 'POST', body: formData })
+
+			const placeholder = `local-image:${img.id}`
+			mdToUpload = mdToUpload.split(`(${placeholder})`).join(`(${publicPath})`)
+
+			if (cover?.type === 'file' && cover.id === img.id) {
+				coverPath = publicPath
+			}
+		}
+
+		if (cover?.type === 'url') {
+			coverPath = cover.url
+		}
+
+		// Save index.md
+		await fetch('/api/save-file', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ path: `${basePath}/index.md`, content: mdToUpload })
+		})
+
+		// Save config.json
+		const dateStr = form.date || formatDateTimeLocal()
+		const config = {
+			title: form.title,
+			tags: form.tags,
+			date: dateStr,
+			summary: form.summary,
+			cover: coverPath,
+			hidden: form.hidden,
+			category: form.category
+		}
+		await fetch('/api/save-file', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ path: `${basePath}/config.json`, content: JSON.stringify(config, null, 2) })
+		})
+
+		// Update blogs index.json
+		const indexRes = await fetch('/blogs/index.json')
+		let indexItems: any[] = []
+		if (indexRes.ok) {
+			try { indexItems = await indexRes.json() } catch {}
+		}
+		const newEntry = {
+			slug: form.slug,
+			title: form.title,
+			tags: form.tags,
+			date: dateStr,
+			summary: form.summary,
+			cover: coverPath,
+			hidden: form.hidden,
+			category: form.category
+		}
+		indexItems = indexItems.filter((item: any) => item.slug !== form.slug)
+		indexItems.unshift(newEntry)
+		indexItems.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+		await fetch('/api/save-file', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ path: 'public/blogs/index.json', content: JSON.stringify(indexItems, null, 2) })
+		})
+	}, [form, cover, images])
+
 	const onDelete = useCallback(async () => {
 		const targetSlug = originalSlug || form.slug
 		if (!targetSlug) {
@@ -47,7 +137,29 @@ export function usePublish() {
 		}
 		try {
 			setLoading(true)
-			await deleteBlog(targetSlug)
+			if (process.env.NODE_ENV === 'development') {
+				// Delete blog directory
+				await fetch('/api/delete-dir', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
+				})
+				// Update index
+				const indexRes = await fetch('/blogs/index.json')
+				let indexItems: any[] = []
+				if (indexRes.ok) {
+					try { indexItems = await indexRes.json() } catch {}
+				}
+				indexItems = indexItems.filter((item: any) => item.slug !== targetSlug)
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'public/blogs/index.json', content: JSON.stringify(indexItems, null, 2) })
+				})
+				toast.success('删除成功！')
+			} else {
+				await deleteBlog(targetSlug)
+			}
 		} catch (err: any) {
 			console.error(err)
 			toast.error(err?.message || '删除失败')

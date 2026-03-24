@@ -10,6 +10,8 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import initialList from './list.json'
 import type { AvatarItem } from './components/avatar-upload-dialog'
+import { hashFileSHA256 } from '@/lib/file-utils'
+import { getFileExt } from '@/lib/utils'
 
 export default function Page() {
 	const [bloggers, setBloggers] = useState<Blogger[]>(initialList as Blogger[])
@@ -69,7 +71,9 @@ export default function Page() {
 	}
 
 	const handleSaveClick = () => {
-		if (!isAuth) {
+		if (process.env.NODE_ENV === 'development') {
+			handleSave()
+		} else if (!isAuth) {
 			keyInputRef.current?.click()
 		} else {
 			handleSave()
@@ -80,10 +84,31 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
-			await pushBloggers({
-				bloggers,
-				avatarItems
-			})
+			if (process.env.NODE_ENV === 'development') {
+				let updatedBloggers = [...bloggers]
+				// Upload avatar files locally
+				for (const [url, avatarItem] of avatarItems.entries()) {
+					if (avatarItem.type === 'file') {
+						const hash = avatarItem.hash || (await hashFileSHA256(avatarItem.file))
+						const ext = getFileExt(avatarItem.file.name)
+						const filename = `${hash}${ext}`
+						const publicPath = `/images/blogger/${filename}`
+						const formData = new FormData()
+						formData.append('file', avatarItem.file)
+						formData.append('path', `public${publicPath}`)
+						await fetch('/api/upload-image', { method: 'POST', body: formData })
+						updatedBloggers = updatedBloggers.map(b => b.avatar === url ? { ...b, avatar: publicPath } : b)
+					}
+				}
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'src/app/bloggers/list.json', content: JSON.stringify(updatedBloggers, null, '\t') })
+				})
+				setBloggers(updatedBloggers)
+			} else {
+				await pushBloggers({ bloggers, avatarItems })
+			}
 
 			setOriginalBloggers(bloggers)
 			setAvatarItems(new Map())
@@ -103,7 +128,8 @@ export default function Page() {
 		setIsEditMode(false)
 	}
 
-	const buttonText = isAuth ? '保存' : '导入密钥'
+	const isDev = process.env.NODE_ENV === 'development'
+	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {

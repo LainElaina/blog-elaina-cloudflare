@@ -119,16 +119,43 @@
   - 线上部署环境（绿色标识）：保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证
 - **PEM 缓存**：可选开启，将 GitHub App 私钥加密后缓存到 sessionStorage，刷新页面无需重新导入（关闭标签页自动清除）
 
+### 💾 全站本地开发保存支持
+所有可编辑页面在本地开发环境下均可直接保存，无需导入密钥：
+
+| 页面 | 保存内容 | 图片/文件处理 |
+|---|---|---|
+| 首页配置（网站设置/色彩配置） | `site-content.json` + `card-styles.json` | 头像/首图/背景图上传 + 删除同步 |
+| 首页布局 | `card-styles.json` + `custom-components.json` | - |
+| 自定义组件 | `custom-components.json` | 组件图片上传 |
+| 色彩预设 | `color-presets.json` | - |
+| 关于页面 | `about/list.json` | - |
+| 语录页面 | `snippets/list.json` | - |
+| 博主墙 | `bloggers/list.json` | 头像上传 |
+| 项目展示 | `projects/list.json` | 封面上传 |
+| 分享推荐 | `share/list.json` | Logo 上传 |
+| 图片展示 | `pictures/list.json` | 图片上传 + 孤立图片清理 |
+| 博客列表管理 | `blogs/index.json` + `categories.json` | 删除博客目录 |
+| 文章发布/编辑 | `blogs/<slug>/index.md` + `config.json` + `index.json` | 内容图片 + 封面上传 |
+| 文章删除 | 删除 `blogs/<slug>/` + 更新 `index.json` | 目录递归删除 |
+
+**本地开发 API 路由**（仅 `NODE_ENV === 'development'` 可用，生产环境返回 403）：
+- `/api/upload-image` — 上传图片到 `public/` 目录
+- `/api/delete-image` — 删除 `public/` 目录内的单个文件
+- `/api/delete-dir` — 递归删除 `public/` 目录内的文件夹
+- `/api/save-file` — 写入任意项目文件（用于保存 JSON/MD 等）
+- `/api/config` — 写入配置文件（`site-content.json`、`card-styles.json`、`custom-components.json`、`color-presets.json`）
+
 ### 🔒 安全措施
+- **所有本地 API 路由**均仅限开发环境可用，生产环境直接返回 403
 - **文件上传防护**（`/api/upload-image`）：
-  - 仅限本地开发环境可用，生产环境返回 403
   - 路径穿越防护：`resolve()` 后校验必须在 `public/` 目录内
   - 文件类型白名单：仅允许图片格式（jpg/jpeg/png/gif/webp/svg/ico/avif）
   - 文件大小限制：最大 10MB
   - 错误信息不暴露内部路径
-- **文件删除防护**（`/api/delete-image`）：
-  - 仅限本地开发环境可用，生产环境返回 403
-  - 路径安全校验：只能删除 `public/` 目录内的文件
+- **文件/目录删除防护**（`/api/delete-image`、`/api/delete-dir`）：
+  - 路径安全校验：只能操作 `public/` 目录内的内容
+- **文件写入防护**（`/api/save-file`）：
+  - 路径安全校验：只能写入项目目录内的文件
 - 详细安全审计报告见项目根目录 `安全风险审计.md`
 
 ---

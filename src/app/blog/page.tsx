@@ -126,7 +126,8 @@ export default function BlogPage() {
 	}, [displayItems, displayMode, categoryList])
 
 	const selectedCount = selectedSlugs.size
-	const buttonText = isAuth ? '保存' : '导入密钥'
+	const isDev = process.env.NODE_ENV === 'development'
+	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
 
 	const toggleEditMode = useCallback(() => {
 		if (editMode) {
@@ -263,7 +264,34 @@ export default function BlogPage() {
 
 		try {
 			setSaving(true)
-			await saveBlogEdits(items, editableItems, normalizedCategoryList)
+			if (process.env.NODE_ENV === 'development') {
+				const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
+				// Delete blog directories locally
+				for (const slug of uniqueRemoved) {
+					await fetch('/api/delete-dir', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: `public/blogs/${slug}` })
+					})
+				}
+				// Save index.json
+				const sortedItems = [...editableItems].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'public/blogs/index.json', content: JSON.stringify(sortedItems, null, 2) })
+				})
+				// Save categories.json
+				const uniqueCategories = Array.from(new Set(normalizedCategoryList))
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'public/blogs/categories.json', content: JSON.stringify({ categories: uniqueCategories }, null, 2) })
+				})
+				toast.success('保存成功！')
+			} else {
+				await saveBlogEdits(items, editableItems, normalizedCategoryList)
+			}
 			setEditMode(false)
 			setSelectedSlugs(new Set())
 			setCategoryModalOpen(false)
@@ -276,6 +304,10 @@ export default function BlogPage() {
 	}, [items, editableItems, categoryList, categoriesFromServer])
 
 	const handleSaveClick = useCallback(() => {
+		if (process.env.NODE_ENV === 'development') {
+			void handleSave()
+			return
+		}
 		if (!isAuth) {
 			keyInputRef.current?.click()
 			return

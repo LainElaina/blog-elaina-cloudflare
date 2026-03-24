@@ -15,8 +15,12 @@ export function WriteActions() {
 	const mdInputRef = useRef<HTMLInputElement>(null)
 	const router = useRouter()
 
+	const isDev = process.env.NODE_ENV === 'development'
+
 	const handleImportOrPublish = () => {
-		if (!isAuth) {
+		if (isDev) {
+			onPublish()
+		} else if (!isAuth) {
 			keyInputRef.current?.click()
 		} else {
 			onPublish()
@@ -34,10 +38,10 @@ export function WriteActions() {
 		}
 	}
 
-	const buttonText = isAuth ? (mode === 'edit' ? '更新' : '发布') : '导入密钥'
+	const buttonText = (isDev || isAuth) ? (mode === 'edit' ? '更新' : '发布') : '导入密钥'
 
 	const handleDelete = () => {
-		if (!isAuth) {
+		if (!isDev && !isAuth) {
 			toast.info('请先导入密钥')
 			return
 		}

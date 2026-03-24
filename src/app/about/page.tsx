@@ -36,7 +36,9 @@ export default function Page() {
 	}
 
 	const handleSaveClick = () => {
-		if (!isAuth) {
+		if (process.env.NODE_ENV === 'development') {
+			handleSave()
+		} else if (!isAuth) {
 			keyInputRef.current?.click()
 		} else {
 			handleSave()
@@ -52,7 +54,15 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
-			await pushAbout(data)
+			if (process.env.NODE_ENV === 'development') {
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'src/app/about/list.json', content: JSON.stringify(data, null, '\t') })
+				})
+			} else {
+				await pushAbout(data)
+			}
 
 			setOriginalData(data)
 			setIsEditMode(false)
@@ -72,7 +82,8 @@ export default function Page() {
 		setIsPreviewMode(false)
 	}
 
-	const buttonText = isAuth ? '保存' : '导入密钥'
+	const isDev = process.env.NODE_ENV === 'development'
+	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {

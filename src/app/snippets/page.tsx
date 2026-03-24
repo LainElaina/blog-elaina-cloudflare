@@ -44,7 +44,15 @@ export default function Page() {
 	const handleSave = async () => {
 		setIsSaving(true)
 		try {
-			await pushSnippets({ snippets })
+			if (process.env.NODE_ENV === 'development') {
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'src/app/snippets/list.json', content: JSON.stringify({ snippets }, null, '\t') })
+				})
+			} else {
+				await pushSnippets({ snippets })
+			}
 			setOriginalSnippets(snippets)
 			setIsEditMode(false)
 			toast.success('保存成功！')
@@ -57,7 +65,9 @@ export default function Page() {
 	}
 
 	const handleSaveClick = () => {
-		if (!isAuth) {
+		if (process.env.NODE_ENV === 'development') {
+			void handleSave()
+		} else if (!isAuth) {
 			keyInputRef.current?.click()
 		} else {
 			void handleSave()
@@ -117,7 +127,8 @@ export default function Page() {
 		setNewSnippet('')
 	}
 
-	const buttonText = isAuth ? '保存' : '导入密钥'
+	const isDev = process.env.NODE_ENV === 'development'
+	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
 
 	return (
 		<>

@@ -10,6 +10,8 @@ import { pushPictures } from './services/push-pictures'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import type { ImageItem } from '../projects/components/image-upload-dialog'
+import { hashFileSHA256 } from '@/lib/file-utils'
+import { getFileExt } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
 export interface Picture {
@@ -167,7 +169,9 @@ export default function Page() {
 	}
 
 	const handleSaveClick = () => {
-		if (!isAuth) {
+		if (process.env.NODE_ENV === 'development') {
+			handleSave()
+		} else if (!isAuth) {
 			keyInputRef.current?.click()
 		} else {
 			handleSave()
@@ -178,10 +182,54 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
-			await pushPictures({
-				pictures,
-				imageItems
-			})
+			if (process.env.NODE_ENV === 'development') {
+				let updatedPictures = [...pictures]
+				// Upload new images
+				for (const [url, imageItem] of imageItems.entries()) {
+					if (imageItem.type === 'file') {
+						const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
+						const ext = getFileExt(imageItem.file.name)
+						const filename = `${hash}${ext}`
+						const publicPath = `/images/pictures/${filename}`
+						const formData = new FormData()
+						formData.append('file', imageItem.file)
+						formData.append('path', `public${publicPath}`)
+						await fetch('/api/upload-image', { method: 'POST', body: formData })
+						// Replace placeholder URL with actual path
+						updatedPictures = updatedPictures.map(p => ({
+							...p,
+							image: p.image === url ? publicPath : p.image,
+							images: p.images?.map(u => u === url ? publicPath : u)
+						}))
+					}
+				}
+				// Find orphaned images (in original but not in current)
+				const currentUrls = new Set<string>()
+				for (const p of updatedPictures) {
+					if (p.image) currentUrls.add(p.image)
+					p.images?.forEach(u => currentUrls.add(u))
+				}
+				for (const p of originalPictures) {
+					const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
+					for (const url of urls) {
+						if (!currentUrls.has(url) && url.startsWith('/images/pictures/')) {
+							await fetch('/api/delete-image', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ path: `public${url}` })
+							})
+						}
+					}
+				}
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
+				})
+				setPictures(updatedPictures)
+			} else {
+				await pushPictures({ pictures, imageItems })
+			}
 
 			setOriginalPictures(pictures)
 			setImageItems(new Map())
@@ -201,7 +249,8 @@ export default function Page() {
 		setIsEditMode(false)
 	}
 
-	const buttonText = isAuth ? '保存' : '导入密钥'
+	const isDev = process.env.NODE_ENV === 'development'
+	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {

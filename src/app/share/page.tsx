@@ -11,6 +11,8 @@ import { useConfigStore } from '@/app/(home)/stores/config-store'
 import initialList from './list.json'
 import type { Share } from './components/share-card'
 import type { LogoItem } from './components/logo-upload-dialog'
+import { hashFileSHA256 } from '@/lib/file-utils'
+import { getFileExt } from '@/lib/utils'
 
 export default function Page() {
 	const [shares, setShares] = useState<Share[]>(initialList as Share[])
@@ -70,7 +72,9 @@ export default function Page() {
 	}
 
 	const handleSaveClick = () => {
-		if (!isAuth) {
+		if (process.env.NODE_ENV === 'development') {
+			handleSave()
+		} else if (!isAuth) {
 			keyInputRef.current?.click()
 		} else {
 			handleSave()
@@ -81,10 +85,30 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
-			await pushShares({
-				shares,
-				logoItems
-			})
+			if (process.env.NODE_ENV === 'development') {
+				let updatedShares = [...shares]
+				for (const [url, logoItem] of logoItems.entries()) {
+					if (logoItem.type === 'file') {
+						const hash = logoItem.hash || (await hashFileSHA256(logoItem.file))
+						const ext = getFileExt(logoItem.file.name)
+						const filename = `${hash}${ext}`
+						const publicPath = `/images/share/${filename}`
+						const formData = new FormData()
+						formData.append('file', logoItem.file)
+						formData.append('path', `public${publicPath}`)
+						await fetch('/api/upload-image', { method: 'POST', body: formData })
+						updatedShares = updatedShares.map(s => s.logo === url ? { ...s, logo: publicPath } : s)
+					}
+				}
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: 'src/app/share/list.json', content: JSON.stringify(updatedShares, null, '\t') })
+				})
+				setShares(updatedShares)
+			} else {
+				await pushShares({ shares, logoItems })
+			}
 
 			setOriginalShares(shares)
 			setLogoItems(new Map())
@@ -104,7 +128,8 @@ export default function Page() {
 		setIsEditMode(false)
 	}
 
-	const buttonText = isAuth ? '保存' : '导入密钥'
+	const isDev = process.env.NODE_ENV === 'development'
+	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
