@@ -3,6 +3,7 @@ import { PropsWithChildren } from 'react'
 import { useCenterInit } from '@/hooks/use-center'
 import CssBlurBackground from './backgrounds/css-blur-background'
 import HomeColorOverlay from './backgrounds/home-color-overlay'
+import SeasonalEffects from './backgrounds/seasonal-effects'
 import NavCard from '@/components/nav-card'
 import MobileBottomNav from '@/components/mobile-bottom-nav'
 import { Toaster } from 'sonner'
@@ -57,6 +58,7 @@ export default function Layout({ children }: PropsWithChildren) {
 			)}
 			<CssBlurBackground colors={siteContent.backgroundColors} />
 			<HomeColorOverlay theme={siteContent.theme} backgroundColors={siteContent.backgroundColors} />
+			<SeasonalEffects theme={siteContent.theme} />
 
 			<GlobalErrorHandler />
 			<LogWindow />

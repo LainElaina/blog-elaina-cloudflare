@@ -15,7 +15,10 @@
 		"colorArticle": "#ffffffcc",
 		"cardStylePreset": "classic",
 		"enableHomeColorOverlay": false,
-		"homeColorOverlayMode": "atmosphere"
+		"homeColorOverlayMode": "atmosphere",
+		"enableSeasonalEffects": false,
+		"seasonalEffectTheme": "spring",
+		"seasonalEffectStyle": "light"
 	},
 	"backgroundColors": [
 		"#EDDD62",

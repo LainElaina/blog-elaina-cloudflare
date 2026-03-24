@@ -78,6 +78,9 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 	const cardStylePreset = theme.cardStylePreset ?? 'classic'
 	const enableHomeColorOverlay = theme.enableHomeColorOverlay ?? false
 	const homeColorOverlayMode = theme.homeColorOverlayMode ?? 'atmosphere'
+	const enableSeasonalEffects = theme.enableSeasonalEffects ?? false
+	const seasonalEffectTheme = theme.seasonalEffectTheme ?? 'spring'
+	const seasonalEffectStyle = theme.seasonalEffectStyle ?? 'light'
 	const { isAuth } = useAuthStore()
 	const [customPresets, setCustomPresets] = useState<ColorPreset[]>(loadCustomPresets)
 	const [isSaving, setIsSaving] = useState(false)
@@ -135,6 +138,36 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 			theme: {
 				...prev.theme,
 				homeColorOverlayMode: value
+			}
+		}))
+	}
+
+	const handleSeasonalEffectsToggle = (value: boolean) => {
+		setFormData(prev => ({
+			...prev,
+			theme: {
+				...prev.theme,
+				enableSeasonalEffects: value
+			}
+		}))
+	}
+
+	const handleSeasonalEffectThemeChange = (value: 'spring' | 'summer' | 'autumn' | 'winter') => {
+		setFormData(prev => ({
+			...prev,
+			theme: {
+				...prev.theme,
+				seasonalEffectTheme: value
+			}
+		}))
+	}
+
+	const handleSeasonalEffectStyleChange = (value: 'light' | 'vivid' | 'mixed') => {
+		setFormData(prev => ({
+			...prev,
+			theme: {
+				...prev.theme,
+				seasonalEffectStyle: value
 			}
 		}))
 	}
@@ -435,6 +468,59 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 								: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
 						}`}>
 						纯色蒙版
+					</button>
+				</div>
+			</div>
+
+			<div className='space-y-3'>
+				<label className='block text-sm font-medium'>四季动态效果</label>
+				<div className='grid grid-cols-2 gap-3'>
+					<button
+						type='button'
+						onClick={() => handleSeasonalEffectsToggle(false)}
+						className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+							!enableSeasonalEffects
+								? 'border-brand bg-brand/10 text-primary font-medium'
+								: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+						}`}>
+						关闭
+					</button>
+					<button
+						type='button'
+						onClick={() => handleSeasonalEffectsToggle(true)}
+						className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+							enableSeasonalEffects
+								? 'border-brand bg-brand/10 text-primary font-medium'
+								: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+						}`}>
+						开启
+					</button>
+				</div>
+
+				<div className={`grid grid-cols-2 gap-3 transition-opacity ${enableSeasonalEffects ? '' : 'pointer-events-none opacity-50'}`}>
+					<button type='button' onClick={() => handleSeasonalEffectThemeChange('spring')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'spring' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						春
+					</button>
+					<button type='button' onClick={() => handleSeasonalEffectThemeChange('summer')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'summer' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						夏
+					</button>
+					<button type='button' onClick={() => handleSeasonalEffectThemeChange('autumn')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'autumn' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						秋
+					</button>
+					<button type='button' onClick={() => handleSeasonalEffectThemeChange('winter')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'winter' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						冬
+					</button>
+				</div>
+
+				<div className={`grid grid-cols-3 gap-3 transition-opacity ${enableSeasonalEffects ? '' : 'pointer-events-none opacity-50'}`}>
+					<button type='button' onClick={() => handleSeasonalEffectStyleChange('light')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'light' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						轻量
+					</button>
+					<button type='button' onClick={() => handleSeasonalEffectStyleChange('vivid')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'vivid' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						明显
+					</button>
+					<button type='button' onClick={() => handleSeasonalEffectStyleChange('mixed')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'mixed' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						混合
 					</button>
 				</div>
 			</div>

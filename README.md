@@ -105,6 +105,21 @@
   - 自定义预设暂存浏览器本地，需点击持久化按钮才会写入项目文件
 - **导入/导出配色**：导出当前配色为带名称的 JSON 文件，导入后自动添加为自定义预设
 
+### 🌸 四季动态效果
+- **全站四季主题背景效果**：支持春 / 夏 / 秋 / 冬四种主题动态背景，作用于全站页面，不影响布局与交互
+- **统一控制方式**：在网站设置 → 色彩配置中可直接切换开关、季节主题与表现风格
+- **三种表现风格**：
+  - `轻量`：粒子数量少、存在感更弱
+  - `明显`：粒子更多、视觉存在感更强
+  - `混合`：介于两者之间
+- **可持久化保存**：博客主人可通过现有“本地保存/保存”逻辑把季节和效果写回项目配置，刷新后持续生效
+- **当前季节效果**：
+  - 春：花瓣漂浮
+  - 夏：暖光粒子 / 萤火感光斑
+  - 秋：落叶漂浮
+  - 冬：雪花飘落
+
+
 ### 🖼️ 图片管理
 - **首页图片和背景图片**：
   - 支持上传本地图片或输入网络 URL
@@ -123,6 +138,7 @@
   - 开发环境：图片保存到 `public/blogs/<slug>/`，文章数据写入本地文件
   - 生产环境：通过 GitHub API 提交图片和文章到仓库
 - **Markdown 快捷键**：Ctrl+B 加粗、Ctrl+I 斜体、Ctrl+K 插入链接、Tab 缩进
+- **图片工具箱**：独立页面 `/image-toolbox`，提供图片压缩功能
 
 ### ⚙️ 网站设置
 - **环境指示器**：网站设置页面顶部显示当前运行环境
@@ -218,7 +234,40 @@ pnpm run dev
 ## 🛠️ Tech Stack
 
 * **Framework:** Next.js 15.1.0 (App Router)
-* **UI & Styling:** React 19, TailwindCSS, Framer Motion
-* **State Management:** Zustand
-* **Deployment & Edge Compute:** Cloudflare Workers
-* **Package Manager:** pnpm
+* **UI & Styling:** React 19, TailwindCSS 4, Framer Motion (motion/react)
+* **State Management:** Zustand 5
+* **Deployment & Edge Compute:** Cloudflare Workers (@opennextjs/cloudflare)
+* **Authentication:** GitHub App (jsrsasign JWT 签名)
+* **Markdown:** marked + shiki (代码高亮) + KaTeX (数学公式)
+* **Package Manager:** pnpm (hoisted 模式，`.npmrc` 配置 `node-linker=hoisted`)
+
+---
+
+## 📁 项目结构概览
+
+```
+src/
+├── app/                    # Next.js App Router 页面
+│   ├── (home)/             # 首页路由组
+│   │   ├── config-dialog/  # 网站设置弹窗（色彩/布局/站点配置）
+│   │   ├── services/       # 数据推送服务（本地/GitHub）
+│   │   └── stores/         # Zustand 状态管理
+│   ├── about/              # 关于页面
+│   ├── api/                # 本地开发 API 路由（仅 dev 环境）
+│   ├── blog/               # 博客列表 + 文章详情
+│   ├── bloggers/           # 博主墙
+│   ├── pictures/           # 图片展示
+│   ├── projects/           # 项目展示
+│   ├── share/              # 分享推荐
+│   ├── snippets/           # 语录
+│   └── write/              # 文章编辑器
+├── components/             # 全局共享组件
+├── config/                 # 静态配置文件（JSON + TS）
+├── hooks/                  # 全局 React Hooks
+├── layout/                 # 全局布局（导航栏/背景/页脚）
+├── lib/                    # 工具库（GitHub API/认证/工具函数）
+├── styles/                 # 全局样式
+└── svgs/                   # SVG 图标组件
+```
+
+详细架构说明请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。
