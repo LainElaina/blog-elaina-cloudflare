@@ -12,7 +12,10 @@
 		"colorBg": "#eeeeee",
 		"colorBorder": "#ffffff",
 		"colorCard": "#ffffff66",
-		"colorArticle": "#ffffffcc"
+		"colorArticle": "#ffffffcc",
+		"cardStylePreset": "classic",
+		"enableHomeColorOverlay": false,
+		"homeColorOverlayMode": "atmosphere"
 	},
 	"backgroundColors": [
 		"#EDDD62",

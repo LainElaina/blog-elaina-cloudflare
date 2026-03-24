@@ -1,8 +1,10 @@
 'use client'
 import { PropsWithChildren } from 'react'
 import { useCenterInit } from '@/hooks/use-center'
-import BlurredBubblesBackground from './backgrounds/blurred-bubbles'
+import CssBlurBackground from './backgrounds/css-blur-background'
+import HomeColorOverlay from './backgrounds/home-color-overlay'
 import NavCard from '@/components/nav-card'
+import MobileBottomNav from '@/components/mobile-bottom-nav'
 import { Toaster } from 'sonner'
 import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react'
 import { useSize, useSizeInit } from '@/hooks/use-size'
@@ -16,7 +18,7 @@ import { GlobalErrorHandler } from '@/components/global-error-handler'
 export default function Layout({ children }: PropsWithChildren) {
 	useCenterInit()
 	useSizeInit()
-	const { cardStyles, siteContent, regenerateKey } = useConfigStore()
+	const { cardStyles, siteContent } = useConfigStore()
 	const { maxSM, init } = useSize()
 
 	const backgroundImages = (siteContent.backgroundImages ?? []) as Array<{ id: string; url: string }>
@@ -53,7 +55,8 @@ export default function Layout({ children }: PropsWithChildren) {
 					}}
 				/>
 			)}
-			<BlurredBubblesBackground colors={siteContent.backgroundColors} regenerateKey={regenerateKey} />
+			<CssBlurBackground colors={siteContent.backgroundColors} />
+			<HomeColorOverlay theme={siteContent.theme} backgroundColors={siteContent.backgroundColors} />
 
 			<GlobalErrorHandler />
 			<LogWindow />
@@ -61,12 +64,16 @@ export default function Layout({ children }: PropsWithChildren) {
 
 			<main className='relative z-10 h-full'>
 				{children}
-				<NavCard />
+				{/* Desktop: NavCard sidebar/icons, Mobile: bottom nav */}
+				{!maxSM && <NavCard />}
 
 				{!maxSM && cardStyles.musicCard?.enabled !== false && <MusicCard />}
 			</main>
 
-			{maxSM && init && <ScrollTopButton className='bg-brand/20 fixed right-6 bottom-8 z-50 shadow-md' />}
+			{/* Mobile bottom navigation */}
+			{maxSM && init && <MobileBottomNav />}
+
+			{maxSM && init && <ScrollTopButton className='bg-brand/20 fixed right-6 bottom-20 z-50 shadow-md' />}
 		</>
 	)
 }
