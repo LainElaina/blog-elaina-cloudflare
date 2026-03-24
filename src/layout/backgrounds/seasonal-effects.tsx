@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import siteContent from '@/config/site-content.json'
 import SnowfallBackground from './snowfall'
 import { motion } from 'motion/react'
@@ -30,22 +30,32 @@ function FloatingParticles({ count, opacity, colors, sizeRange, durationRange, d
 	rotate?: boolean
 	shape?: 'circle' | 'petal' | 'leaf'
 }) {
+	const [mounted, setMounted] = useState(false)
+
+	useEffect(() => {
+		setMounted(true)
+	}, [])
+
 	const particles = useMemo(
 		() =>
-			Array.from({ length: count }, (_, i) => ({
-				id: i,
-				left: Math.random() * 110 - 5,
-				top: Math.random() * 110 - 5,
-				size: Math.random() * (sizeRange[1] - sizeRange[0]) + sizeRange[0],
-				duration: Math.random() * (durationRange[1] - durationRange[0]) + durationRange[0],
-				delay: Math.random() * 8,
-				driftX: Math.random() * (driftRange[1] - driftRange[0]) + driftRange[0],
-				driftY: Math.random() * (driftRange[1] - driftRange[0]) + driftRange[0],
-				color: colors[i % colors.length],
-				rotate: Math.random() * 360
-			})),
-		[count, colors, driftRange, durationRange, sizeRange]
+			mounted
+				? Array.from({ length: count }, (_, i) => ({
+						id: i,
+						left: Math.random() * 110 - 5,
+						top: Math.random() * 110 - 5,
+						size: Math.random() * (sizeRange[1] - sizeRange[0]) + sizeRange[0],
+						duration: Math.random() * (durationRange[1] - durationRange[0]) + durationRange[0],
+						delay: Math.random() * 8,
+						driftX: Math.random() * (driftRange[1] - driftRange[0]) + driftRange[0],
+						driftY: Math.random() * (driftRange[1] - driftRange[0]) + driftRange[0],
+						color: colors[i % colors.length],
+						rotate: Math.random() * 360
+				  }))
+				: [],
+		[count, colors, driftRange, durationRange, mounted, sizeRange]
 	)
+
+	if (!mounted) return null
 
 	return (
 		<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className='pointer-events-none fixed inset-0 z-[1] overflow-hidden'>
