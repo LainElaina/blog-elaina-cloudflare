@@ -1,35 +1,35 @@
 {
 	"artCard": {
-		"width": 360,
-		"height": 200,
+		"width": 324,
+		"height": 479,
 		"order": 3,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": -860,
+		"offsetY": -340,
 		"enabled": true
 	},
 	"hiCard": {
-		"width": 360,
-		"height": 288,
+		"width": 307,
+		"height": 305,
 		"order": 1,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": 200,
+		"offsetY": -340,
 		"enabled": true
 	},
 	"clockCard": {
-		"width": 232,
-		"height": 132,
+		"width": 223,
+		"height": 65,
 		"offset": 92,
 		"order": 4,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": 520,
+		"offsetY": 160,
 		"enabled": true
 	},
 	"calendarCard": {
-		"width": 350,
-		"height": 286,
+		"width": 300,
+		"height": 247,
 		"order": 5,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": 200,
+		"offsetY": -20,
 		"enabled": true
 	},
 	"musicCard": {
@@ -37,56 +37,56 @@
 		"height": 66,
 		"offset": 120,
 		"order": 6,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": -140,
+		"offsetY": 300,
 		"enabled": true
 	},
 	"socialButtons": {
 		"width": 315,
 		"height": 48,
 		"order": 6,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": 520,
+		"offsetY": 240,
 		"enabled": true
 	},
 	"shareCard": {
 		"width": 200,
 		"height": 180,
 		"order": 7,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": -740,
+		"offsetY": 160,
 		"enabled": true
 	},
 	"articleCard": {
-		"width": 266,
-		"height": 160,
+		"width": 274,
+		"height": 184,
 		"order": 8,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": -520,
+		"offsetY": 120,
 		"enabled": true
 	},
 	"writeButtons": {
 		"height": 42,
 		"width": 180,
 		"order": 8,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": 320,
+		"offsetY": 240,
 		"enabled": true
 	},
 	"navCard": {
 		"width": 280,
 		"height": 434,
 		"order": 2,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": -520,
+		"offsetY": -340,
 		"enabled": true
 	},
 	"likePosition": {
-		"width": 54,
-		"height": 54,
+		"width": 50,
+		"height": 52,
 		"order": 8,
-		"offsetX": null,
-		"offsetY": null,
+		"offsetX": 760,
+		"offsetY": 160,
 		"enabled": true
 	},
 	"hatCard": {

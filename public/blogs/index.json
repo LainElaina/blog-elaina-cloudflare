@@ -1,5 +1,20 @@
 [
   {
+    "slug": "Blog-CF1",
+    "title": "2025-PUBLIC-BLOG部署到Cloudflare完整指南+避坑",
+    "tags": [
+      "博客",
+      "Cloudflare",
+      "开源项目",
+      "教程"
+    ],
+    "date": "2026-03-24T13:55",
+    "summary": "本文在win11 25H2 系统上测试，部署到cloudflare成功，其他系统或云服务厂商未知可行性。\n如有问题请提交到我的邮箱 lainelaina520@gmail.com\n发送前请确保您已经询问过Gemini、Grok、ChatGPT等常见AI。确认AI无法解决您的疑惑再发送给我（对于本文的话题我不一定能提供比这些AI更有用的建议）",
+    "cover": "/blogs/Blog-CF1/277bc4b971804b9d.png",
+    "hidden": false,
+    "category": "Cloudflare"
+  },
+  {
     "slug": "CF-Stats-Dashboard",
     "title": "Cloudflare站点实时访问统计 (Serverless 部署指南)",
     "tags": [
@@ -9,6 +24,6 @@
     "summary": "利用 Cloudflare Workers 实现无服务器的实时流量24小时统计看板。",
     "cover": "/blogs/CF-Stats-Dashboard/41e9408627aef190.png",
     "hidden": false,
-    "category": ""
+    "category": "Cloudflare"
   }
 ]

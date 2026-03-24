@@ -1,1 +1,20 @@
-[]
+[
+	{
+		"name": "高卡片组件",
+		"type": "image",
+		"templateId": "tall-card",
+		"style": {
+			"width": 322,
+			"height": 476,
+			"order": 99,
+			"offsetX": 520,
+			"offsetY": -340,
+			"enabled": true
+		},
+		"content": {
+			"text": "双击编辑内容",
+			"imageUrl": "/images/custom-components/d0b1084bec6015a9.jpg"
+		},
+		"id": "custom-1774330843066"
+	}
+]
