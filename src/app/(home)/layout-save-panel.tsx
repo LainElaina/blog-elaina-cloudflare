@@ -6,7 +6,6 @@ import { useCustomComponentStore } from './stores/custom-component-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useLogStore } from './stores/log-store'
 import { toast } from 'sonner'
-import { githubClient } from '@/lib/github-client'
 
 export function LayoutSavePanel() {
 	const editing = useLayoutEditStore(state => state.editing)
@@ -40,14 +39,26 @@ export function LayoutSavePanel() {
 				addLog('success', 'layout', '布局和自定义组件已保存到本地', { cardStyles, customComponents })
 				toast.success('布局和自定义组件已保存')
 			} else if (isAuth) {
+				const { getAuthToken } = await import('@/lib/auth')
+				const { getRef, createBlob, createTree, createCommit, updateRef, toBase64Utf8 } = await import('@/lib/github-client')
+				const { GITHUB_CONFIG } = await import('@/consts')
+
+				const token = await getAuthToken()
+				const ref = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
+
 				const cardStylesContent = JSON.stringify(cardStyles, null, '\t')
 				const customComponentsContent = JSON.stringify(customComponents, null, '\t')
 
-				// 使用 GitHub API 同时更新两个文件
-				await Promise.all([
-					githubClient.updateFile('src/config/card-styles.json', cardStylesContent, '修改主页拖拽布局'),
-					githubClient.updateFile('src/config/custom-components.json', customComponentsContent, '保存自定义组件')
-				])
+				const blob1 = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(cardStylesContent), 'base64')
+				const blob2 = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(customComponentsContent), 'base64')
+
+				const tree = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [
+					{ path: 'src/config/card-styles.json', mode: '100644', type: 'blob', sha: blob1.sha },
+					{ path: 'src/config/custom-components.json', mode: '100644', type: 'blob', sha: blob2.sha }
+				], ref.sha)
+
+				const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '保存布局和自定义组件', tree.sha, [ref.sha])
+				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
 
 				stopEditing()
 				addLog('success', 'layout', '布局和自定义组件已推送到 GitHub', { cardStyles, customComponents })

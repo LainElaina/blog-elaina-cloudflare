@@ -17,7 +17,6 @@ import customComponentsDefault from '@/config/custom-components.json'
 import DraggerSVG from '@/svgs/dragger.svg'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
-import { githubClient } from '@/lib/github-client'
 
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
@@ -36,7 +35,7 @@ export function ComponentStore() {
 	const [isSaving, setIsSaving] = useState(false)
 
 	const styles = cardStyles.componentStoreButton
-	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : window.innerWidth - 24 - 48 - 72
+	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : (typeof window !== 'undefined' ? window.innerWidth - 24 - 48 - 72 : 0)
 	const y = styles?.offsetY !== null ? center.y + (styles?.offsetY || 0) : 24
 
 	const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, initialOffsetX: 0, initialOffsetY: 0 })
@@ -316,7 +315,17 @@ export function ComponentStore() {
 				toast.success('自定义组件已保存到项目')
 				addLog('success', 'component', '自定义组件已保存到本地项目')
 			} else if (isAuth) {
-				await githubClient.updateFile('src/config/custom-components.json', componentsJson, '保存自定义组件')
+				const { getAuthToken } = await import('@/lib/auth')
+				const { getRef, createBlob, createTree, createCommit, updateRef, toBase64Utf8 } = await import('@/lib/github-client')
+				const { GITHUB_CONFIG } = await import('@/consts')
+				const token = await getAuthToken()
+				const ref = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
+				const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(componentsJson), 'base64')
+				const tree = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [
+					{ path: 'src/config/custom-components.json', mode: '100644', type: 'blob', sha: blob.sha }
+				], ref.sha)
+				const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '保存自定义组件', tree.sha, [ref.sha])
+				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
 				toast.success('自定义组件已推送到 GitHub')
 				addLog('success', 'component', '自定义组件已推送到 GitHub')
 			} else {

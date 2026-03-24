@@ -18,7 +18,7 @@ export function ExportLayoutButton() {
 	const center = useCenterStore()
 
 	const styles = cardStyles.exportLayoutButton
-	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : window.innerWidth - 24 - 48 - 72 - 72 - 72 - 72
+	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : (typeof window !== 'undefined' ? window.innerWidth - 24 - 48 - 72 - 72 - 72 - 72 : 0)
 	const y = styles?.offsetY !== null ? center.y + (styles?.offsetY || 0) : 24
 
 	const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, initialOffsetX: 0, initialOffsetY: 0 })
