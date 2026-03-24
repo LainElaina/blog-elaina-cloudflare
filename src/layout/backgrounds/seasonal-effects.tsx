@@ -17,7 +17,7 @@ interface SeasonalEffectsProps {
 const STYLE_PRESETS: Record<SeasonalStyle, { count: number; opacity: number }> = {
 	light: { count: 10, opacity: 0.24 },
 	mixed: { count: 18, opacity: 0.38 },
-	vivid: { count: 28, opacity: 0.58 }
+	vivid: { count: 34, opacity: 0.68 }
 }
 
 function FloatingParticles({ count, opacity, colors, sizeRange, durationRange, driftRange, rotate = false, shape = 'circle' }: {
@@ -48,7 +48,7 @@ function FloatingParticles({ count, opacity, colors, sizeRange, durationRange, d
 	)
 
 	return (
-		<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className='pointer-events-none fixed inset-0 z-0 overflow-hidden'>
+		<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className='pointer-events-none fixed inset-0 z-[1] overflow-hidden'>
 			{particles.map(p => (
 				<motion.div
 					key={p.id}
@@ -79,14 +79,16 @@ export default function SeasonalEffects({ theme }: SeasonalEffectsProps) {
 	}
 
 	if (season === 'spring') {
+		const count = style === 'vivid' ? preset.count + 10 : preset.count
+		const opacity = style === 'vivid' ? Math.min(0.82, preset.opacity + 0.1) : preset.opacity
 		return (
 			<FloatingParticles
-				count={preset.count}
-				opacity={preset.opacity}
-				colors={['#ffd1dc', '#ffe4e1', '#fff0f5']}
-				sizeRange={[8, 16]}
+				count={count}
+				opacity={opacity}
+				colors={['#ffb3c7', '#ffc2d1', '#ffd6de']}
+				sizeRange={style === 'vivid' ? [10, 20] : [8, 16]}
 				durationRange={[14, 24]}
-				driftRange={[-20, 20]}
+				driftRange={style === 'vivid' ? [-28, 28] : [-20, 20]}
 				rotate
 				shape='petal'
 			/>
