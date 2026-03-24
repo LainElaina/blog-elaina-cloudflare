@@ -9,13 +9,16 @@ import { useEffect } from 'react'
 import SnowfallBackground from '@/layout/backgrounds/snowfall'
 import { COMPONENT_REGISTRY } from '@/config/component-registry'
 import { CustomCard } from '@/components/custom-card'
+import { EditLayoutButton } from '@/components/edit-layout-button'
+import { ExportLayoutButton } from '@/components/export-layout-button'
+import { ImportLayoutButton } from '@/components/import-layout-button'
+import { LayoutSettingsButton } from '@/components/layout-settings-button'
+import { ComponentStore } from '@/components/component-store'
 
 export default function Home() {
 	const { maxSM } = useSize()
 	const { cardStyles, configDialogOpen, setConfigDialogOpen, siteContent } = useConfigStore()
 	const { components: customComponents } = useCustomComponentStore()
-
-	console.log('Home 渲染，自定义组件数量:', customComponents.length, customComponents)
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -36,6 +39,11 @@ export default function Home() {
 			{siteContent.enableChristmas && <SnowfallBackground zIndex={0} count={!maxSM ? 125 : 20} />}
 
 			<LayoutSavePanel />
+			<ComponentStore />
+			<EditLayoutButton />
+			<ExportLayoutButton />
+			<ImportLayoutButton />
+			<LayoutSettingsButton />
 
 			<div className='max-sm:flex max-sm:flex-col max-sm:items-center max-sm:gap-6 max-sm:pt-28 max-sm:pb-20'>
 				{Object.entries(COMPONENT_REGISTRY).map(([id, meta]) => {
@@ -48,8 +56,8 @@ export default function Home() {
 					const Component = meta.component
 					return <Component key={id} />
 				})}
-				{customComponents.filter(c => c.style.enabled).map(comp => (
-					<CustomCard key={comp.id} component={comp} />
+				{customComponents.filter(c => c.style.enabled).map((comp, i) => (
+					<CustomCard key={comp.id} component={comp} index={i} />
 				))}
 			</div>
 

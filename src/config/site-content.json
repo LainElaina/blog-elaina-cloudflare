@@ -5,22 +5,22 @@
 		"username": "LainElaina"
 	},
 	"theme": {
-		"colorBrand": "#de4331",
-		"colorPrimary": "#4E3F42",
+		"colorBrand": "#35bfab",
+		"colorPrimary": "#334f52",
 		"colorSecondary": "#7b888e",
-		"colorBrandSecondary": "#FCC841",
+		"colorBrandSecondary": "#1fc9e7",
 		"colorBg": "#eeeeee",
 		"colorBorder": "#ffffff",
 		"colorCard": "#ffffff66",
 		"colorArticle": "#ffffffcc"
 	},
 	"backgroundColors": [
-		"#FCC841",
-		"#DFEFFC",
-		"#DEDE92",
-		"#DE4331",
-		"#FE9750",
-		"#FCC841"
+		"#EDDD62",
+		"#9EE7D1",
+		"#84D68A",
+		"#EDDD62",
+		"#88E6E5",
+		"#a7f3d0"
 	],
 	"artImages": [
 		{
@@ -34,9 +34,13 @@
 		{
 			"id": "96448e5de313708d",
 			"url": "/images/art/96448e5de313708d.png"
+		},
+		{
+			"id": "e337eb7d34020806",
+			"url": "/images/art/e337eb7d34020806.jpg"
 		}
 	],
-	"currentArtImageId": "96448e5de313708d",
+	"currentArtImageId": "e337eb7d34020806",
 	"backgroundImages": [
 		{
 			"id": "",
@@ -45,9 +49,13 @@
 		{
 			"id": "ceff8fdac40d5b61",
 			"url": "/images/background/ceff8fdac40d5b61.jpg"
+		},
+		{
+			"id": "02085bd396805f58",
+			"url": "/images/background/02085bd396805f58.png"
 		}
 	],
-	"currentBackgroundImageId": "ceff8fdac40d5b61",
+	"currentBackgroundImageId": "02085bd396805f58",
 	"socialButtons": [
 		{
 			"id": "github",

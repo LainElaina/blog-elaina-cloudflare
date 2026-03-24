@@ -25,10 +25,13 @@ export function ColorPicker({ value = '#000000', onChange, className }: ColorPic
 	useEffect(() => {
 		if (open && triggerRef.current) {
 			const rect = triggerRef.current.getBoundingClientRect()
-			setPosition({
-				top: rect.top - 240,
-				left: rect.left
-			})
+			// 优先在上方显示，空间不够则在下方
+			const panelHeight = 240
+			const top = rect.top > panelHeight + 10
+				? rect.top - panelHeight - 8
+				: rect.bottom + 8
+			const left = Math.min(rect.left, window.innerWidth - 260)
+			setPosition({ top, left })
 		}
 	}, [open])
 
@@ -65,7 +68,6 @@ export function ColorPicker({ value = '#000000', onChange, className }: ColorPic
 
 			{mounted &&
 				open &&
-				position.top > 0 &&
 				createPortal(
 					<ColorPickerPanel
 						value={value}
@@ -74,7 +76,7 @@ export function ColorPicker({ value = '#000000', onChange, className }: ColorPic
 							position: 'fixed',
 							top: `${position.top}px`,
 							left: `${position.left}px`,
-							zIndex: 1000
+							zIndex: 10001
 						}}
 					/>,
 					document.body

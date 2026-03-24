@@ -41,8 +41,37 @@ export function SiteSettings({
 	socialButtonImageUploads,
 	setSocialButtonImageUploads
 }: SiteSettingsProps) {
+	const isDev = process.env.NODE_ENV === 'development'
+
 	return (
 		<div className='space-y-6'>
+			<div className='flex items-start gap-2 text-sm'>
+				<span className='text-secondary shrink-0 leading-6'>当前环境：</span>
+				<div className='flex flex-col gap-1'>
+					{isDev ? (
+						<>
+							<span className='inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800'>
+								<span className='h-1.5 w-1.5 rounded-full bg-amber-500' />
+								本地开发环境
+							</span>
+							<span className='text-xs text-secondary leading-relaxed'>
+								保存时直接写入本地项目文件，图片通过 /api/upload-image 存到 public 目录，无需密钥认证
+							</span>
+						</>
+					) : (
+						<>
+							<span className='inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800'>
+								<span className='h-1.5 w-1.5 rounded-full bg-green-500' />
+								线上部署环境
+							</span>
+							<span className='text-xs text-secondary leading-relaxed'>
+								保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证
+							</span>
+						</>
+					)}
+				</div>
+			</div>
+
 			<FaviconAvatarUpload faviconItem={faviconItem} setFaviconItem={setFaviconItem} avatarItem={avatarItem} setAvatarItem={setAvatarItem} />
 
 			<SiteMetaForm formData={formData} setFormData={setFormData} />

@@ -1,0 +1,23 @@
+[
+	{
+		"name": "白色字春暖",
+		"theme": {
+			"colorBrand": "#35bfab",
+			"colorPrimary": "#334f52",
+			"colorSecondary": "#ffffff",
+			"colorBrandSecondary": "#1fc9e7",
+			"colorBg": "#eeeeee",
+			"colorBorder": "#ffffff",
+			"colorCard": "#ffffff66",
+			"colorArticle": "#ffffffcc"
+		},
+		"backgroundColors": [
+			"#EDDD62",
+			"#9EE7D1",
+			"#84D68A",
+			"#EDDD62",
+			"#88E6E5",
+			"#a7f3d0"
+		]
+	}
+]

@@ -120,5 +120,37 @@
 		"offsetX": null,
 		"offsetY": null,
 		"enabled": true
+	},
+	"editLayoutButton": {
+		"width": 48,
+		"height": 48,
+		"order": 102,
+		"offsetX": null,
+		"offsetY": null,
+		"enabled": true
+	},
+	"layoutSettingsButton": {
+		"width": 48,
+		"height": 48,
+		"order": 103,
+		"offsetX": null,
+		"offsetY": null,
+		"enabled": true
+	},
+	"exportLayoutButton": {
+		"width": 48,
+		"height": 48,
+		"order": 104,
+		"offsetX": null,
+		"offsetY": null,
+		"enabled": true
+	},
+	"importLayoutButton": {
+		"width": 48,
+		"height": 48,
+		"order": 105,
+		"offsetX": null,
+		"offsetY": null,
+		"enabled": true
 	}
 }

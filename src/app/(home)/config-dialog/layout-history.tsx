@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { motion } from 'motion/react'
+import { RotateCcw, Pencil, Trash2, Save } from 'lucide-react'
 import { useConfigStore } from '../stores/config-store'
 import { useLogStore } from '../stores/log-store'
 import { toast } from 'sonner'
@@ -86,57 +88,69 @@ export function LayoutHistory() {
 	}
 
 	return (
-		<div className='mt-4 space-y-3'>
+		<div className='mt-5 space-y-3'>
 			<div className='flex items-center justify-between'>
-				<h3 className='text-sm font-medium'>布局历史记录</h3>
-				<button
+				<div>
+					<h3 className='text-sm font-medium'>布局历史记录</h3>
+					<p className='text-[10px] text-secondary/60 mt-0.5'>存储在浏览器本地，清除缓存后将丢失，请及时导出备份</p>
+				</div>
+				<motion.button
+					whileHover={{ scale: 1.03 }}
+					whileTap={{ scale: 0.97 }}
 					onClick={handleSaveSnapshot}
-					className='px-3 py-1.5 text-xs bg-brand text-white rounded-lg hover:opacity-90'
+					className='inline-flex items-center gap-1.5 rounded-full bg-brand text-white px-4 py-1.5 text-xs hover:opacity-90 transition-opacity shrink-0'
 				>
+					<Save className='w-3.5 h-3.5' />
 					保存当前布局
-				</button>
+				</motion.button>
 			</div>
 
 			{snapshots.length === 0 ? (
-				<p className='text-xs text-secondary'>暂无保存的布局</p>
+				<p className='text-xs text-secondary py-2'>暂无保存的布局</p>
 			) : (
-				<div className='space-y-2 max-h-64 overflow-y-auto'>
+				<div className='space-y-2 max-h-64 overflow-y-auto scrollbar-none'>
 					{snapshots.map(snapshot => (
-						<div key={snapshot.id} className='flex items-center gap-2 p-2 bg-card rounded-lg border'>
+						<div
+							key={snapshot.id}
+							className='flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-sm p-3 transition-colors hover:bg-white/20'
+						>
 							{editingId === snapshot.id ? (
 								<input
 									value={editingName}
 									onChange={e => setEditingName(e.target.value)}
 									onBlur={() => handleSaveRename(snapshot.id)}
 									onKeyDown={e => e.key === 'Enter' && handleSaveRename(snapshot.id)}
-									className='flex-1 px-2 py-1 text-xs border rounded'
+									className='flex-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs border-none shadow-inner outline-none'
 									autoFocus
 								/>
 							) : (
 								<>
-									<div className='flex-1'>
-										<div className='text-xs font-medium'>{snapshot.name}</div>
-										<div className='text-xs text-secondary'>
+									<div className='flex-1 min-w-0'>
+										<div className='text-xs font-medium truncate'>{snapshot.name}</div>
+										<div className='text-[10px] text-secondary'>
 											{new Date(snapshot.timestamp).toLocaleString('zh-CN')}
 										</div>
 									</div>
 									<button
 										onClick={() => handleLoadSnapshot(snapshot)}
-										className='px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600'
+										title='加载'
+										className='p-1.5 rounded-full hover:bg-white/25 transition-colors'
 									>
-										加载
+										<RotateCcw className='w-3.5 h-3.5 text-secondary' />
 									</button>
 									<button
 										onClick={() => handleRename(snapshot.id, snapshot.name)}
-										className='px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600'
+										title='重命名'
+										className='p-1.5 rounded-full hover:bg-white/25 transition-colors'
 									>
-										重命名
+										<Pencil className='w-3.5 h-3.5 text-secondary' />
 									</button>
 									<button
 										onClick={() => handleDelete(snapshot.id, snapshot.name)}
-										className='px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600'
+										title='删除'
+										className='p-1.5 rounded-full hover:bg-red-500/15 transition-colors'
 									>
-										删除
+										<Trash2 className='w-3.5 h-3.5 text-secondary' />
 									</button>
 								</>
 							)}

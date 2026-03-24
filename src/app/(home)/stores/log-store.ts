@@ -36,6 +36,7 @@ interface LogStore {
 	visible: boolean
 	enabledCategories: Set<LogCategory>
 	logCounter: number
+	hasUnreadError: boolean
 	addLog: (level: LogEntry['level'], category: LogCategory, action: string, details?: any) => void
 	clearLogs: () => void
 	setEnabled: (enabled: boolean) => void
@@ -48,8 +49,9 @@ export const useLogStore = create<LogStore>((set, get) => ({
 	logs: [],
 	enabled: typeof window !== 'undefined' ? localStorage.getItem('log-enabled') === 'true' : false,
 	visible: typeof window !== 'undefined' ? localStorage.getItem('log-visible') === 'true' : false,
-	enabledCategories: new Set(['layout', 'history', 'music', 'config']),
+	enabledCategories: new Set<LogCategory>(['layout', 'history', 'music', 'config', 'blog', 'image', 'network', 'error']),
 	logCounter: 0,
+	hasUnreadError: false,
 	addLog: (level, category, action, details) => {
 		const { enabled, enabledCategories, logCounter } = get()
 		if (!enabled || !enabledCategories.has(category)) return
@@ -65,7 +67,8 @@ export const useLogStore = create<LogStore>((set, get) => ({
 
 		set(state => ({
 			logs: [log, ...state.logs].slice(0, 100),
-			logCounter: state.logCounter + 1
+			logCounter: state.logCounter + 1,
+			hasUnreadError: level === 'error' ? true : state.hasUnreadError
 		}))
 	},
 	clearLogs: () => set({ logs: [] }),
@@ -79,7 +82,7 @@ export const useLogStore = create<LogStore>((set, get) => ({
 		if (typeof window !== 'undefined') {
 			localStorage.setItem('log-visible', String(visible))
 		}
-		set({ visible })
+		set({ visible, ...(visible ? { hasUnreadError: false } : {}) })
 	},
 	toggleCategory: (category) => set(state => {
 		const newCategories = new Set(state.enabledCategories)

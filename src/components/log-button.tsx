@@ -9,7 +9,7 @@ import { useCenterStore } from '@/hooks/use-center'
 import DraggerSVG from '@/svgs/dragger.svg'
 
 export function LogButton() {
-	const { enabled, visible, setVisible, setEnabled, enabledCategories, toggleCategory } = useLogStore()
+	const { enabled, visible, setVisible, setEnabled, enabledCategories, toggleCategory, hasUnreadError } = useLogStore()
 	const [mounted, setMounted] = useState(false)
 	const [showSettings, setShowSettings] = useState(false)
 	const { cardStyles } = useConfigStore()
@@ -18,8 +18,8 @@ export function LogButton() {
 	const center = useCenterStore()
 
 	const styles = cardStyles.logButton
-	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : window.innerWidth - 24 - 48
-	const y = styles?.offsetY !== null ? center.y + (styles?.offsetY || 0) : 24
+	const x = styles?.offsetX !== null ? center.x + (styles?.offsetX || 0) : (typeof window !== 'undefined' ? window.innerWidth - 24 - 48 : 0)
+	const y = styles?.offsetY !== null ? center.y + (styles?.offsetY || 0) : 24 + 72
 
 	const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, initialOffsetX: 0, initialOffsetY: 0 })
 
@@ -85,7 +85,7 @@ export function LogButton() {
 					title='日志设置'
 				>
 					<FileText className='w-5 h-5 text-brand' />
-					{enabled && !visible && (
+					{hasUnreadError && (
 						<span className='absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse' />
 					)}
 				</button>

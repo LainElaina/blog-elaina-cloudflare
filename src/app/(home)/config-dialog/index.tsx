@@ -7,17 +7,17 @@ import { DialogModal } from '@/components/dialog-modal'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '../stores/config-store'
 import { pushSiteContent } from '../services/push-site-content'
+import { pushSiteContentLocal } from '../services/push-site-content-local'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
 import { ColorConfig } from './color-config'
-import { HomeLayout } from './home-layout'
 
 interface ConfigDialogProps {
 	open: boolean
 	onClose: () => void
 }
 
-type TabType = 'site' | 'color' | 'layout'
+type TabType = 'site' | 'color'
 
 export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const { isAuth, setPrivateKey } = useAuthStore()
@@ -142,21 +142,35 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const handleLocalSave = async () => {
 		setIsSaving(true)
 		try {
-			const customComponents = JSON.parse(localStorage.getItem('custom-components') || '[]')
-			const response = await fetch('/api/config', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					siteContent: formData,
-					cardStyles: cardStylesData,
-					customComponents
-				})
-			})
-			if (!response.ok) throw new Error('保存失败')
+			// Calculate removed images
+			const originalArtImages = originalData.artImages ?? []
+			const currentArtImages = formData.artImages ?? []
+			const removedArtImages = originalArtImages.filter(orig => !currentArtImages.some(current => current.id === orig.id))
+
+			const originalBackgroundImages = originalData.backgroundImages ?? []
+			const currentBackgroundImages = formData.backgroundImages ?? []
+			const removedBackgroundImages = originalBackgroundImages.filter(orig => !currentBackgroundImages.some(current => current.id === orig.id))
+
+			await pushSiteContentLocal(
+				formData,
+				cardStylesData,
+				faviconItem,
+				avatarItem,
+				artImageUploads,
+				removedArtImages,
+				backgroundImageUploads,
+				removedBackgroundImages,
+				socialButtonImageUploads
+			)
 
 			setSiteContent(formData)
 			setCardStyles(cardStylesData)
 			updateThemeVariables(formData.theme)
+			setFaviconItem(null)
+			setAvatarItem(null)
+			setArtImageUploads({})
+			setBackgroundImageUploads({})
+			setSocialButtonImageUploads({})
 			toast.success('已保存到本地文件')
 			onClose()
 		} catch (error: any) {
@@ -164,45 +178,6 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 		} finally {
 			setIsSaving(false)
 		}
-	}
-
-	const handleExport = () => {
-		const customComponents = JSON.parse(localStorage.getItem('custom-components') || '[]')
-		const config = {
-			siteContent: formData,
-			cardStyles: cardStylesData,
-			customComponents
-		}
-		const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
-		const url = URL.createObjectURL(blob)
-		const a = document.createElement('a')
-		a.href = url
-		a.download = `blog-config-${Date.now()}.json`
-		a.click()
-		URL.revokeObjectURL(url)
-		toast.success('配置已导出')
-	}
-
-	const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0]
-		if (!file) return
-
-		const reader = new FileReader()
-		reader.onload = (event) => {
-			try {
-				const config = JSON.parse(event.target?.result as string)
-				if (config.siteContent) setFormData(config.siteContent)
-				if (config.cardStyles) setCardStylesData(config.cardStyles)
-				if (config.customComponents) {
-					localStorage.setItem('custom-components', JSON.stringify(config.customComponents))
-				}
-				toast.success('配置已导入')
-			} catch (error) {
-				toast.error('导入失败：文件格式错误')
-			}
-		}
-		reader.readAsText(file)
-		e.target.value = ''
 	}
 
 	const handleCancel = () => {
@@ -289,8 +264,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 
 	const tabs: { id: TabType; label: string }[] = [
 		{ id: 'site', label: '网站设置' },
-		{ id: 'color', label: '色彩配置' },
-		{ id: 'layout', label: '首页布局' }
+		{ id: 'color', label: '色彩配置' }
 	]
 
 	return (
@@ -305,13 +279,6 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 					if (f) await handleChoosePrivateKey(f)
 					if (e.currentTarget) e.currentTarget.value = ''
 				}}
-			/>
-			<input
-				type='file'
-				accept='.json'
-				className='hidden'
-				id='import-config'
-				onChange={handleImport}
 			/>
 
 			<DialogModal open={open} onClose={handleCancel} className='card scrollbar-none max-h-[90vh] min-h-[600px] w-[640px] overflow-y-auto'>
@@ -330,20 +297,6 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 						))}
 					</div>
 					<div className='flex gap-3'>
-						<motion.button
-							whileHover={{ scale: 1.05 }}
-							whileTap={{ scale: 0.95 }}
-							onClick={handleExport}
-							className='bg-card rounded-xl border px-4 py-2 text-sm'>
-							导出
-						</motion.button>
-						<motion.button
-							whileHover={{ scale: 1.05 }}
-							whileTap={{ scale: 0.95 }}
-							onClick={() => document.getElementById('import-config')?.click()}
-							className='bg-card rounded-xl border px-4 py-2 text-sm'>
-							导入
-						</motion.button>
 						{process.env.NODE_ENV === 'development' && (
 							<motion.button
 								whileHover={{ scale: 1.05 }}
@@ -393,7 +346,6 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 						/>
 					)}
 					{activeTab === 'color' && <ColorConfig formData={formData} setFormData={setFormData} />}
-					{activeTab === 'layout' && <HomeLayout cardStylesData={cardStylesData} setCardStylesData={setCardStylesData} onClose={onClose} />}
 				</div>
 			</DialogModal>
 		</>

@@ -8,24 +8,35 @@ export async function POST(request: NextRequest) {
 	}
 
 	try {
-		const { siteContent, cardStyles, customComponents } = await request.json()
+		const { siteContent, cardStyles, customComponents, colorPresets } = await request.json()
 
 		const configDir = path.join(process.cwd(), 'src/config')
 
-		await fs.writeFile(
-			path.join(configDir, 'site-content.json'),
-			JSON.stringify(siteContent, null, '\t')
-		)
+		if (siteContent) {
+			await fs.writeFile(
+				path.join(configDir, 'site-content.json'),
+				JSON.stringify(siteContent, null, '\t')
+			)
+		}
 
-		await fs.writeFile(
-			path.join(configDir, 'card-styles.json'),
-			JSON.stringify(cardStyles, null, '\t')
-		)
+		if (cardStyles) {
+			await fs.writeFile(
+				path.join(configDir, 'card-styles.json'),
+				JSON.stringify(cardStyles, null, '\t')
+			)
+		}
 
 		if (customComponents) {
 			await fs.writeFile(
 				path.join(configDir, 'custom-components.json'),
 				JSON.stringify(customComponents, null, '\t')
+			)
+		}
+
+		if (colorPresets) {
+			await fs.writeFile(
+				path.join(configDir, 'color-presets.json'),
+				JSON.stringify(colorPresets, null, '\t')
 			)
 		}
 

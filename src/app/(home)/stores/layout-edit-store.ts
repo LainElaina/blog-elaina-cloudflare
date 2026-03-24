@@ -5,11 +5,14 @@ import { useConfigStore, type CardStyles } from './config-store'
 import { useCustomComponentStore } from './custom-component-store'
 import { useLogStore } from './log-store'
 
+import { CustomComponent } from './custom-component-store'
+
 type CardKey = keyof CardStyles | string
 
 interface LayoutEditState {
 	editing: boolean
 	snapshot: CardStyles | null
+	customComponentsSnapshot: CustomComponent[] | null
 	startEditing: () => void
 	stopEditing: () => void
 	cancelEditing: () => void
@@ -21,34 +24,47 @@ interface LayoutEditState {
 export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 	editing: false,
 	snapshot: null,
+	customComponentsSnapshot: null,
 	startEditing: () => {
 		const { cardStyles } = useConfigStore.getState()
+		const { components } = useCustomComponentStore.getState()
 		set({
 			editing: true,
-			snapshot: { ...cardStyles }
+			snapshot: { ...cardStyles },
+			customComponentsSnapshot: components.map(c => ({ ...c, style: { ...c.style } }))
 		})
 		useLogStore.getState().addLog('info', 'layout', '开始编辑布局')
 	},
 	stopEditing: () => {
 		set({
 			editing: false,
-			snapshot: null
+			snapshot: null,
+			customComponentsSnapshot: null
 		})
 		useLogStore.getState().addLog('info', 'layout', '结束编辑布局')
 	},
 	cancelEditing: () => {
-		const { snapshot } = get()
+		const { snapshot, customComponentsSnapshot } = get()
 		if (!snapshot) {
-			set({ editing: false, snapshot: null })
+			set({ editing: false, snapshot: null, customComponentsSnapshot: null })
 			return
 		}
 
 		const { setCardStyles } = useConfigStore.getState()
 		setCardStyles(snapshot)
 
+		// 恢复自定义组件
+		if (customComponentsSnapshot) {
+			useCustomComponentStore.setState({ components: customComponentsSnapshot })
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('custom-components', JSON.stringify(customComponentsSnapshot))
+			}
+		}
+
 		set({
 			editing: false,
-			snapshot: null
+			snapshot: null,
+			customComponentsSnapshot: null
 		})
 		useLogStore.getState().addLog('warning', 'layout', '取消编辑布局，已恢复快照')
 	},

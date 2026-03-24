@@ -1,10 +1,14 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { ColorPicker } from '@/components/color-picker'
-import { XIcon } from 'lucide-react'
+import { XIcon, Save, Trash2, Download, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 import type { SiteContent } from '../stores/config-store'
+import { useAuthStore } from '@/hooks/use-auth'
 import siteContent from '@/config/site-content.json'
+import colorPresetsDefault from '@/config/color-presets.json'
 
 interface ColorConfigProps {
 	formData: SiteContent
@@ -19,7 +23,7 @@ type ColorPreset = {
 	backgroundColors: string[]
 }
 
-const COLOR_PRESETS: ColorPreset[] = [
+const BUILTIN_PRESETS: ColorPreset[] = [
 	{
 		name: '春暖',
 		theme: {
@@ -59,8 +63,28 @@ const COLOR_PRESETS: ColorPreset[] = [
 	}
 ]
 
+// 加载自定义预设：优先 localStorage，否则用项目 JSON
+const loadCustomPresets = (): ColorPreset[] => {
+	if (typeof window === 'undefined') return colorPresetsDefault as ColorPreset[]
+	try {
+		const saved = localStorage.getItem('color-presets')
+		if (saved) return JSON.parse(saved)
+	} catch {}
+	return colorPresetsDefault as ColorPreset[]
+}
+
 export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 	const theme = formData.theme ?? {}
+	const { isAuth } = useAuthStore()
+	const [customPresets, setCustomPresets] = useState<ColorPreset[]>(loadCustomPresets)
+	const [isSaving, setIsSaving] = useState(false)
+
+	const saveCustomPresetsLocal = (presets: ColorPreset[]) => {
+		setCustomPresets(presets)
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('color-presets', JSON.stringify(presets))
+		}
+	}
 
 	const handleThemeColorChange = (key: keyof typeof DEFAULT_THEME_COLORS, value: string) => {
 		setFormData(prev => ({
@@ -97,7 +121,7 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 	}
 
 	const handleRandomizeColors = () => {
-		const count = Math.floor(Math.random() * 5) + 4 // 4 ~ 8 个颜色
+		const count = Math.floor(Math.random() * 5) + 4
 		const backgroundColors = Array.from({ length: count }, () => generateRandomColor())
 		const colorBrand = generateRandomColor()
 
@@ -136,10 +160,132 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 		}))
 	}
 
+	// 保存当前配色为预设
+	const handleSaveAsPreset = () => {
+		const name = prompt('输入预设名称：')
+		if (!name?.trim()) return
+		const newPreset: ColorPreset = {
+			name: name.trim(),
+			theme: { ...formData.theme },
+			backgroundColors: [...formData.backgroundColors]
+		}
+		saveCustomPresetsLocal([...customPresets, newPreset])
+		toast.success(`已保存预设"${name.trim()}"`)
+	}
+
+	// 删除自定义预设
+	const handleDeletePreset = (index: number) => {
+		const preset = customPresets[index]
+		if (!confirm(`确定删除预设"${preset.name}"？`)) return
+		const updated = customPresets.filter((_, i) => i !== index)
+		saveCustomPresetsLocal(updated)
+		toast.success('已删除预设')
+	}
+
+	// 导出配色为文件
+	const handleExportColors = () => {
+		const name = prompt('输入预设名称：')
+		if (!name?.trim()) return
+		const config: ColorPreset = {
+			name: name.trim(),
+			theme: formData.theme,
+			backgroundColors: formData.backgroundColors
+		}
+		const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+		const url = URL.createObjectURL(blob)
+		const a = document.createElement('a')
+		a.href = url
+		a.download = `${name.trim()}.json`
+		a.click()
+		URL.revokeObjectURL(url)
+		toast.success('配色已导出')
+	}
+
+	// 导入配色文件为自定义预设
+	const handleImportColors = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0]
+		if (!file) return
+		const reader = new FileReader()
+		reader.onload = (event) => {
+			try {
+				const config = JSON.parse(event.target?.result as string)
+				if (config.theme || config.backgroundColors) {
+					const name = config.name || file.name.replace(/\.json$/, '')
+					const newPreset: ColorPreset = {
+						name,
+						theme: config.theme || {},
+						backgroundColors: config.backgroundColors || []
+					}
+					saveCustomPresetsLocal([...customPresets, newPreset])
+					toast.success(`已导入预设"${name}"`)
+				} else {
+					toast.error('文件中未找到配色数据')
+				}
+			} catch {
+				toast.error('导入失败，请检查文件格式')
+			}
+		}
+		reader.readAsText(file)
+		e.target.value = ''
+	}
+
+	// 持久化保存自定义预设到项目
+	const handlePersistPresets = async () => {
+		setIsSaving(true)
+		try {
+			if (process.env.NODE_ENV === 'development') {
+				await fetch('/api/config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ colorPresets: customPresets })
+				})
+				toast.success('色彩预设已保存到项目')
+			} else if (isAuth) {
+				const { getAuthToken } = await import('@/lib/auth')
+				const { getRef, createTree, createCommit, updateRef, createBlob } = await import('@/lib/github-client')
+				const { GITHUB_CONFIG } = await import('@/consts')
+				const token = await getAuthToken()
+				const ref = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
+				const content = btoa(unescape(encodeURIComponent(JSON.stringify(customPresets, null, '\t'))))
+				const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, content, 'base64')
+				const tree = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [
+					{ path: 'src/config/color-presets.json', mode: '100644', type: 'blob', sha: blob.sha }
+				], ref.sha)
+				const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '保存色彩预设', tree.sha, [ref.sha])
+				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
+				toast.success('色彩预设已推送到 GitHub')
+			} else {
+				toast.error('线上环境需要先导入密钥')
+			}
+		} catch (error) {
+			console.error(error)
+			toast.error('保存失败')
+		} finally {
+			setIsSaving(false)
+		}
+	}
+
 	return (
 		<div className='space-y-6'>
 			<div>
-				<label className='mb-2 block text-sm font-medium'>基础颜色</label>
+				<div className='mb-2 flex items-center justify-between'>
+					<label className='block text-sm font-medium'>基础颜色</label>
+					<div className='flex gap-2'>
+						<motion.button
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							onClick={handleExportColors}
+							className='rounded-lg border bg-white/60 px-3 py-1 text-xs whitespace-nowrap'>
+							<Download className='w-3 h-3 inline mr-1' />
+							导出
+						</motion.button>
+						<label className='rounded-lg border bg-white/60 px-3 py-1 text-xs whitespace-nowrap cursor-pointer hover:bg-white/80 transition-colors inline-flex items-center'>
+							<Upload className='w-3 h-3 mr-1' />
+							导入为预设
+							<input type='file' accept='.json' className='hidden' onChange={handleImportColors} />
+						</label>
+					</div>
+				</div>
 				<div className='grid grid-cols-2 gap-4'>
 					<div className='flex items-center gap-3'>
 						<ColorPicker value={formData.theme?.colorBrand ?? '#35bfab'} onChange={handleBrandColorChange} />
@@ -180,6 +326,9 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 						<span className='text-xs'>文章背景</span>
 					</div>
 				</div>
+				<p className='text-[10px] text-secondary/60 mt-2'>
+					修改颜色后，点击弹窗底部的"本地保存"或"保存"按钮可应用配色到博客。如需保留为可复用的预设，请在下方"保存当前配色为预设"后点击"保存自定义预设到项目"进行持久化。
+				</p>
 			</div>
 
 			<div>
@@ -220,25 +369,88 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 				</div>
 			</div>
 
-			<div className='flex flex-col gap-3'>
-				{COLOR_PRESETS.map(preset => (
-					<button
-						key={preset.name}
-						onClick={() => handlePresetChange(preset)}
-						className='flex items-center gap-3 rounded-lg border bg-white/60 p-3 transition-colors hover:bg-white/80'>
-						<div className='flex items-center gap-2'>
-							<div
-								className='h-10 w-10 rounded-lg border-2 border-white/20 shadow-sm'
-								style={{ backgroundColor: preset.theme.colorBrand ?? DEFAULT_THEME_COLORS.colorBrand }}
-							/>
-							{preset.backgroundColors.map((color, index) => (
-								<div key={index} className='h-10 w-10 rounded-lg border-2 border-white/20 shadow-sm' style={{ backgroundColor: color }} />
-							))}
-						</div>
+			{/* 预设区域 */}
+			<div>
+				<div className='mb-2 flex items-center justify-between'>
+					<label className='block text-sm font-medium'>配色预设</label>
+					<motion.button
+						whileHover={{ scale: 1.05 }}
+						whileTap={{ scale: 0.95 }}
+						onClick={handleSaveAsPreset}
+						className='rounded-lg border bg-white/60 px-3 py-1 text-xs whitespace-nowrap inline-flex items-center gap-1'>
+						<Save className='w-3 h-3' />
+						保存当前配色为预设
+					</motion.button>
+				</div>
 
-						<span className='text-sm font-medium whitespace-nowrap'>{preset.name}</span>
-					</button>
-				))}
+				{/* 内置预设 */}
+				<div className='flex flex-col gap-3'>
+					{BUILTIN_PRESETS.map(preset => (
+						<button
+							key={preset.name}
+							onClick={() => handlePresetChange(preset)}
+							className='flex items-center gap-3 rounded-lg border bg-white/60 p-3 transition-colors hover:bg-white/80'>
+							<div className='flex items-center gap-2'>
+								<div
+									className='h-10 w-10 rounded-lg border-2 border-white/20 shadow-sm'
+									style={{ backgroundColor: preset.theme.colorBrand ?? DEFAULT_THEME_COLORS.colorBrand }}
+								/>
+								{preset.backgroundColors.map((color, index) => (
+									<div key={index} className='h-10 w-10 rounded-lg border-2 border-white/20 shadow-sm' style={{ backgroundColor: color }} />
+								))}
+							</div>
+							<span className='text-sm font-medium whitespace-nowrap'>{preset.name}</span>
+						</button>
+					))}
+
+					{/* 自定义预设 */}
+					{customPresets.map((preset, index) => (
+						<div
+							key={`custom-${index}`}
+							className='flex items-center gap-3 rounded-lg border border-blue-400/20 bg-white/60 p-3 transition-colors hover:bg-white/80'>
+							<button
+								onClick={() => handlePresetChange(preset)}
+								className='flex items-center gap-2 flex-1 min-w-0'>
+								<div
+									className='h-10 w-10 shrink-0 rounded-lg border-2 border-white/20 shadow-sm'
+									style={{ backgroundColor: preset.theme.colorBrand ?? DEFAULT_THEME_COLORS.colorBrand }}
+								/>
+								{preset.backgroundColors.slice(0, 5).map((color, ci) => (
+									<div key={ci} className='h-10 w-10 shrink-0 rounded-lg border-2 border-white/20 shadow-sm' style={{ backgroundColor: color }} />
+								))}
+								{preset.backgroundColors.length > 5 && (
+									<span className='text-[10px] text-secondary shrink-0'>+{preset.backgroundColors.length - 5}</span>
+								)}
+							</button>
+							<span className='text-sm font-medium whitespace-nowrap'>{preset.name}</span>
+							<span className='text-[10px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded-full shrink-0'>自定义</span>
+							<button
+								onClick={() => handleDeletePreset(index)}
+								title='删除预设'
+								className='p-1 rounded-full hover:bg-red-500/15 transition-colors shrink-0'>
+								<Trash2 className='w-3.5 h-3.5 text-secondary' />
+							</button>
+						</div>
+					))}
+				</div>
+
+				{/* 持久化保存 */}
+				{customPresets.length > 0 && (
+					<div className='mt-3'>
+						<motion.button
+							whileHover={{ scale: 1.02 }}
+							whileTap={{ scale: 0.98 }}
+							onClick={handlePersistPresets}
+							disabled={isSaving}
+							className='w-full rounded-lg border bg-white/60 px-4 py-2 text-xs hover:bg-white/80 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-1.5'>
+							<Save className='w-3.5 h-3.5' />
+							{isSaving ? '保存中...' : '保存自定义预设到项目'}
+						</motion.button>
+						<p className='text-[10px] text-secondary/60 mt-1 text-center'>
+							自定义预设暂存于浏览器，点击上方按钮持久化到项目文件。{process.env.NODE_ENV !== 'development' && '线上环境需先导入密钥。'}
+						</p>
+					</div>
+				)}
 			</div>
 		</div>
 	)

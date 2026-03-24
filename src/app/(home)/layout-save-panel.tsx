@@ -2,6 +2,7 @@
 
 import { useLayoutEditStore } from './stores/layout-edit-store'
 import { useConfigStore } from './stores/config-store'
+import { useCustomComponentStore } from './stores/custom-component-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useLogStore } from './stores/log-store'
 import { toast } from 'sonner'
@@ -10,7 +11,9 @@ import { githubClient } from '@/lib/github-client'
 export function LayoutSavePanel() {
 	const editing = useLayoutEditStore(state => state.editing)
 	const stopEditing = useLayoutEditStore(state => state.stopEditing)
-	const { cardStyles, saveLayout, resetCardStyles } = useConfigStore()
+	const cancelEditing = useLayoutEditStore(state => state.cancelEditing)
+	const { cardStyles, saveLayout } = useConfigStore()
+	const { components: customComponents } = useCustomComponentStore()
 	const { isAuth } = useAuthStore()
 	const addLog = useLogStore(state => state.addLog)
 
@@ -18,27 +21,37 @@ export function LayoutSavePanel() {
 
 	const handleSave = async () => {
 		try {
-			// 保存到历史记录
+			// 保存到历史记录（包含自定义组件）
 			const snapshots = JSON.parse(localStorage.getItem('layout-snapshots') || '[]')
 			const newSnapshot = {
 				id: Date.now().toString(),
 				name: `自动保存 ${new Date().toLocaleString('zh-CN')}`,
 				timestamp: Date.now(),
-				data: cardStyles
+				data: cardStyles,
+				customComponents
 			}
 			localStorage.setItem('layout-snapshots', JSON.stringify([newSnapshot, ...snapshots]))
 
 			if (process.env.NODE_ENV === 'development') {
 				await saveLayout()
+				// 同时保存自定义组件到本地
+				localStorage.setItem('custom-components', JSON.stringify(customComponents))
 				stopEditing()
-				addLog('success', 'layout', '布局已保存到本地', cardStyles)
-				toast.success('布局已保存到本地和历史记录')
+				addLog('success', 'layout', '布局和自定义组件已保存到本地', { cardStyles, customComponents })
+				toast.success('布局和自定义组件已保存')
 			} else if (isAuth) {
-				const content = JSON.stringify(cardStyles, null, '\t')
-				await githubClient.updateFile('src/config/card-styles.json', content, '修改主页拖拽布局')
+				const cardStylesContent = JSON.stringify(cardStyles, null, '\t')
+				const customComponentsContent = JSON.stringify(customComponents, null, '\t')
+
+				// 使用 GitHub API 同时更新两个文件
+				await Promise.all([
+					githubClient.updateFile('src/config/card-styles.json', cardStylesContent, '修改主页拖拽布局'),
+					githubClient.updateFile('src/config/custom-components.json', customComponentsContent, '保存自定义组件')
+				])
+
 				stopEditing()
-				addLog('success', 'layout', '布局已推送到 GitHub', cardStyles)
-				toast.success('布局已推送到 GitHub 和历史记录')
+				addLog('success', 'layout', '布局和自定义组件已推送到 GitHub', { cardStyles, customComponents })
+				toast.success('布局和自定义组件已推送到 GitHub')
 			} else {
 				addLog('error', 'layout', '生产环境需要导入密钥才能保存')
 				toast.error('生产环境需要导入密钥才能保存')
@@ -51,8 +64,7 @@ export function LayoutSavePanel() {
 	}
 
 	const handleCancel = () => {
-		resetCardStyles()
-		stopEditing()
+		cancelEditing()
 		addLog('warning', 'layout', '取消布局修改')
 		toast.info('已取消修改')
 	}

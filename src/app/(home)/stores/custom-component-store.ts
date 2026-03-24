@@ -31,20 +31,28 @@ interface CustomComponentStore {
 	getComponent: (id: string) => CustomComponent | undefined
 }
 
+// 初始化：优先用 localStorage（本地编辑缓存），否则用项目 JSON 文件（部署数据源）
+const getInitialComponents = (): CustomComponent[] => {
+	if (typeof window === 'undefined') return customComponentsDefault as CustomComponent[]
+	try {
+		const saved = localStorage.getItem('custom-components')
+		if (saved) return JSON.parse(saved)
+	} catch {}
+	return customComponentsDefault as CustomComponent[]
+}
+
 export const useCustomComponentStore = create<CustomComponentStore>((set, get) => ({
-	components: [],
+	components: getInitialComponents(),
 
 	addComponent: (component) => {
 		const newComponent: CustomComponent = {
 			...component,
 			id: `custom-${Date.now()}`
 		}
-		console.log('添加自定义组件:', newComponent)
 		set(state => {
 			const newComponents = [...state.components, newComponent]
 			if (typeof window !== 'undefined') {
 				localStorage.setItem('custom-components', JSON.stringify(newComponents))
-				console.log('保存到 localStorage:', newComponents)
 			}
 			return { components: newComponents }
 		})
