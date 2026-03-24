@@ -90,10 +90,16 @@ export function ComponentStore() {
 			useTemplateStore.setState({ templates: JSON.parse(savedTemplates) })
 		}
 
-		// 加载自定义组件
+		// 加载自定义组件（localStorage 有数据则用，否则用项目 JSON 文件）
 		const savedCustom = localStorage.getItem('custom-components')
-		const customToLoad = savedCustom ? JSON.parse(savedCustom) : customComponentsDefault
-		useCustomComponentStore.setState({ components: customToLoad })
+		if (savedCustom) {
+			try {
+				const parsed = JSON.parse(savedCustom)
+				if (Array.isArray(parsed) && parsed.length > 0) {
+					useCustomComponentStore.setState({ components: parsed })
+				}
+			} catch {}
+		}
 
 		// 加载收藏
 		const savedFavorites = localStorage.getItem('component-favorites')

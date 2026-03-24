@@ -32,11 +32,15 @@ interface CustomComponentStore {
 }
 
 // 初始化：优先用 localStorage（本地编辑缓存），否则用项目 JSON 文件（部署数据源）
+// 注意：如果 localStorage 存的是空数组，说明用户执行过"重置全部"但未持久化，应回退到项目文件
 const getInitialComponents = (): CustomComponent[] => {
 	if (typeof window === 'undefined') return customComponentsDefault as CustomComponent[]
 	try {
 		const saved = localStorage.getItem('custom-components')
-		if (saved) return JSON.parse(saved)
+		if (saved) {
+			const parsed = JSON.parse(saved)
+			if (Array.isArray(parsed) && parsed.length > 0) return parsed
+		}
 	} catch {}
 	return customComponentsDefault as CustomComponent[]
 }
