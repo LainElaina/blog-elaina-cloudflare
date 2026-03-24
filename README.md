@@ -113,6 +113,17 @@
   - 开发环境通过 `/api/delete-image` 删除本地文件
   - 生产环境通过 GitHub API 从仓库删除文件
 
+### ✍️ 文章编辑器
+- **图片插入**（三种方式）：
+  - **拖拽插入**：从侧边栏图片缩略图拖拽到编辑器，自动在光标处插入 markdown 引用；也支持从电脑文件夹直接拖拽图片文件进编辑器
+  - **点击复制**：点击侧边栏图片缩略图，复制 `![](local-image:xxx)` 引用到剪贴板，在编辑器中粘贴即可
+  - **粘贴图片**：在编辑器中直接 Ctrl+V 粘贴截图或复制的图片，自动添加到图片列表并插入引用
+- **图片占位符**：本地图片使用 `![](local-image:<id>)` 占位，发布时自动替换为实际上传路径
+- **双环境发布**：
+  - 开发环境：图片保存到 `public/blogs/<slug>/`，文章数据写入本地文件
+  - 生产环境：通过 GitHub API 提交图片和文章到仓库
+- **Markdown 快捷键**：Ctrl+B 加粗、Ctrl+I 斜体、Ctrl+K 插入链接、Tab 缩进
+
 ### ⚙️ 网站设置
 - **环境指示器**：网站设置页面顶部显示当前运行环境
   - 本地开发环境（橙色标识）：保存时直接写入本地项目文件，图片通过 `/api/upload-image` 存到 public 目录，无需密钥认证
@@ -200,6 +211,7 @@ pnpm run dev
 
 * **线上更新**：在网页端保存文章，或本地执行 `git push` 后，Cloudflare 将在几分钟内自动完成构建并刷新全站缓存。
 * **本地同步**：如果通过网页端发布了新文章，本地修改代码前请务必先执行 `git pull origin main` 以防代码冲突。
+* **部署后内容未更新？** Cloudflare 可能使用了构建缓存。前往 Cloudflare Dashboard → Workers & Pages → 项目 → Settings → Builds → Purge build cache，然后 Retry deployment。部署完成后再到 Caching → Purge Everything 清除 CDN 缓存，最后浏览器 Ctrl+Shift+R 硬刷新。
 
 ---
 
