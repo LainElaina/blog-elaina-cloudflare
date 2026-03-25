@@ -9,7 +9,7 @@ import { CARD_SPACING } from '@/consts'
 import MusicSVG from '@/svgs/music.svg'
 import PlaySVG from '@/svgs/play.svg'
 import { HomeDraggableLayer } from '../app/(home)/home-draggable-layer'
-import { Pause, Shuffle, ListMusic, SkipForward } from 'lucide-react'
+import { Pause, Shuffle, ListMusic, SkipForward, ChevronUp } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 
@@ -45,7 +45,16 @@ export default function MusicCard() {
 		playbackModeRef.current = playbackMode
 	}, [playbackMode])
 
-	const isHomePage = pathname === '/'
+	const safePlay = async () => {
+		if (!audioRef.current) return
+		try {
+			await audioRef.current.play()
+		} catch (error: any) {
+			if (error?.name !== 'AbortError') {
+				console.error(error)
+			}
+		}
+	}
 
 	const position = useMemo(() => {
 		const expandedHeight = showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 24 : styles.height
@@ -118,11 +127,12 @@ export default function MusicCard() {
 			audioRef.current.pause()
 			audioRef.current.src = MUSIC_LIST[currentIndex].file
 			audioRef.current.loop = false
+			audioRef.current.load()
 			setCurrentTime(0)
 			setProgress(0)
 
 			if (wasPlaying) {
-				audioRef.current.play().catch(console.error)
+				void safePlay()
 			}
 		}
 	}, [currentIndex])
@@ -132,7 +142,7 @@ export default function MusicCard() {
 		if (!audioRef.current) return
 
 		if (isPlaying) {
-			audioRef.current.play().catch(console.error)
+			void safePlay()
 		} else {
 			audioRef.current.pause()
 		}
@@ -179,6 +189,7 @@ export default function MusicCard() {
 	}
 
 	const handleSeek = (event: React.MouseEvent<HTMLDivElement>) => {
+		event.stopPropagation()
 		if (!audioRef.current || !audioRef.current.duration) return
 
 		const rect = event.currentTarget.getBoundingClientRect()
@@ -221,7 +232,7 @@ export default function MusicCard() {
 			<Card
 				order={styles.order}
 				width={styles.width}
-				height={showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 24 : styles.height}
+				height={showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 56 : styles.height}
 				x={x}
 				y={y}
 				className={clsx(!isHomePage && 'fixed')}
@@ -267,7 +278,41 @@ export default function MusicCard() {
 					</div>
 
 					{showPlaylist && (
-						<div className='mt-2 w-full space-y-1'>
+						<div className='mt-2 w-full space-y-2'>
+							<div className='flex items-center justify-between gap-2'>
+								<button
+									type='button'
+									aria-label='收起歌单'
+									onClick={(e) => {
+										e.stopPropagation()
+										setShowPlaylist(false)
+									}}
+									className='flex h-8 w-8 items-center justify-center rounded-full bg-white/70 transition-opacity hover:opacity-80'>
+									<ChevronUp className='text-brand h-4 w-4' />
+								</button>
+								<div className='flex items-center gap-2'>
+									<button
+										type='button'
+										aria-label={playbackMode === 'sequence' ? '顺序播放' : '随机播放'}
+										onClick={(e) => {
+											e.stopPropagation()
+											togglePlaybackMode()
+										}}
+										className='flex h-8 min-w-8 items-center justify-center rounded-full bg-white/70 px-3 text-xs transition-opacity hover:opacity-80'>
+										{playbackMode === 'sequence' ? <ListMusic className='text-brand h-4 w-4' /> : <Shuffle className='text-brand h-4 w-4' />}
+									</button>
+									<button
+										type='button'
+										aria-label='下一首'
+										onClick={(e) => {
+											e.stopPropagation()
+											playNextTrack()
+										}}
+										className='flex h-8 w-8 items-center justify-center rounded-full bg-white/70 transition-opacity hover:opacity-80'>
+										<SkipForward className='text-brand h-4 w-4' />
+									</button>
+								</div>
+							</div>
 							{MUSIC_LIST.map((track, index) => (
 								<div
 									key={index}
@@ -275,8 +320,7 @@ export default function MusicCard() {
 									className={clsx(
 										'px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm',
 										currentIndex === index ? 'bg-white/40 text-brand font-medium' : 'hover:bg-white/20 text-secondary'
-									)}
-								>
+									)}>
 									{track.title}
 								</div>
 							))}
