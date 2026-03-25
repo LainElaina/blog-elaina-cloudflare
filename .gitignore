@@ -49,3 +49,6 @@ next-env.d.ts
 
 # layout backups
 /data/
+
+# worktrees
+/.worktrees/
