@@ -9,7 +9,7 @@ import { CARD_SPACING } from '@/consts'
 import MusicSVG from '@/svgs/music.svg'
 import PlaySVG from '@/svgs/play.svg'
 import { HomeDraggableLayer } from '../app/(home)/home-draggable-layer'
-import { Pause } from 'lucide-react'
+import { Pause, Shuffle, ListMusic, SkipForward } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 
@@ -18,6 +18,8 @@ const MUSIC_LIST = [
 	{ file: '/music/literature-piano.mp3', title: 'リテラチュア (Piano ver.)' },
 	{ file: '/music/haiiro-no-saga.mp3', title: '灰色のサーガ' }
 ]
+
+type PlaybackMode = 'sequence' | 'shuffle'
 
 export default function MusicCard() {
 	const pathname = usePathname()
@@ -34,10 +36,14 @@ export default function MusicCard() {
 	const [showPlaylist, setShowPlaylist] = useState(false)
 	const [currentTime, setCurrentTime] = useState(0)
 	const [duration, setDuration] = useState(0)
+	const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('sequence')
 	const audioRef = useRef<HTMLAudioElement | null>(null)
 	const currentIndexRef = useRef(0)
+	const playbackModeRef = useRef<PlaybackMode>('sequence')
 
-	const isHomePage = pathname === '/'
+	useEffect(() => {
+		playbackModeRef.current = playbackMode
+	}, [playbackMode])
 
 	const position = useMemo(() => {
 		const expandedHeight = showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 24 : styles.height
@@ -76,9 +82,10 @@ export default function MusicCard() {
 		}
 
 		const handleEnded = () => {
-			const nextIndex = (currentIndexRef.current + 1) % MUSIC_LIST.length
+			const nextIndex = getNextTrackIndex()
 			currentIndexRef.current = nextIndex
 			setCurrentIndex(nextIndex)
+			setCurrentTime(0)
 			setProgress(0)
 		}
 
@@ -109,6 +116,7 @@ export default function MusicCard() {
 			audioRef.current.pause()
 			audioRef.current.src = MUSIC_LIST[currentIndex].file
 			audioRef.current.loop = false
+			setCurrentTime(0)
 			setProgress(0)
 
 			if (wasPlaying) {
@@ -144,10 +152,54 @@ export default function MusicCard() {
 		return `${mins}:${secs.toString().padStart(2, '0')}`
 	}
 
+	const getNextTrackIndex = () => {
+		if (playbackModeRef.current === 'sequence') {
+			return (currentIndexRef.current + 1) % MUSIC_LIST.length
+		}
+
+		if (MUSIC_LIST.length <= 1) return currentIndexRef.current
+
+		let nextIndex = currentIndexRef.current
+		while (nextIndex === currentIndexRef.current) {
+			nextIndex = Math.floor(Math.random() * MUSIC_LIST.length)
+		}
+		return nextIndex
+	}
+
+	const playNextTrack = () => {
+		const nextIndex = getNextTrackIndex()
+		currentIndexRef.current = nextIndex
+		setCurrentIndex(nextIndex)
+		setCurrentTime(0)
+		setProgress(0)
+		setIsPlaying(true)
+		useLogStore.getState().addLog('info', 'music', '下一首', { track: MUSIC_LIST[nextIndex].title, mode: playbackModeRef.current })
+	}
+
+	const handleSeek = (event: React.MouseEvent<HTMLDivElement>) => {
+		if (!audioRef.current || !audioRef.current.duration) return
+
+		const rect = event.currentTarget.getBoundingClientRect()
+		const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1)
+		const nextTime = audioRef.current.duration * ratio
+
+		audioRef.current.currentTime = nextTime
+		setCurrentTime(nextTime)
+		setProgress(ratio * 100)
+	}
+
 	const togglePlayPause = () => {
 		const next = !isPlaying
 		setIsPlaying(next)
 		useLogStore.getState().addLog('info', 'music', next ? '播放音乐' : '暂停音乐', { track: MUSIC_LIST[currentIndex].title })
+	}
+
+	const togglePlaybackMode = () => {
+		setPlaybackMode(prev => {
+			const nextMode = prev === 'sequence' ? 'shuffle' : 'sequence'
+			useLogStore.getState().addLog('info', 'music', '切换播放模式', { mode: nextMode })
+			return nextMode
+		})
 	}
 
 	const selectTrack = (index: number) => {
@@ -172,7 +224,7 @@ export default function MusicCard() {
 				y={y}
 				className={clsx(!isHomePage && 'fixed')}
 			>
-				<div className={clsx('flex flex-col h-full', showPlaylist ? 'p-4 justify-start' : 'items-center justify-center')}>
+				<div className={clsx('flex h-full flex-col', showPlaylist ? 'justify-center p-4' : 'items-center justify-center')}>
 					{siteContent.enableChristmas && (
 						<>
 							<img
@@ -196,7 +248,7 @@ export default function MusicCard() {
 						<div className='flex-1 min-w-0'>
 							<div className='text-secondary text-sm truncate'>{MUSIC_LIST[currentIndex].title}</div>
 
-							<div className='mt-1 h-2 rounded-full bg-white/60'>
+							<div className='mt-1 h-2 cursor-pointer rounded-full bg-white/60' onClick={handleSeek}>
 								<div className='bg-linear h-full rounded-full transition-all duration-300' style={{ width: `${progress}%` }} />
 							</div>
 
@@ -207,13 +259,13 @@ export default function MusicCard() {
 							)}
 						</div>
 
-						<button onClick={(e) => { e.stopPropagation(); togglePlayPause(); }} className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white transition-opacity hover:opacity-80'>
+						<button aria-label={isPlaying ? '暂停音乐' : '播放音乐'} onClick={(e) => { e.stopPropagation(); togglePlayPause(); }} className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white transition-opacity hover:opacity-80'>
 							{isPlaying ? <Pause className='text-brand h-4 w-4' /> : <PlaySVG className='text-brand ml-1 h-4 w-4' />}
 						</button>
 					</div>
 
 					{showPlaylist && (
-						<div className='mt-3 space-y-1 w-full'>
+						<div className='mt-2 w-full space-y-1'>
 							{MUSIC_LIST.map((track, index) => (
 								<div
 									key={index}
