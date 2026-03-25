@@ -45,6 +45,8 @@ export default function MusicCard() {
 		playbackModeRef.current = playbackMode
 	}, [playbackMode])
 
+	const isHomePage = pathname === '/'
+
 	const position = useMemo(() => {
 		const expandedHeight = showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 24 : styles.height
 
