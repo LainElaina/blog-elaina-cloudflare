@@ -51,7 +51,12 @@ export default function BlogPage() {
 	}, [editMode])
 
 	useEffect(() => {
-		setCategoryList(categoriesFromServer || [])
+		setCategoryList(prev => {
+			if (prev.length === categoriesFromServer.length && prev.every((item, index) => item === categoriesFromServer[index])) {
+				return prev
+			}
+			return categoriesFromServer
+		})
 	}, [categoriesFromServer])
 
 	const displayItems = editMode ? editableItems : items
@@ -127,7 +132,7 @@ export default function BlogPage() {
 
 	const selectedCount = selectedSlugs.size
 	const isDev = process.env.NODE_ENV === 'development'
-	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
+	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
 
 	const toggleEditMode = useCallback(() => {
 		if (editMode) {

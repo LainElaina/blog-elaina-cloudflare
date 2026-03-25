@@ -231,14 +231,7 @@ export default function MusicCard() {
 
 	return (
 		<HomeDraggableLayer cardKey='musicCard' x={x} y={y} width={styles.width} height={styles.height}>
-			<Card
-				order={styles.order}
-				width={styles.width}
-				height={expandedHeight}
-				x={x}
-				y={y}
-				className={clsx(!isHomePage && 'fixed')}
-			>
+			<Card order={styles.order} width={styles.width} height={expandedHeight} x={x} y={y} className={clsx(!isHomePage && 'fixed')}>
 				<div className={clsx('flex h-full flex-col', showPlaylist ? 'justify-center p-4' : 'items-center justify-center')}>
 					{siteContent.enableChristmas && (
 						<>
@@ -257,35 +250,55 @@ export default function MusicCard() {
 						</>
 					)}
 
-					<div className='flex items-center gap-3 cursor-pointer w-full' onClick={() => setShowPlaylist(!showPlaylist)}>
+					<div className='flex w-full cursor-pointer items-center gap-3' onClick={() => setShowPlaylist(!showPlaylist)}>
 						<MusicSVG className='h-8 w-8 flex-shrink-0' />
 
-						<div className='flex-1 min-w-0'>
-							<div className='text-secondary text-sm truncate'>{MUSIC_LIST[currentIndex].title}</div>
+						<div className='min-w-0 flex-1'>
+							<div className='text-secondary truncate text-sm'>{MUSIC_LIST[currentIndex].title}</div>
 
-							<div className='mt-1 h-2 cursor-pointer rounded-full bg-white/60' onClick={handleSeek}>
-								<div className='bg-linear h-full rounded-full transition-all duration-300' style={{ width: `${progress}%` }} />
-							</div>
+							{!showPlaylist && (
+								<>
+									<div className='mt-1 h-2 cursor-pointer rounded-full bg-white/60' onClick={handleSeek}>
+										<div className='bg-linear h-full rounded-full transition-all duration-300' style={{ width: `${progress}%` }} />
+									</div>
 
-							{duration > 0 && (
-								<div className='text-xs text-secondary/70 mt-1'>
-									{formatTime(currentTime)} / {formatTime(duration)}
-								</div>
+									{duration > 0 && (
+										<div className='text-secondary/70 mt-1 text-xs'>
+											{formatTime(currentTime)} / {formatTime(duration)}
+										</div>
+									)}
+								</>
 							)}
 						</div>
 
-						<button aria-label={isPlaying ? '暂停音乐' : '播放音乐'} onClick={(e) => { e.stopPropagation(); togglePlayPause(); }} className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white transition-opacity hover:opacity-80'>
+						<button
+							aria-label={isPlaying ? '暂停音乐' : '播放音乐'}
+							onClick={e => {
+								e.stopPropagation()
+								togglePlayPause()
+							}}
+							className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white transition-opacity hover:opacity-80'>
 							{isPlaying ? <Pause className='text-brand h-4 w-4' /> : <PlaySVG className='text-brand ml-1 h-4 w-4' />}
 						</button>
 					</div>
 
 					{showPlaylist && (
 						<div className='mt-2 w-full space-y-2'>
+							<div className='rounded-lg bg-white/40 px-3 py-2' onClick={e => e.stopPropagation()}>
+								<div className='h-2 cursor-pointer rounded-full bg-white/60' onClick={handleSeek}>
+									<div className='bg-linear h-full rounded-full transition-all duration-300' style={{ width: `${progress}%` }} />
+								</div>
+								{duration > 0 && (
+									<div className='text-secondary/70 mt-1 text-xs'>
+										{formatTime(currentTime)} / {formatTime(duration)}
+									</div>
+								)}
+							</div>
 							<div className='flex items-center justify-between gap-2'>
 								<button
 									type='button'
 									aria-label='收起歌单'
-									onClick={(e) => {
+									onClick={e => {
 										e.stopPropagation()
 										setShowPlaylist(false)
 									}}
@@ -296,7 +309,7 @@ export default function MusicCard() {
 									<button
 										type='button'
 										aria-label={playbackMode === 'sequence' ? '顺序播放' : '随机播放'}
-										onClick={(e) => {
+										onClick={e => {
 											e.stopPropagation()
 											togglePlaybackMode()
 										}}
@@ -306,7 +319,7 @@ export default function MusicCard() {
 									<button
 										type='button'
 										aria-label='下一首'
-										onClick={(e) => {
+										onClick={e => {
 											e.stopPropagation()
 											playNextTrack()
 										}}
@@ -320,8 +333,8 @@ export default function MusicCard() {
 									key={index}
 									onClick={() => selectTrack(index)}
 									className={clsx(
-										'px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm',
-										currentIndex === index ? 'bg-white/40 text-brand font-medium' : 'hover:bg-white/20 text-secondary'
+										'cursor-pointer rounded-lg px-3 py-2 text-sm transition-colors',
+										currentIndex === index ? 'text-brand bg-white/40 font-medium' : 'text-secondary hover:bg-white/20'
 									)}>
 									{track.title}
 								</div>
