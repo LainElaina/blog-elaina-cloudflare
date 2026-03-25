@@ -45,6 +45,8 @@ export default function MusicCard() {
 		playbackModeRef.current = playbackMode
 	}, [playbackMode])
 
+	const isHomePage = pathname === '/'
+
 	const safePlay = async () => {
 		if (!audioRef.current) return
 		try {
