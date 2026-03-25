@@ -58,9 +58,9 @@ export default function MusicCard() {
 		}
 	}
 
-	const position = useMemo(() => {
-		const expandedHeight = showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 24 : styles.height
+	const expandedHeight = showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 56 : styles.height
 
+	const position = useMemo(() => {
 		// If playlist is shown or not on home page, position at bottom-right corner
 		if (showPlaylist || (!isHomePage && isPlaying)) {
 			return {
@@ -74,7 +74,7 @@ export default function MusicCard() {
 			x: styles.offsetX !== null ? center.x + styles.offsetX : center.x + CARD_SPACING + hiCardStyles.width / 2 - styles.offset,
 			y: styles.offsetY !== null ? center.y + styles.offsetY : center.y - clockCardStyles.offset + CARD_SPACING + calendarCardStyles.height + CARD_SPACING
 		}
-	}, [showPlaylist, isPlaying, isHomePage, center, styles, hiCardStyles, clockCardStyles, calendarCardStyles])
+	}, [showPlaylist, isPlaying, isHomePage, center, styles, hiCardStyles, clockCardStyles, calendarCardStyles, expandedHeight])
 
 	const { x, y } = position
 
@@ -234,7 +234,7 @@ export default function MusicCard() {
 			<Card
 				order={styles.order}
 				width={styles.width}
-				height={showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 56 : styles.height}
+				height={expandedHeight}
 				x={x}
 				y={y}
 				className={clsx(!isHomePage && 'fixed')}
