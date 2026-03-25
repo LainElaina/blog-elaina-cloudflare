@@ -58,7 +58,32 @@ export default function MusicCard() {
 		}
 	}
 
-	const expandedHeight = showPlaylist ? styles.height + MUSIC_LIST.length * 44 + 56 : styles.height
+	const EXPANDED_LAYOUT = {
+		cardVerticalPadding: 16 * 2,
+		headerRowHeight: 48,
+		sectionGap: 12,
+		progressBlockHeight: 56,
+		controlRowHeight: 36,
+		playlistItemHeight: 40,
+		playlistBottomPadding: 12,
+		playlistMaxHeight: 220,
+		extraBottomBuffer: 16
+	}
+
+	const playlistContentHeight = MUSIC_LIST.length * EXPANDED_LAYOUT.playlistItemHeight + EXPANDED_LAYOUT.playlistBottomPadding
+	const playlistVisibleHeight = Math.min(playlistContentHeight, EXPANDED_LAYOUT.playlistMaxHeight)
+
+	const expandedHeight = showPlaylist
+		? EXPANDED_LAYOUT.cardVerticalPadding +
+			EXPANDED_LAYOUT.headerRowHeight +
+			EXPANDED_LAYOUT.sectionGap +
+			EXPANDED_LAYOUT.progressBlockHeight +
+			EXPANDED_LAYOUT.sectionGap +
+			EXPANDED_LAYOUT.controlRowHeight +
+			EXPANDED_LAYOUT.sectionGap +
+			playlistVisibleHeight +
+			EXPANDED_LAYOUT.extraBottomBuffer
+		: styles.height
 
 	const position = useMemo(() => {
 		// If playlist is shown or not on home page, position at bottom-right corner
@@ -230,9 +255,9 @@ export default function MusicCard() {
 	}
 
 	return (
-		<HomeDraggableLayer cardKey='musicCard' x={x} y={y} width={styles.width} height={styles.height}>
-			<Card order={styles.order} width={styles.width} height={expandedHeight} x={x} y={y} className={clsx(!isHomePage && 'fixed')}>
-				<div className={clsx('flex h-full flex-col', showPlaylist ? 'justify-center p-4' : 'items-center justify-center')}>
+		<HomeDraggableLayer cardKey='musicCard' x={x} y={y} width={styles.width} height={expandedHeight}>
+			<Card order={styles.order} width={styles.width} height={expandedHeight} x={x} y={y} className={clsx('p-0', !isHomePage && 'fixed')}>
+				<div className={clsx('flex h-full flex-col', showPlaylist ? 'justify-start p-4' : 'items-center justify-center')}>
 					{siteContent.enableChristmas && (
 						<>
 							<img
@@ -250,8 +275,10 @@ export default function MusicCard() {
 						</>
 					)}
 
-					<div className='flex w-full cursor-pointer items-center gap-3' onClick={() => setShowPlaylist(!showPlaylist)}>
-						<MusicSVG className='h-8 w-8 flex-shrink-0' />
+					<div
+						className={clsx('flex w-full cursor-pointer items-center', showPlaylist ? 'gap-3' : 'gap-2 px-4 py-3')}
+						onClick={() => setShowPlaylist(!showPlaylist)}>
+						<MusicSVG className={clsx('flex-shrink-0', showPlaylist ? 'h-8 w-8' : 'h-7 w-7')} />
 
 						<div className='min-w-0 flex-1'>
 							<div className='text-secondary truncate text-sm'>{MUSIC_LIST[currentIndex].title}</div>
@@ -277,13 +304,20 @@ export default function MusicCard() {
 								e.stopPropagation()
 								togglePlayPause()
 							}}
-							className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white transition-opacity hover:opacity-80'>
-							{isPlaying ? <Pause className='text-brand h-4 w-4' /> : <PlaySVG className='text-brand ml-1 h-4 w-4' />}
+							className={clsx(
+								'flex flex-shrink-0 items-center justify-center rounded-full bg-white transition-opacity hover:opacity-80',
+								showPlaylist ? 'h-10 w-10' : 'h-9 w-9'
+							)}>
+							{isPlaying ? (
+								<Pause className={clsx('text-brand', showPlaylist ? 'h-4 w-4' : 'h-[14px] w-[14px]')} />
+							) : (
+								<PlaySVG className={clsx('text-brand ml-1', showPlaylist ? 'h-4 w-4' : 'h-[14px] w-[14px]')} />
+							)}
 						</button>
 					</div>
 
 					{showPlaylist && (
-						<div className='mt-2 w-full space-y-2'>
+						<div className='mt-3 flex w-full flex-col gap-3 pb-2'>
 							<div className='rounded-lg bg-white/40 px-3 py-2' onClick={e => e.stopPropagation()}>
 								<div className='h-2 cursor-pointer rounded-full bg-white/60' onClick={handleSeek}>
 									<div className='bg-linear h-full rounded-full transition-all duration-300' style={{ width: `${progress}%` }} />
@@ -294,17 +328,7 @@ export default function MusicCard() {
 									</div>
 								)}
 							</div>
-							<div className='flex items-center justify-between gap-2'>
-								<button
-									type='button'
-									aria-label='收起歌单'
-									onClick={e => {
-										e.stopPropagation()
-										setShowPlaylist(false)
-									}}
-									className='flex h-8 w-8 items-center justify-center rounded-full bg-white/70 transition-opacity hover:opacity-80'>
-									<ChevronUp className='text-brand h-4 w-4' />
-								</button>
+							<div className='flex items-center justify-between gap-2' onClick={e => e.stopPropagation()}>
 								<div className='flex items-center gap-2'>
 									<button
 										type='button'
@@ -327,18 +351,33 @@ export default function MusicCard() {
 										<SkipForward className='text-brand h-4 w-4' />
 									</button>
 								</div>
+								<button
+									type='button'
+									aria-label='收起歌单'
+									onClick={e => {
+										e.stopPropagation()
+										setShowPlaylist(false)
+									}}
+									className='flex h-8 w-8 items-center justify-center rounded-full bg-white/70 transition-opacity hover:opacity-80'>
+									<ChevronUp className='text-brand h-4 w-4' />
+								</button>
 							</div>
-							{MUSIC_LIST.map((track, index) => (
-								<div
-									key={index}
-									onClick={() => selectTrack(index)}
-									className={clsx(
-										'cursor-pointer rounded-lg px-3 py-2 text-sm transition-colors',
-										currentIndex === index ? 'text-brand bg-white/40 font-medium' : 'text-secondary hover:bg-white/20'
-									)}>
-									{track.title}
-								</div>
-							))}
+							<div
+								className='space-y-2 overflow-y-auto'
+								onClick={e => e.stopPropagation()}
+								style={{ maxHeight: EXPANDED_LAYOUT.playlistMaxHeight, paddingBottom: EXPANDED_LAYOUT.playlistBottomPadding, scrollbarGutter: 'stable' }}>
+								{MUSIC_LIST.map((track, index) => (
+									<div
+										key={index}
+										onClick={() => selectTrack(index)}
+										className={clsx(
+											'cursor-pointer rounded-lg px-3 py-2 text-sm transition-colors',
+											currentIndex === index ? 'text-brand bg-white/40 font-medium' : 'text-secondary hover:bg-white/20'
+										)}>
+										{track.title}
+									</div>
+								))}
+							</div>
 						</div>
 					)}
 				</div>

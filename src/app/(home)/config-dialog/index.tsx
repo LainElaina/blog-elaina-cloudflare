@@ -11,6 +11,7 @@ import { pushSiteContentLocal } from '../services/push-site-content-local'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
 import { ColorConfig } from './color-config'
+import { normalizeCardStylePreset } from '@/lib/card-style-preset'
 
 interface ConfigDialogProps {
 	open: boolean
@@ -19,12 +20,22 @@ interface ConfigDialogProps {
 
 type TabType = 'site' | 'color'
 
+function normalizeSiteContentCardStyle(content: SiteContent): SiteContent {
+	return {
+		...content,
+		theme: {
+			...content.theme,
+			cardStylePreset: normalizeCardStylePreset(content.theme?.cardStylePreset)
+		}
+	}
+}
+
 export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const { isAuth, setPrivateKey } = useAuthStore()
 	const { siteContent, setSiteContent, cardStyles, setCardStyles, regenerateBubbles } = useConfigStore()
-	const [formData, setFormData] = useState<SiteContent>(siteContent)
+	const [formData, setFormData] = useState<SiteContent>(normalizeSiteContentCardStyle(siteContent))
 	const [cardStylesData, setCardStylesData] = useState<CardStyles>(cardStyles)
-	const [originalData, setOriginalData] = useState<SiteContent>(siteContent)
+	const [originalData, setOriginalData] = useState<SiteContent>(normalizeSiteContentCardStyle(siteContent))
 	const [originalCardStyles, setOriginalCardStyles] = useState<CardStyles>(cardStyles)
 	const [isSaving, setIsSaving] = useState(false)
 	const [activeTab, setActiveTab] = useState<TabType>('site')
@@ -37,7 +48,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 
 	useEffect(() => {
 		if (open) {
-			const current = { ...siteContent }
+			const current = normalizeSiteContentCardStyle({ ...siteContent })
 			const currentCardStyles = { ...cardStyles }
 			setFormData(current)
 			setCardStylesData(currentCardStyles)
@@ -303,7 +314,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 								whileTap={{ scale: 0.95 }}
 								onClick={handleLocalSave}
 								disabled={isSaving}
-								className='bg-green-500 text-white rounded-xl px-6 py-2 text-sm'>
+								className='rounded-xl bg-green-500 px-6 py-2 text-sm text-white'>
 								{isSaving ? '保存中...' : '本地保存'}
 							</motion.button>
 						)}

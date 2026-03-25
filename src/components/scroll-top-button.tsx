@@ -42,7 +42,7 @@ export function ScrollTopButton({ className, delay }: ScrollTopButtonProps) {
 			whileHover={{ scale: 1.05 }}
 			whileTap={{ scale: 0.95 }}
 			onClick={handleClick}
-			aria-label='Scroll to top'
+			aria-label='返回顶部'
 			className={cn('card text-secondary static gap-2 rounded-full p-3 text-sm', className)}>
 			<TopSVG className='w-7' />
 		</motion.button>

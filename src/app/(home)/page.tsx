@@ -14,9 +14,10 @@ import { ExportLayoutButton } from '@/components/export-layout-button'
 import { ImportLayoutButton } from '@/components/import-layout-button'
 import { LayoutSettingsButton } from '@/components/layout-settings-button'
 import { ComponentStore } from '@/components/component-store'
+import MobileQuickInfo from './mobile-quick-info'
 
 export default function Home() {
-	const { maxSM } = useSize()
+	const { maxSM, init } = useSize()
 	const { cardStyles, configDialogOpen, setConfigDialogOpen, siteContent } = useConfigStore()
 	const { components: customComponents } = useCustomComponentStore()
 
@@ -45,7 +46,10 @@ export default function Home() {
 			<ImportLayoutButton />
 			<LayoutSettingsButton />
 
-			<div className='max-sm:flex max-sm:flex-col max-sm:items-center max-sm:gap-6 max-sm:pt-28 max-sm:pb-20'>
+			<div className='max-sm:flex max-sm:flex-col max-sm:items-center max-sm:gap-6 max-sm:pt-12 max-sm:pb-24'>
+				{/* Mobile horizontal scroll quick info (clock, calendar, share) */}
+				{maxSM && init && <MobileQuickInfo />}
+
 				{Object.entries(COMPONENT_REGISTRY).map(([id, meta]) => {
 					const style = cardStyles[id as keyof typeof cardStyles]
 					if (!style || style.enabled === false) return null

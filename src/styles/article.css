@@ -3,7 +3,7 @@
 	color: inherit;
 	word-break: break-word;
 	letter-spacing: 0.03em;
-	font-size: 15px;
+	font-size: 16px;
 	width: 100%;
 	overflow: hidden;
 }
@@ -57,6 +57,10 @@
 /* Paragraph */
 .prose p {
 	margin: 1.25em 0;
+}
+
+.prose p + p {
+	margin-top: 0.9rem;
 }
 
 .prose strong {
@@ -124,6 +128,10 @@
 	line-height: 1.25em;
 	width: 100%;
 	display: block;
+	max-height: 480px;
+	position: relative;
+
+	@apply max-sm:max-w-[calc(100vw-3rem)];
 }
 .prose pre code {
 	background: transparent !important;
@@ -131,6 +139,20 @@
 	padding: 0;
 	font-size: 0.95em;
 	tab-size: 2;
+}
+
+/* Code language label */
+.prose pre[data-lang]::before {
+	content: attr(data-lang);
+	position: absolute;
+	top: 0.5rem;
+	right: 3rem;
+	font-size: 0.7rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	opacity: 0.4;
+	font-family: var(--font-sans);
+	pointer-events: none;
 }
 
 /* Code Block with Copy Button */

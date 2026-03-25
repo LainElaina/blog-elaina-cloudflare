@@ -48,7 +48,7 @@ export function CustomCard({ component, index }: CustomCardProps) {
 	return (
 		<HomeDraggableLayer cardKey={component.id} x={x} y={y} width={style.width} height={style.height}>
 			<motion.div
-				className={cn('card squircle', cardPadding, 'max-sm:static max-sm:translate-0')}
+				className={cn('card absolute', cardPadding, 'max-sm:static max-sm:translate-0')}
 				initial={{ opacity: 0, scale: 0.6, left: x, top: y, width: style.width, height: style.height }}
 				animate={{ opacity: 1, scale: 1, left: x, top: y, width: style.width, height: style.height }}
 				whileHover={{ scale: 1.05 }}
@@ -59,7 +59,8 @@ export function CustomCard({ component, index }: CustomCardProps) {
 					<img
 						src={content.imageUrl}
 						alt={component.name}
-						className='h-full w-full rounded-[32px] object-cover'
+						className='h-full w-full object-cover'
+						style={{ borderRadius: 'var(--card-inner-radius)' }}
 					/>
 				)}
 

@@ -13,13 +13,14 @@
 		"colorBorder": "#ffffff",
 		"colorCard": "#ffffff66",
 		"colorArticle": "#ffffffcc",
-		"cardStylePreset": "classic",
+		"cardStylePreset": "original",
 		"enableHomeColorOverlay": false,
 		"homeColorOverlayMode": "atmosphere",
+		"homeColorOverlayIntensity": "default",
 		"homeColorOverlayMotion": "dynamic",
-		"enableSeasonalEffects": false,
-		"seasonalEffectTheme": "spring",
-		"seasonalEffectStyle": "light"
+		"enableSeasonalEffects": true,
+		"seasonalEffectTheme": "winter",
+		"seasonalEffectStyle": "vivid"
 	},
 	"backgroundColors": [
 		"#EDDD62",

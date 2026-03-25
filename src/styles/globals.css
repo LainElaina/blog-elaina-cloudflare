@@ -48,7 +48,7 @@
 	.range-track::-webkit-slider-runnable-track {
 		height: 6px;
 		border-radius: 9999px;
-		background: linear-gradient(90deg, 0%, color-mix(in srgb, var(--color-brand) 50%, transparent) 100%);
+		background: linear-gradient(90deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 50%, transparent) 100%);
 	}
 
 	.range-track::-moz-range-track {
@@ -91,12 +91,36 @@
 	}
 }
 
+html {
+	--card-radius: 40px;
+	--card-inner-radius: 40px;
+	--card-border-color: rgba(255, 255, 255, 0.9);
+	--card-shadow: 0 40px 50px -32px rgba(0, 0, 0, 0.05), inset 0 0 20px rgba(255, 255, 255, 0.25);
+	--card-blur: 4px;
+	--card-bg: var(--color-card);
+}
+
+html[data-card-style='original'] {
+	--card-radius: 40px;
+	--card-inner-radius: 40px;
+	--card-border-color: rgba(255, 255, 255, 0.9);
+	--card-shadow: 0 40px 50px -32px rgba(0, 0, 0, 0.05), inset 0 0 20px rgba(255, 255, 255, 0.25);
+	--card-blur: 4px;
+	--card-bg: var(--color-card);
+}
+
+html[data-card-style='classic'],
+html[data-card-style='refined'] {
+	--card-border-color: var(--color-border);
+}
+
 @utility card {
-	@apply bg-card absolute rounded-[40px] border p-6;
-	box-shadow:
-		0 40px 50px -32px rgba(0, 0, 0, 0.05),
-		inset 0 0 20 rgba(255, 255, 255, 0.25);
-	backdrop-filter: blur(4px);
+	@apply absolute border p-6;
+	border-radius: var(--card-radius);
+	border-color: var(--card-border-color);
+	background: var(--card-bg);
+	box-shadow: var(--card-shadow);
+	backdrop-filter: blur(var(--card-blur));
 
 	&.squircle {
 		@supports (corner-shape: squircle) {
@@ -107,7 +131,7 @@
 }
 
 @utility card-rounded {
-	@apply rounded-[40px];
+	border-radius: var(--card-inner-radius);
 	@supports (corner-shape: squircle) {
 		corner-shape: squircle;
 		@apply rounded-[64px];

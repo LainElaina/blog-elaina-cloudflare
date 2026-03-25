@@ -104,13 +104,14 @@ export function Select({ value, onChange, options, className, disabled }: Select
 				onClick={() => !disabled && setOpen(!open)}
 				disabled={disabled}
 				className={cn(
-					'bg-card relative flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs transition-all',
+					'bg-card relative flex items-center justify-between gap-2 border px-3 py-2 text-xs transition-all',
 					'active:scale-[0.98]',
 					'focus:ring-brand/20 focus:ring-2 focus:outline-none',
 					disabled && 'cursor-not-allowed opacity-50',
 					!disabled && 'hover:bg-card/80',
 					className
-				)}>
+				)}
+				style={{ borderRadius: 'var(--card-inner-radius)' }}>
 				<span className='flex-1 text-left'>{selectedOption?.label}</span>
 				<svg
 					className={cn('h-3.5 w-3.5 transition-transform duration-200', open && 'rotate-180')}
@@ -132,8 +133,9 @@ export function Select({ value, onChange, options, className, disabled }: Select
 								animate={{ opacity: 1, y: 0, scale: 1 }}
 								exit={{ opacity: 0, y: -8, scale: 0.95 }}
 								transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-								className='bg-card/95 fixed z-50 rounded-xl border backdrop-blur-xl'
+								className='bg-card/95 fixed z-50 border backdrop-blur-xl'
 								style={{
+									borderRadius: 'var(--card-inner-radius)',
 									top: `${position.top}px`,
 									left: `${position.left}px`,
 									width: `${position.width}px`,

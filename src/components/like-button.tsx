@@ -84,7 +84,7 @@ export default function LikeButton({ slug = 'yysuni', delay, className }: LikeBu
 				animate={{ opacity: 1, scale: 1 }}
 				whileHover={{ scale: 1.05 }}
 				whileTap={{ scale: 0.95 }}
-				aria-label='Like this post'
+				aria-label='点赞'
 				onClick={handleLike}
 				className={clsx('card heartbeat-container relative overflow-visible rounded-full p-3', className)}>
 				<AnimatePresence>

@@ -4,11 +4,14 @@ import type { Metadata } from 'next'
 import Layout from '@/layout'
 import Head from '@/layout/head'
 import siteContent from '@/config/site-content.json'
+import { normalizeCardStylePreset } from '@/lib/card-style-preset'
 
 const {
 	meta: { title, description },
 	theme
 } = siteContent
+
+const cardStylePreset = normalizeCardStylePreset(theme.cardStylePreset)
 
 export const metadata: Metadata = {
 	title,
@@ -37,7 +40,7 @@ const htmlStyle = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
 	return (
-		<html lang='en' suppressHydrationWarning style={htmlStyle}>
+		<html lang='en' suppressHydrationWarning style={htmlStyle} data-card-style={cardStylePreset}>
 			<Head />
 
 			<body>

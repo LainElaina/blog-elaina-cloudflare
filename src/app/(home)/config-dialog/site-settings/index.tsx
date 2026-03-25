@@ -9,6 +9,8 @@ import { BackgroundImagesSection } from './background-images-section'
 import { SocialButtonsSection } from './social-buttons-section'
 import { HatSection } from './hat-section'
 import { BeianForm } from './beian-form'
+import { normalizeCardStylePreset } from '@/lib/card-style-preset'
+import { normalizeHomeColorOverlayIntensity } from '@/lib/home-color-overlay-intensity'
 
 export type { FileItem, ArtImageUploads, BackgroundImageUploads, SocialButtonImageUploads } from './types'
 
@@ -43,9 +45,10 @@ export function SiteSettings({
 }: SiteSettingsProps) {
 	const isDev = process.env.NODE_ENV === 'development'
 	const theme = formData.theme ?? {}
-	const cardStylePreset = theme.cardStylePreset ?? 'classic'
+	const cardStylePreset = normalizeCardStylePreset(theme.cardStylePreset)
 	const enableHomeColorOverlay = theme.enableHomeColorOverlay ?? false
 	const homeColorOverlayMode = theme.homeColorOverlayMode ?? 'atmosphere'
+	const homeColorOverlayIntensity = normalizeHomeColorOverlayIntensity(theme.homeColorOverlayIntensity)
 	const homeColorOverlayMotion = theme.homeColorOverlayMotion ?? 'dynamic'
 	const enableSeasonalEffects = theme.enableSeasonalEffects ?? false
 	const seasonalEffectTheme = theme.seasonalEffectTheme ?? 'spring'
@@ -62,7 +65,7 @@ export function SiteSettings({
 								<span className='h-1.5 w-1.5 rounded-full bg-amber-500' />
 								本地开发环境
 							</span>
-							<span className='text-xs text-secondary leading-relaxed'>
+							<span className='text-secondary text-xs leading-relaxed'>
 								保存时直接写入本地项目文件，图片通过 /api/upload-image 存到 public 目录，无需密钥认证
 							</span>
 						</>
@@ -72,9 +75,7 @@ export function SiteSettings({
 								<span className='h-1.5 w-1.5 rounded-full bg-green-500' />
 								线上部署环境
 							</span>
-							<span className='text-xs text-secondary leading-relaxed'>
-								保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证
-							</span>
+							<span className='text-secondary text-xs leading-relaxed'>保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证</span>
 						</>
 					)}
 				</div>
@@ -168,7 +169,25 @@ export function SiteSettings({
 			<div className='space-y-6 border-t border-white/20 pt-6'>
 				<div>
 					<label className='mb-2 block text-sm font-medium'>卡片风格</label>
-					<div className='grid grid-cols-2 gap-3'>
+					<div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+						<button
+							type='button'
+							onClick={() =>
+								setFormData(prev => ({
+									...prev,
+									theme: {
+										...prev.theme,
+										cardStylePreset: 'original'
+									}
+								}))
+							}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+								cardStylePreset === 'original'
+									? 'border-brand bg-brand/10 text-primary font-medium'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
+							}`}>
+							原版
+						</button>
 						<button
 							type='button'
 							onClick={() =>
@@ -183,7 +202,7 @@ export function SiteSettings({
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 								cardStylePreset === 'classic'
 									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							经典风格
 						</button>
@@ -201,7 +220,7 @@ export function SiteSettings({
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 								cardStylePreset === 'refined'
 									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							精致风格
 						</button>
@@ -223,9 +242,7 @@ export function SiteSettings({
 								}))
 							}
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-								!enableHomeColorOverlay
-									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+								!enableHomeColorOverlay ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							关闭
 						</button>
@@ -241,9 +258,7 @@ export function SiteSettings({
 								}))
 							}
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-								enableHomeColorOverlay
-									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+								enableHomeColorOverlay ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							开启
 						</button>
@@ -264,7 +279,7 @@ export function SiteSettings({
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 								homeColorOverlayMode === 'atmosphere'
 									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							氛围染色
 						</button>
@@ -282,13 +297,54 @@ export function SiteSettings({
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 								homeColorOverlayMode === 'solid'
 									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							纯色蒙版
 						</button>
 					</div>
 
-					<div className={`grid grid-cols-2 gap-3 transition-opacity ${enableHomeColorOverlay && homeColorOverlayMode === 'atmosphere' ? '' : 'pointer-events-none opacity-50'}`}>
+					<div
+						className={`grid grid-cols-2 gap-3 transition-opacity ${enableHomeColorOverlay && homeColorOverlayMode === 'atmosphere' ? '' : 'pointer-events-none opacity-50'}`}>
+						<button
+							type='button'
+							onClick={() =>
+								setFormData(prev => ({
+									...prev,
+									theme: {
+										...prev.theme,
+										homeColorOverlayIntensity: 'default'
+									}
+								}))
+							}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+								homeColorOverlayIntensity === 'default'
+									? 'border-brand bg-brand/10 text-primary font-medium'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
+							}`}>
+							默认
+						</button>
+						<button
+							type='button'
+							onClick={() =>
+								setFormData(prev => ({
+									...prev,
+									theme: {
+										...prev.theme,
+										homeColorOverlayIntensity: 'light'
+									}
+								}))
+							}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+								homeColorOverlayIntensity === 'light'
+									? 'border-brand bg-brand/10 text-primary font-medium'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
+							}`}>
+							轻量
+						</button>
+					</div>
+
+					<div
+						className={`grid grid-cols-2 gap-3 transition-opacity ${enableHomeColorOverlay && homeColorOverlayMode === 'atmosphere' ? '' : 'pointer-events-none opacity-50'}`}>
 						<button
 							type='button'
 							onClick={() =>
@@ -303,7 +359,7 @@ export function SiteSettings({
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 								homeColorOverlayMotion === 'dynamic'
 									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							动态
 						</button>
@@ -321,7 +377,7 @@ export function SiteSettings({
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 								homeColorOverlayMotion === 'static'
 									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+									: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							静态
 						</button>
@@ -343,9 +399,7 @@ export function SiteSettings({
 								}))
 							}
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-								!enableSeasonalEffects
-									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+								!enableSeasonalEffects ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							关闭
 						</button>
@@ -361,37 +415,56 @@ export function SiteSettings({
 								}))
 							}
 							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-								enableSeasonalEffects
-									? 'border-brand bg-brand/10 text-primary font-medium'
-									: 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'
+								enableSeasonalEffects ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 							}`}>
 							开启
 						</button>
 					</div>
 
 					<div className={`grid grid-cols-2 gap-3 transition-opacity ${enableSeasonalEffects ? '' : 'pointer-events-none opacity-50'}`}>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'spring' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'spring' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'spring' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'spring' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							春
 						</button>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'summer' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'summer' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'summer' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'summer' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							夏
 						</button>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'autumn' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'autumn' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'autumn' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'autumn' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							秋
 						</button>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'winter' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'winter' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectTheme: 'winter' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectTheme === 'winter' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							冬
 						</button>
 					</div>
 
 					<div className={`grid grid-cols-3 gap-3 transition-opacity ${enableSeasonalEffects ? '' : 'pointer-events-none opacity-50'}`}>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'light' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'light' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'light' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'light' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							轻量
 						</button>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'vivid' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'vivid' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'vivid' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'vivid' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							明显
 						</button>
-						<button type='button' onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'mixed' } }))} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'mixed' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 bg-white/60 text-secondary hover:bg-white/80'}`}>
+						<button
+							type='button'
+							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'mixed' } }))}
+							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'mixed' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
 							混合
 						</button>
 					</div>

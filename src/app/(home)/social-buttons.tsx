@@ -21,6 +21,7 @@ import type React from 'react'
 import { toast } from 'sonner'
 import { useSize } from '@/hooks/use-size'
 import { HomeDraggableLayer } from './home-draggable-layer'
+import { useLayoutEditStore } from './stores/layout-edit-store'
 import { createPortal } from 'react-dom'
 
 type SocialButtonType =
@@ -52,6 +53,7 @@ export default function SocialButtons() {
 	const center = useCenterStore()
 	const { cardStyles, siteContent } = useConfigStore()
 	const { maxSM, init } = useSize()
+	const editing = useLayoutEditStore(state => state.editing)
 	const styles = cardStyles.socialButtons
 	const hiCardStyles = cardStyles.hiCard
 	const order = maxSM && init ? 0 : styles.order
@@ -257,6 +259,8 @@ export default function SocialButtons() {
 			</motion.a>
 		)
 	}
+
+	const isGridMode = !maxSM && !editing && init
 
 	return (
 		<HomeDraggableLayer cardKey='socialButtons' x={x} y={y} width={styles.width} height={styles.height}>

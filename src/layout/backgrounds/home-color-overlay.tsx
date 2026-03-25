@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import siteContent from '@/config/site-content.json'
 import BlurredBubblesBackground from './blurred-bubbles'
+import { getAtmosphereOverlayProfile, normalizeHomeColorOverlayIntensity } from '@/lib/home-color-overlay-intensity'
 
 type Theme = typeof siteContent.theme
 
@@ -18,11 +19,13 @@ export default function HomeColorOverlay({ theme, backgroundColors = [] }: HomeC
 	if (!(theme?.enableHomeColorOverlay ?? false)) return null
 
 	const mode = theme?.homeColorOverlayMode ?? 'atmosphere'
+	const intensity = normalizeHomeColorOverlayIntensity(theme?.homeColorOverlayIntensity)
 	const motion = theme?.homeColorOverlayMotion ?? 'dynamic'
+	const profile = getAtmosphereOverlayProfile(intensity)
 	const solidColor = /^#(?:[0-9a-fA-F]{6})$/.test(theme?.colorBrand ?? '') ? `${theme?.colorBrand}26` : 'rgba(53, 191, 171, 0.15)'
 
 	if (mode === 'solid') {
-		return <div aria-hidden='true' className='pointer-events-none fixed inset-0 z-0' style={{ backgroundColor: solidColor }} />
+		return <div aria-hidden='true' className='pointer-events-none fixed inset-0 z-[1]' style={{ backgroundColor: solidColor }} />
 	}
 
 	if (motion === 'static') {
@@ -32,14 +35,23 @@ export default function HomeColorOverlay({ theme, backgroundColors = [] }: HomeC
 		return (
 			<div
 				aria-hidden='true'
-				className='pointer-events-none fixed inset-0 z-0 overflow-hidden'
-				style={{ filter: 'blur(50px)' }}>
-				<div className='absolute rounded-full' style={{ width: '34vmax', height: '34vmax', left: '-4%', bottom: '-8%', background: c0, opacity: 0.48 }} />
-				<div className='absolute rounded-full' style={{ width: '38vmax', height: '38vmax', left: '28%', bottom: '-12%', background: c1, opacity: 0.42 }} />
-				<div className='absolute rounded-full' style={{ width: '30vmax', height: '30vmax', right: '-5%', bottom: '-6%', background: c2, opacity: 0.4 }} />
+				className='pointer-events-none fixed inset-0 z-[1] overflow-hidden'
+				style={{ filter: `blur(${profile.staticBlur}px)` }}>
+				<div
+					className='absolute rounded-full'
+					style={{ width: `${profile.staticBubbles[0].size}vmax`, height: `${profile.staticBubbles[0].size}vmax`, left: profile.staticBubbles[0].left, bottom: profile.staticBubbles[0].bottom, background: c0, opacity: profile.staticBubbles[0].opacity }}
+				/>
+				<div
+					className='absolute rounded-full'
+					style={{ width: `${profile.staticBubbles[1].size}vmax`, height: `${profile.staticBubbles[1].size}vmax`, left: profile.staticBubbles[1].left, bottom: profile.staticBubbles[1].bottom, background: c1, opacity: profile.staticBubbles[1].opacity }}
+				/>
+				<div
+					className='absolute rounded-full'
+					style={{ width: `${profile.staticBubbles[2].size}vmax`, height: `${profile.staticBubbles[2].size}vmax`, right: profile.staticBubbles[2].right, bottom: profile.staticBubbles[2].bottom, background: c2, opacity: profile.staticBubbles[2].opacity }}
+				/>
 			</div>
 		)
 	}
 
-	return <BlurredBubblesBackground colors={backgroundColors} count={6} bottomBandStart={0.8} regenerateKey={0} />
+	return <BlurredBubblesBackground colors={backgroundColors} count={profile.dynamicBubbleCount} bottomBandStart={profile.dynamicBottomBandStart} regenerateKey={0} />
 }

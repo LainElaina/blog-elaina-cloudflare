@@ -77,12 +77,13 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 			// Add data-code attribute with original code for copy functionality
 			// Escape HTML entities for attribute value
 			const escapedCode = codeData.original.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+			const langAttr = token.lang ? ` data-lang="${token.lang}"` : ''
 			if (codeData.html) {
 				// Shiki highlighted code
-				return `<pre data-code="${escapedCode}">${codeData.html}</pre>`
+				return `<pre data-code="${escapedCode}"${langAttr}>${codeData.html}</pre>`
 			}
 			// Fallback for failed highlighting
-			return `<pre data-code="${escapedCode}"><code>${codeData.original}</code></pre>`
+			return `<pre data-code="${escapedCode}"${langAttr}><code>${codeData.original}</code></pre>`
 		}
 		// Fallback to default (inline code, not code block)
 		return `<code>${token.text}</code>`
