@@ -48,7 +48,8 @@ next-env.d.ts
 .history/
 
 # layout backups
-/data/
+/data/*
+!/data/content.db
 
 # worktrees
 /.worktrees/
