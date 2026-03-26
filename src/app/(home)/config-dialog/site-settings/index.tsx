@@ -11,6 +11,7 @@ import { HatSection } from './hat-section'
 import { BeianForm } from './beian-form'
 import { normalizeCardStylePreset } from '@/lib/card-style-preset'
 import { normalizeHomeColorOverlayIntensity } from '@/lib/home-color-overlay-intensity'
+import { SEASONAL_STYLE_OPTIONS } from '@/layout/backgrounds/seasonal-effects-config'
 
 export type { FileItem, ArtImageUploads, BackgroundImageUploads, SocialButtonImageUploads } from './types'
 
@@ -449,24 +450,17 @@ export function SiteSettings({
 					</div>
 
 					<div className={`grid grid-cols-3 gap-3 transition-opacity ${enableSeasonalEffects ? '' : 'pointer-events-none opacity-50'}`}>
-						<button
-							type='button'
-							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'light' } }))}
-							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'light' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
-							轻量
-						</button>
-						<button
-							type='button'
-							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'vivid' } }))}
-							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'vivid' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
-							明显
-						</button>
-						<button
-							type='button'
-							onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: 'mixed' } }))}
-							className={`rounded-lg border px-3 py-2 text-sm transition-colors ${seasonalEffectStyle === 'mixed' ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'}`}>
-							混合
-						</button>
+						{SEASONAL_STYLE_OPTIONS.map(option => (
+							<button
+								key={option.value}
+								type='button'
+								onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: option.value } }))}
+								className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+									seasonalEffectStyle === option.value ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
+								}`}>
+								{option.label}
+							</button>
+						))}
 					</div>
 				</div>
 			</div>

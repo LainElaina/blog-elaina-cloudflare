@@ -4,72 +4,105 @@ import { useEffect, useMemo, useState } from 'react'
 import siteContent from '@/config/site-content.json'
 import SnowfallBackground from './snowfall'
 import { motion } from 'motion/react'
+import { getSeasonalLayers, type LayerConfig, type SeasonalStyle, type SeasonalTheme } from './seasonal-effects-config'
+import { getParticleAnimation } from './seasonal-effects-render'
 
 type Theme = typeof siteContent.theme
-
-type SeasonalTheme = 'spring' | 'summer' | 'autumn' | 'winter'
-type SeasonalStyle = 'light' | 'vivid' | 'mixed'
 
 interface SeasonalEffectsProps {
 	theme?: Theme
 }
 
-const STYLE_PRESETS: Record<SeasonalStyle, { count: number; opacity: number }> = {
-	light: { count: 10, opacity: 0.24 },
-	mixed: { count: 18, opacity: 0.38 },
-	vivid: { count: 34, opacity: 0.68 }
+interface Particle {
+	id: number
+	left: number
+	top: number
+	size: number
+	duration: number
+	delay: number
+	driftX: number
+	driftY: number
+	color: string
+	rotate: number
 }
 
-function FloatingParticles({ count, opacity, colors, sizeRange, durationRange, driftRange, rotate = false, shape = 'circle' }: {
-	count: number
-	opacity: number
-	colors: string[]
-	sizeRange: [number, number]
-	durationRange: [number, number]
-	driftRange: [number, number]
-	rotate?: boolean
-	shape?: 'circle' | 'petal' | 'leaf'
-}) {
+function ParticleShape({ particle, shape }: { particle: Particle; shape: LayerConfig['shape'] }) {
+	if (shape === 'bubble') {
+		return (
+			<div className='relative h-full w-full rounded-full border border-white/50 bg-white/10'>
+				<div className='absolute inset-[16%] rounded-full' style={{ backgroundColor: particle.color, opacity: 0.18 }} />
+				<div className='absolute left-[18%] top-[12%] h-[26%] w-[26%] rounded-full bg-white/55 blur-[1px]' />
+			</div>
+		)
+	}
+
+	if (shape === 'softGlow') {
+		return <div className='h-full w-full rounded-full blur-[12px]' style={{ backgroundColor: particle.color }} />
+	}
+
+	if (shape === 'petal') {
+		return <div className='h-full w-full rounded-[70%_30%_70%_30%/60%_40%_60%_40%] blur-[1px]' style={{ backgroundColor: particle.color }} />
+	}
+
+	if (shape === 'maple') {
+		return (
+			<div
+				className='h-full w-full blur-[0.5px]'
+				style={{
+					backgroundColor: particle.color,
+					clipPath:
+						'polygon(50% 0%, 61% 15%, 78% 8%, 73% 27%, 92% 34%, 74% 43%, 84% 62%, 63% 58%, 58% 100%, 50% 82%, 42% 100%, 37% 58%, 16% 62%, 26% 43%, 8% 34%, 27% 27%, 22% 8%, 39% 15%)'
+				}}
+			/>
+		)
+	}
+
+	if (shape === 'leaf') {
+		return <div className='h-full w-full rounded-[70%_0_70%_0] blur-[1px]' style={{ backgroundColor: particle.color }} />
+	}
+
+	return <div className='h-full w-full rounded-full blur-[2px]' style={{ backgroundColor: particle.color }} />
+}
+
+function FloatingParticles(layer: LayerConfig) {
 	const [mounted, setMounted] = useState(false)
 
 	useEffect(() => {
 		setMounted(true)
 	}, [])
 
-	const particles = useMemo(
+	const particles = useMemo<Particle[]>(
 		() =>
 			mounted
-				? Array.from({ length: count }, (_, i) => ({
+				? Array.from({ length: layer.count }, (_, i) => ({
 						id: i,
 						left: Math.random() * 110 - 5,
 						top: Math.random() * 110 - 5,
-						size: Math.random() * (sizeRange[1] - sizeRange[0]) + sizeRange[0],
-						duration: Math.random() * (durationRange[1] - durationRange[0]) + durationRange[0],
+						size: Math.random() * (layer.sizeRange[1] - layer.sizeRange[0]) + layer.sizeRange[0],
+						duration: Math.random() * (layer.durationRange[1] - layer.durationRange[0]) + layer.durationRange[0],
 						delay: Math.random() * 8,
-						driftX: Math.random() * (driftRange[1] - driftRange[0]) + driftRange[0],
-						driftY: Math.random() * (driftRange[1] - driftRange[0]) + driftRange[0],
-						color: colors[i % colors.length],
+						driftX: Math.random() * (layer.driftRange[1] - layer.driftRange[0]) + layer.driftRange[0],
+						driftY: Math.random() * (layer.driftRange[1] - layer.driftRange[0]) + layer.driftRange[0],
+						color: layer.colors[i % layer.colors.length],
 						rotate: Math.random() * 360
 				  }))
 				: [],
-		[count, colors, driftRange, durationRange, mounted, sizeRange]
+		[layer, mounted]
 	)
 
 	if (!mounted) return null
 
 	return (
 		<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className='pointer-events-none fixed inset-0 z-[1] overflow-hidden'>
-			{particles.map(p => (
+			{particles.map(particle => (
 				<motion.div
-					key={p.id}
+					key={particle.id}
 					className='absolute'
-					style={{ left: `${p.left}%`, top: `${p.top}%`, width: p.size, height: p.size, opacity }}
-					initial={{ x: 0, y: 0, rotate: p.rotate }}
-					animate={{ x: [0, p.driftX, 0], y: [0, p.driftY, 0], rotate: rotate ? [p.rotate, p.rotate + 48, p.rotate + 96] : p.rotate }}
-					transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'easeInOut' }}>
-					{shape === 'circle' && <div className='h-full w-full rounded-full blur-[2px]' style={{ backgroundColor: p.color }} />}
-					{shape === 'petal' && <div className='h-full w-full rounded-[70%_30%_70%_30%/60%_40%_60%_40%] blur-[1px]' style={{ backgroundColor: p.color }} />}
-					{shape === 'leaf' && <div className='h-full w-full rounded-[70%_0_70%_0] blur-[1px]' style={{ backgroundColor: p.color }} />}
+					style={{ left: `${particle.left}%`, top: `${particle.top}%`, width: particle.size, height: particle.size, opacity: layer.opacity }}
+					initial={{ x: 0, y: 0, rotate: particle.rotate }}
+					animate={getParticleAnimation(particle, layer.movement ?? 'float', layer.rotate ?? false)}
+					transition={{ duration: particle.duration, delay: particle.delay, repeat: Infinity, ease: 'easeInOut' }}>
+					<ParticleShape particle={particle} shape={layer.shape} />
 				</motion.div>
 			))}
 		</motion.div>
@@ -81,54 +114,16 @@ export default function SeasonalEffects({ theme }: SeasonalEffectsProps) {
 
 	const season = (theme?.seasonalEffectTheme ?? 'spring') as SeasonalTheme
 	const style = (theme?.seasonalEffectStyle ?? 'light') as SeasonalStyle
-	const preset = STYLE_PRESETS[style]
+	const layers = getSeasonalLayers(season, style)
 
-	if (season === 'winter') {
-		const count = style === 'light' ? 22 : style === 'mixed' ? 42 : 64
-		return <SnowfallBackground zIndex={0} count={count} />
-	}
-
-	if (season === 'spring') {
-		const count = style === 'vivid' ? preset.count + 10 : preset.count
-		const opacity = style === 'vivid' ? Math.min(0.82, preset.opacity + 0.1) : preset.opacity
-		return (
-			<FloatingParticles
-				count={count}
-				opacity={opacity}
-				colors={['#ffb3c7', '#ffc2d1', '#ffd6de']}
-				sizeRange={style === 'vivid' ? [10, 20] : [8, 16]}
-				durationRange={[14, 24]}
-				driftRange={style === 'vivid' ? [-28, 28] : [-20, 20]}
-				rotate
-				shape='petal'
-			/>
-		)
-	}
-
-	if (season === 'summer') {
-		return (
-			<FloatingParticles
-				count={style === 'vivid' ? preset.count + 6 : preset.count}
-				opacity={Math.min(0.68, preset.opacity + 0.04)}
-				colors={['#ffe066', '#ffd43b', '#9bf6ff', '#b9fbc0']}
-				sizeRange={[6, 14]}
-				durationRange={[8, 16]}
-				driftRange={[-14, 14]}
-				shape='circle'
-			/>
-		)
+	if (layers.kind === 'winter') {
+		return <SnowfallBackground zIndex={0} count={layers.snowCount} />
 	}
 
 	return (
-		<FloatingParticles
-			count={preset.count}
-			opacity={preset.opacity}
-			colors={['#f4a261', '#e76f51', '#e9c46a', '#c97b63']}
-			sizeRange={[10, 18]}
-			durationRange={[12, 20]}
-			driftRange={[-18, 18]}
-			rotate
-			shape='leaf'
-		/>
+		<>
+			<FloatingParticles {...layers.secondary} />
+			<FloatingParticles {...layers.primary} />
+		</>
 	)
 }
