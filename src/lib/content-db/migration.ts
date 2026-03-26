@@ -90,8 +90,11 @@ async function loadLegacyBlogs(baseDir: string): Promise<Array<{ slug: string; t
 
 	const result: Array<{ slug: string; title: string; categoryKey: string | null; metadata: Record<string, unknown>; bodyPath: string }> = []
 	for (const item of indexItems) {
-		if (!item.slug || !availableSlugs.has(item.slug)) {
+		if (!item.slug) {
 			continue
+		}
+		if (!availableSlugs.has(item.slug)) {
+			throw new Error(`Legacy blog index references missing blog directory: ${item.slug}`)
 		}
 
 		const configPath = join(blogsDir, item.slug, 'config.json')
@@ -118,7 +121,7 @@ function loadLegacyShareEntries(baseDir: string): Array<{ id: string; slug: stri
 	const list = readJsonFile<ShareItem[]>(shareListPath)
 	const slugCounter = new Map<string, number>()
 
-	return list.map((item, index) => {
+	return list.map((item) => {
 		const baseSlug = slugify(item.name)
 		const used = slugCounter.get(baseSlug) ?? 0
 		slugCounter.set(baseSlug, used + 1)
@@ -192,24 +195,17 @@ export async function migrateLegacyContentToDb(options: MigrateLegacyContentOpti
 			}
 		}
 
-		const after = dryRun
-			? {
-					siteConfig: 1,
-					layoutConfig: 1,
-					blogEntries: blogs.length,
-					shareEntries: shares.length
-				}
-			: countTables(db)
+		const after = dryRun ? before : countTables(db)
 
 		return {
 			dryRun,
 			before,
 			after,
 			imported: {
-				siteConfig: Math.max(0, after.siteConfig - before.siteConfig),
-				layoutConfig: Math.max(0, after.layoutConfig - before.layoutConfig),
-				blogEntries: Math.max(0, after.blogEntries - before.blogEntries),
-				shareEntries: Math.max(0, after.shareEntries - before.shareEntries)
+				siteConfig: siteConfig ? 1 : 0,
+				layoutConfig: layoutConfig ? 1 : 0,
+				blogEntries: blogs.length,
+				shareEntries: shares.length
 			}
 		}
 	} finally {

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { promisify } from 'node:util'
 
 import { createContentDb } from './client.ts'
 import { applyContentDbMigrations } from './migrations.ts'
@@ -12,6 +14,12 @@ type TempContext = {
 	repoDir: string
 	dbPath: string
 	cleanup: () => Promise<void>
+}
+
+const execFileAsync = promisify(execFile)
+
+async function runVerifyScript(repoDir: string, dbPath: string): Promise<{ stdout: string; stderr: string }> {
+	return execFileAsync(process.execPath, ['/app/blog-elaina-cloudflare/scripts/verify-db-migration.ts', `--base-dir=${repoDir}`, `--db-path=${dbPath}`])
 }
 
 async function setupTempRepo(): Promise<TempContext> {
@@ -107,6 +115,12 @@ test('legacy migration imports structured metadata and keeps markdown files unch
 		assert.equal(firstRun.after.layoutConfig, 1)
 		assert.equal(firstRun.after.blogEntries, 2)
 		assert.equal(firstRun.after.shareEntries, 2)
+		assert.deepEqual(firstRun.imported, {
+			siteConfig: 1,
+			layoutConfig: 1,
+			blogEntries: 2,
+			shareEntries: 2
+		})
 
 		const db2 = createContentDb(context.dbPath)
 		const siteRow = db2.prepare('SELECT payload FROM site_config WHERE id = 1').get() as { payload: string }
@@ -147,6 +161,12 @@ test('legacy migration imports structured metadata and keeps markdown files unch
 		})
 		assert.equal(secondRun.after.blogEntries, 2)
 		assert.equal(secondRun.after.shareEntries, 2)
+		assert.deepEqual(secondRun.imported, {
+			siteConfig: 1,
+			layoutConfig: 1,
+			blogEntries: 2,
+			shareEntries: 2
+		})
 
 		const dryRun = await migrateLegacyContentToDb({
 			baseDir: context.repoDir,
@@ -156,6 +176,70 @@ test('legacy migration imports structured metadata and keeps markdown files unch
 		assert.equal(dryRun.dryRun, true)
 		assert.equal(dryRun.before.blogEntries, 2)
 		assert.equal(dryRun.after.blogEntries, 2)
+	} finally {
+		await context.cleanup()
+	}
+})
+
+test('legacy migration fails when blog index references a missing directory', async () => {
+	const context = await setupTempRepo()
+
+	try {
+		await rm(join(context.repoDir, 'public/blogs/post-2'), { recursive: true, force: true })
+
+		await assert.rejects(
+			migrateLegacyContentToDb({
+				baseDir: context.repoDir,
+				dbPath: context.dbPath,
+				confirmOverwrite: true
+			}),
+			/missing blog directory/
+		)
+	} finally {
+		await context.cleanup()
+	}
+})
+
+test('verify migration script succeeds for a healthy migrated repository', async () => {
+	const context = await setupTempRepo()
+
+	try {
+		await migrateLegacyContentToDb({
+			baseDir: context.repoDir,
+			dbPath: context.dbPath,
+			confirmOverwrite: true
+		})
+
+		const result = await runVerifyScript(context.repoDir, context.dbPath)
+		const summary = JSON.parse(result.stdout) as {
+			database: { blogEntriesCount: number; shareEntriesCount: number }
+			keyRecords: { missingBlogSlugs: string[]; missingShareSlugs: string[] }
+		}
+
+		assert.equal(summary.database.blogEntriesCount, 2)
+		assert.equal(summary.database.shareEntriesCount, 2)
+		assert.deepEqual(summary.keyRecords.missingBlogSlugs, [])
+		assert.deepEqual(summary.keyRecords.missingShareSlugs, [])
+	} finally {
+		await context.cleanup()
+	}
+})
+
+test('verify migration script fails when migrated blog body path no longer matches legacy source', async () => {
+	const context = await setupTempRepo()
+
+	try {
+		await migrateLegacyContentToDb({
+			baseDir: context.repoDir,
+			dbPath: context.dbPath,
+			confirmOverwrite: true
+		})
+
+		const db = createContentDb(context.dbPath)
+		db.prepare('UPDATE blog_entries SET body_path = ? WHERE slug = ?').run('/public/blogs/post-1/wrong.md', 'post-1')
+		db.close()
+
+		await assert.rejects(runVerifyScript(context.repoDir, context.dbPath), /关键记录校验失败|内容映射校验失败/)
 	} finally {
 		await context.cleanup()
 	}
