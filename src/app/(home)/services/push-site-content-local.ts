@@ -1,13 +1,16 @@
 import { toast } from 'sonner'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
+import { buildLocalConfigPayload, requestLocalEndpoint } from './push-site-content-local-utils'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
 
 export async function pushSiteContentLocal(
 	siteContent: SiteContent,
+	originalSiteContent: SiteContent,
 	cardStyles: CardStyles,
+	originalCardStyles: CardStyles,
 	faviconItem?: FileItem | null,
 	avatarItem?: FileItem | null,
 	artImageUploads?: ArtImageUploads,
@@ -79,12 +82,19 @@ export async function pushSiteContentLocal(
 
 	await Promise.all(uploadPromises)
 
-	// Save config files
-	await fetch('/api/config', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ siteContent, cardStyles })
-	})
+	const configPayload = buildLocalConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
+	if (Object.keys(configPayload).length > 0) {
+		await requestLocalEndpoint(
+			fetch,
+			'/api/config',
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(configPayload)
+			},
+			10000
+		)
+	}
 
 	toast.success('已保存到本地')
 }

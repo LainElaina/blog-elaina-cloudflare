@@ -164,7 +164,9 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 
 			await pushSiteContentLocal(
 				formData,
+				originalData,
 				cardStylesData,
+				originalCardStyles,
 				faviconItem,
 				avatarItem,
 				artImageUploads,
@@ -253,7 +255,6 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	}
 
 	const handlePreview = () => {
-		console.log('formData', formData)
 		setSiteContent(formData)
 		setCardStyles(cardStylesData)
 		regenerateBubbles()
