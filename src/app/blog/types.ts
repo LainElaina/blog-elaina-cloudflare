@@ -7,6 +7,8 @@ export type BlogIndexItem = {
 	cover?: string
 	hidden?: boolean
 	category?: string
+	folderPath?: string
+	favorite?: boolean
 }
 
 export type BlogConfig = {
@@ -17,5 +19,7 @@ export type BlogConfig = {
 	cover?: string
 	hidden?: boolean
 	category?: string
+	folderPath?: string
+	favorite?: boolean
 }
 

@@ -37,19 +37,43 @@ describe('blog storage model', () => {
 		assert.ok(!Object.prototype.hasOwnProperty.call(record, 'md'))
 	})
 
-	it('可从数据库导出静态 index 与 categories 产物', () => {
+
+	it('storage record 保留 folderPath 与 favorite 字段', () => {
+		const item: BlogIndexItem = {
+			slug: 'with-folder-fav',
+			title: '带目录与精选',
+			tags: ['fav'],
+			date: '2026-03-27T10:10:00.000Z',
+			folderPath: '/写作/技术',
+			favorite: true
+		}
+		const db = upsertBlogRecord(createEmptyBlogStorageDB(new Date('2026-03-27T10:10:00.000Z')), item, {
+			folder: 'default',
+			status: 'published',
+			now: new Date('2026-03-27T10:10:00.000Z')
+		})
+
+		const record = db.blogs['with-folder-fav']
+		assert.equal(record.folderPath, '/写作/技术')
+		assert.equal(record.favorite, true)
+	})
+
+	it('导出静态产物保留 favorite 并暴露 folders', () => {
 		const input: BlogIndexItem[] = [
-			{ slug: 'a', title: 'A', tags: [], date: '2026-01-01T00:00:00.000Z', category: 'Y' },
-			{ slug: 'b', title: 'B', tags: [], date: '2026-02-01T00:00:00.000Z', category: 'X' }
+			{ slug: 'fav-1', title: 'Fav 1', tags: [], date: '2026-02-01T00:00:00.000Z', folderPath: '/A/B', favorite: true },
+			{ slug: 'fav-2', title: 'Fav 2', tags: [], date: '2026-01-01T00:00:00.000Z', folderPath: '/A/C' }
 		]
 		const db = buildBlogStorageFromIndex(input, new Date('2026-03-27T00:00:00.000Z'))
 		const artifacts = exportStaticBlogArtifacts(db)
 
 		assert.deepEqual(
-			artifacts.index.map(item => item.slug),
-			['b', 'a']
+			artifacts.index.map(item => ({ slug: item.slug, favorite: item.favorite })),
+			[
+				{ slug: 'fav-1', favorite: true },
+				{ slug: 'fav-2', favorite: false }
+			]
 		)
-		assert.deepEqual(artifacts.categories, ['X', 'Y'])
+		assert.deepEqual(artifacts.folders, ['/A/B', '/A/C'])
 	})
 
 	it('loadBlog 优先消费 storage.json 元数据并读取 Markdown 正文', async () => {

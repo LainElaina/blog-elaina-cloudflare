@@ -12,6 +12,8 @@ export type BlogStorageRecord = {
 	hidden?: boolean
 	category?: string
 	folder?: string
+	folderPath?: string
+	favorite?: boolean
 	status: BlogStatus
 }
 
@@ -24,6 +26,7 @@ export type BlogStorageDB = {
 export type StaticBlogArtifacts = {
 	index: BlogIndexItem[]
 	categories: string[]
+	folders: string[]
 	db: BlogStorageDB
 }
 
@@ -48,6 +51,8 @@ export function normalizeIndexItemToRecord(
 		cover: item.cover,
 		hidden: item.hidden,
 		category: item.category,
+		folderPath: item.folderPath,
+		favorite: item.favorite ?? false,
 		folder: options?.folder,
 		status: options?.status ?? 'published'
 	}
@@ -95,7 +100,9 @@ function toBlogIndexItem(record: BlogStorageRecord): BlogIndexItem {
 		summary: record.summary,
 		cover: record.cover,
 		hidden: record.hidden,
-		category: record.category
+		category: record.category,
+		folderPath: record.folderPath,
+		favorite: record.favorite ?? false
 	}
 }
 
@@ -105,9 +112,11 @@ export function exportStaticBlogArtifacts(db: BlogStorageDB): StaticBlogArtifact
 		.map(toBlogIndexItem)
 		.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 	const categories = Array.from(new Set(records.map(r => r.category).filter((v): v is string => Boolean(v)))).sort((a, b) => a.localeCompare(b))
+	const folders = Array.from(new Set(records.map(r => r.folderPath).filter((v): v is string => Boolean(v)))).sort((a, b) => a.localeCompare(b))
 	return {
 		index,
 		categories,
+		folders,
 		db
 	}
 }
