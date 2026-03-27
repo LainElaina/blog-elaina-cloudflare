@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
-import { buildLocalConfigPayload, requestLocalEndpoint, getLocalSiteConfigEndpoint } from './push-site-content-local-utils'
+import { buildLocalConfigPayload, requestLocalEndpoint, getLocalSiteConfigEndpoint, shouldSyncFormalAssets } from './push-site-content-local-utils'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
@@ -23,19 +23,20 @@ export async function pushSiteContentLocal(
 	toast.info(action === 'draft' ? '正在保存本地草稿...' : '正在正式保存到本地...')
 
 	const uploadPromises: Promise<void>[] = []
+	const syncFormalAssets = shouldSyncFormalAssets(action)
 
 	// Upload favicon
-	if (faviconItem?.type === 'file') {
+	if (syncFormalAssets && faviconItem?.type === 'file') {
 		uploadPromises.push(uploadFile(faviconItem.file, 'public/favicon.png'))
 	}
 
 	// Upload avatar
-	if (avatarItem?.type === 'file') {
+	if (syncFormalAssets && avatarItem?.type === 'file') {
 		uploadPromises.push(uploadFile(avatarItem.file, 'public/images/avatar.png'))
 	}
 
 	// Upload art images
-	if (artImageUploads) {
+	if (syncFormalAssets && artImageUploads) {
 		for (const [id, item] of Object.entries(artImageUploads)) {
 			if (item.type === 'file') {
 				const ext = item.file.name.split('.').pop() || 'png'
@@ -45,7 +46,7 @@ export async function pushSiteContentLocal(
 	}
 
 	// Delete removed art images
-	if (removedArtImages && removedArtImages.length > 0) {
+	if (syncFormalAssets && removedArtImages && removedArtImages.length > 0) {
 		for (const art of removedArtImages) {
 			const normalizedUrl = art.url.startsWith('/') ? art.url : `/${art.url}`
 			uploadPromises.push(deleteFile(`public${normalizedUrl}`))
@@ -53,7 +54,7 @@ export async function pushSiteContentLocal(
 	}
 
 	// Upload background images
-	if (backgroundImageUploads) {
+	if (syncFormalAssets && backgroundImageUploads) {
 		for (const [id, item] of Object.entries(backgroundImageUploads)) {
 			if (item.type === 'file') {
 				const ext = item.file.name.split('.').pop() || 'png'
@@ -63,7 +64,7 @@ export async function pushSiteContentLocal(
 	}
 
 	// Delete removed background images
-	if (removedBackgroundImages && removedBackgroundImages.length > 0) {
+	if (syncFormalAssets && removedBackgroundImages && removedBackgroundImages.length > 0) {
 		for (const bg of removedBackgroundImages) {
 			if (!bg.url.startsWith('/images/background/')) continue
 			const normalizedUrl = bg.url.startsWith('/') ? bg.url : `/${bg.url}`
@@ -72,7 +73,7 @@ export async function pushSiteContentLocal(
 	}
 
 	// Upload social button images
-	if (socialButtonImageUploads) {
+	if (syncFormalAssets && socialButtonImageUploads) {
 		for (const [id, item] of Object.entries(socialButtonImageUploads)) {
 			if (item.type === 'file') {
 				const ext = item.file.name.split('.').pop() || 'png'

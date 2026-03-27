@@ -21,6 +21,10 @@ export function getLocalSiteConfigEndpoint(action: 'draft' | 'publish') {
 	return action === 'draft' ? '/api/drafts/site-config' : '/api/publish/site-config'
 }
 
+export function shouldSyncFormalAssets(action: 'draft' | 'publish') {
+	return action === 'publish'
+}
+
 export async function requestLocalEndpoint(
 	fetchImpl: typeof fetch,
 	input: string,

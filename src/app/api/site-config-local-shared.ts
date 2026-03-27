@@ -59,7 +59,16 @@ export async function clearSiteConfigDraft(baseDir: string) {
 	await fs.rm(resolveSiteConfigDraftPath(baseDir), { force: true })
 }
 
+export async function canPublishSiteConfigDraft(baseDir: string) {
+	const draft = await readSiteConfigDraft(baseDir)
+	return draft !== null
+}
+
 export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
+	if (!draft || Object.keys(draft).length === 0) {
+		throw new Error('没有可发布的草稿')
+	}
+
 	const configDir = path.join(baseDir, 'src/config')
 	const touchedFormal: string[] = []
 
