@@ -179,6 +179,19 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		type: 'blob',
 		sha: categoriesBlob.sha
 	})
+	const foldersBlob = await createBlob(
+		token,
+		GITHUB_CONFIG.OWNER,
+		GITHUB_CONFIG.REPO,
+		toBase64Utf8(JSON.stringify(artifacts.folders, null, 2)),
+		'base64'
+	)
+	treeItems.push({
+		path: 'public/blogs/folders.json',
+		mode: '100644',
+		type: 'blob',
+		sha: foldersBlob.sha
+	})
 	const storageBlob = await createBlob(
 		token,
 		GITHUB_CONFIG.OWNER,

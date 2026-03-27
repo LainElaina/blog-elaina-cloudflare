@@ -19,6 +19,7 @@ export type { BlogStorageDB, StaticBlogArtifacts } from '@/lib/content-db/blog-s
 const BLOG_INDEX_PATH = 'public/blogs/index.json'
 const BLOG_CATEGORIES_PATH = 'public/blogs/categories.json'
 const BLOG_STORAGE_PATH = 'public/blogs/storage.json'
+const BLOG_FOLDERS_PATH = 'public/blogs/folders.json'
 
 export function serializeCategoriesConfig(categories: string[]): string {
 	return JSON.stringify({ categories }, null, 2)
@@ -81,6 +82,7 @@ export async function upsertBlogsIndex(token: string, owner: string, repo: strin
 	})
 	await putFile(token, owner, repo, BLOG_INDEX_PATH, toBase64Utf8(JSON.stringify(artifacts.index, null, 2)), 'Update blogs index', branch)
 	await putFile(token, owner, repo, BLOG_CATEGORIES_PATH, toBase64Utf8(serializeCategoriesConfig(artifacts.categories)), 'Update blogs categories', branch)
+	await putFile(token, owner, repo, BLOG_FOLDERS_PATH, toBase64Utf8(JSON.stringify(artifacts.folders, null, 2)), 'Update blogs folders', branch)
 	await putFile(token, owner, repo, BLOG_STORAGE_PATH, toBase64Utf8(JSON.stringify(artifacts.db, null, 2)), 'Update blogs storage', branch)
 }
 

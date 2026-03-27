@@ -19,7 +19,9 @@ function toBlogConfigFromStorageRecord(record: Record<string, unknown> | undefin
 		summary: typeof record.summary === 'string' ? record.summary : undefined,
 		cover: typeof record.cover === 'string' ? record.cover : undefined,
 		hidden: typeof record.hidden === 'boolean' ? record.hidden : undefined,
-		category: typeof record.category === 'string' ? record.category : undefined
+		category: typeof record.category === 'string' ? record.category : undefined,
+		folderPath: typeof record.folderPath === 'string' ? record.folderPath : undefined,
+		favorite: typeof record.favorite === 'boolean' ? record.favorite : undefined
 	}
 }
 

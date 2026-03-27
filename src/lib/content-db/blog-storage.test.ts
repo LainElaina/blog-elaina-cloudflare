@@ -307,13 +307,13 @@ describe('blog storage model', () => {
 		assert.equal(serializeCategoriesConfig(artifacts.categories), JSON.stringify({ categories: ['X'] }, null, 2))
 	})
 
-	it('编辑与删除后会同步维护 storage/index/categories 产物', () => {
+	it('编辑与删除后会同步维护 storage/index/categories/folders 产物', () => {
 		const originalItems: BlogIndexItem[] = [
 			{ slug: 'keep', title: 'Keep', tags: ['x'], date: '2026-03-10T00:00:00.000Z', category: 'A' },
 			{ slug: 'remove-me', title: 'Remove', tags: [], date: '2026-03-11T00:00:00.000Z', category: 'B' }
 		]
 		const nextItems: BlogIndexItem[] = [
-			{ slug: 'keep', title: 'Keep v2', tags: ['x', 'y'], date: '2026-03-12T00:00:00.000Z', category: 'C' }
+			{ slug: 'keep', title: 'Keep v2', tags: ['x', 'y'], date: '2026-03-12T00:00:00.000Z', category: 'C', folderPath: '/写作/技术' }
 		]
 		const nextCategories = ['C', '历史脏分类']
 		const existingStorageRaw = JSON.stringify({
@@ -350,6 +350,13 @@ describe('blog storage model', () => {
 		assert.deepEqual(artifacts.removedSlugs, ['remove-me'])
 		assert.deepEqual(artifacts.index.map(item => item.slug), ['keep'])
 		assert.deepEqual(artifacts.categories, ['C'])
+		assert.deepEqual(artifacts.folders, [
+			{
+				name: '写作',
+				path: '/写作',
+				children: [{ name: '技术', path: '/写作/技术', children: [] }]
+			}
+		])
 		assert.ok(artifacts.storage.blogs.keep)
 		assert.equal(artifacts.storage.blogs.keep.title, 'Keep v2')
 		assert.ok(!artifacts.storage.blogs['remove-me'])

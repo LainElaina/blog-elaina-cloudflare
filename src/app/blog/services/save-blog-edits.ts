@@ -5,11 +5,13 @@ import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, r
 import type { BlogIndexItem } from '@/lib/blog-index'
 import { serializeCategoriesConfig } from '@/lib/blog-index'
 import { exportStaticBlogArtifacts, parseBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
+import type { BlogFolderNode } from '@/lib/content-db/blog-folders'
 
 export type SaveBlogEditsArtifacts = {
 	removedSlugs: string[]
 	index: BlogIndexItem[]
 	categories: string[]
+	folders: BlogFolderNode[]
 	storage: BlogStorageDB
 }
 
@@ -39,6 +41,7 @@ export function buildArtifactsForSaveBlogEdits(params: {
 		removedSlugs: uniqueRemoved,
 		index: exported.index,
 		categories: exported.categories,
+		folders: exported.folders,
 		storage: exported.db
 	}
 }
@@ -99,6 +102,16 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 		mode: '100644',
 		type: 'blob',
 		sha: categoriesBlob.sha
+	})
+
+	toast.info('正在更新目录...')
+	const foldersJson = JSON.stringify(artifacts.folders, null, 2)
+	const foldersBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(foldersJson), 'base64')
+	treeItems.push({
+		path: 'public/blogs/folders.json',
+		mode: '100644',
+		type: 'blob',
+		sha: foldersBlob.sha
 	})
 
 	toast.info('正在更新存储快照...')
