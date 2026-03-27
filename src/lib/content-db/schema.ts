@@ -48,6 +48,9 @@ export const INITIAL_CONTENT_DB_STATEMENTS = [
 		manifest_json TEXT NOT NULL DEFAULT '{}',
 		base_version TEXT,
 		last_error TEXT,
+		error_code TEXT,
+		error_at TEXT,
+		created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS draft_items_entity_key_idx ON draft_items(entity_type, entity_key)`,

@@ -51,6 +51,24 @@ test('content database schema reserves classification fields for blog and share 
 	})
 })
 
+test('draft_items table includes draft/formal state-machine columns', async () => {
+	await withTempDb((dbPath) => {
+		const db = createContentDb(dbPath)
+
+		try {
+			applyContentDbMigrations(db)
+
+			const columns = listTableColumns(db, 'draft_items')
+			assert.deepEqual(
+				columns.filter((column) => ['base_version', 'status', 'last_error', 'error_code', 'error_at', 'created_at', 'updated_at'].includes(column)),
+				['status', 'base_version', 'last_error', 'error_code', 'error_at', 'created_at', 'updated_at']
+			)
+		} finally {
+			db.close()
+		}
+	})
+})
+
 test('content database client defaults to repository data/content.db path', () => {
 	assert.equal(getDefaultContentDbPath('/app/blog-elaina-cloudflare'), resolve('/app/blog-elaina-cloudflare', 'data/content.db'))
 })
