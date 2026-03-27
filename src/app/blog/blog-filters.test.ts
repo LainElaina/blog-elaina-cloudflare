@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import type { BlogIndexItem } from './types'
-import { BLOG_FOLDER_ALL, assignFolderPath, filterBlogItems } from './blog-filters.ts'
+import { BLOG_FOLDER_ALL, assignFolderPath, filterBlogItems, retainSelectionInView } from './blog-filters.ts'
 
 describe('blog-filters', () => {
 	const items: BlogIndexItem[] = [
@@ -33,6 +33,14 @@ describe('blog-filters', () => {
 			filtered.map(item => item.slug),
 			['b']
 		)
+	})
+
+	it('retainSelectionInView 应移除当前过滤视图不可见的选中项', () => {
+		const selected = new Set(['a', 'c'])
+		const visible = items.filter(item => item.slug === 'a')
+
+		const retained = retainSelectionInView(selected, visible)
+		assert.deepEqual(Array.from(retained).sort(), ['a'])
 	})
 
 	it('assignFolderPath 应更新选中文章的 folderPath', () => {

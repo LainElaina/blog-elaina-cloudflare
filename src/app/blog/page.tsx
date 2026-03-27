@@ -23,7 +23,7 @@ import { buildLocalSaveFilePayloads, saveBlogEdits } from './services/save-blog-
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
 import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
-import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, collectFolderPaths, filterBlogItems, formatFolderOptionLabel } from './blog-filters'
+import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, collectFolderPaths, filterBlogItems, formatFolderOptionLabel, retainSelectionInView } from './blog-filters'
 
 type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category'
 
@@ -145,6 +145,10 @@ export default function BlogPage() {
 			getGroupLabel: (key: string) => grouped[key]?.label || key
 		}
 	}, [filteredDisplayItems, displayMode, categoryList])
+
+	useEffect(() => {
+		setSelectedSlugs(prev => retainSelectionInView(prev, filteredDisplayItems))
+	}, [filteredDisplayItems])
 
 	const selectedCount = selectedSlugs.size
 	const isDev = process.env.NODE_ENV === 'development'

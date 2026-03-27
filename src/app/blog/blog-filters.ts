@@ -33,6 +33,18 @@ export function filterBlogItems(items: BlogIndexItem[], params: BlogFilterParams
 	})
 }
 
+export function retainSelectionInView(selectedSlugs: Set<string>, visibleItems: BlogIndexItem[]): Set<string> {
+	if (selectedSlugs.size === 0) return selectedSlugs
+	const visibleSlugs = new Set(visibleItems.map(item => item.slug))
+	const next = new Set<string>()
+	for (const slug of selectedSlugs) {
+		if (visibleSlugs.has(slug)) {
+			next.add(slug)
+		}
+	}
+	return next
+}
+
 export function assignFolderPath(items: BlogIndexItem[], selectedSlugs: Set<string>, nextFolderPath?: string): BlogIndexItem[] {
 	const normalized = normalizeFolderPath(nextFolderPath)
 	return items.map(item => {
