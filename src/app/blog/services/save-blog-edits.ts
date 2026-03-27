@@ -1,13 +1,49 @@
 import { toast } from 'sonner'
 import { GITHUB_CONFIG } from '@/consts'
 import { getAuthToken } from '@/lib/auth'
-import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
+import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
 import type { BlogIndexItem } from '@/lib/blog-index'
+import { serializeCategoriesConfig } from '@/lib/blog-index'
+import { exportStaticBlogArtifacts, parseBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
 
-export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: BlogIndexItem[], categories: string[]): Promise<void> {
+export type SaveBlogEditsArtifacts = {
+	removedSlugs: string[]
+	index: BlogIndexItem[]
+	categories: string[]
+	storage: BlogStorageDB
+}
+
+export function buildArtifactsForSaveBlogEdits(params: {
+	originalItems: BlogIndexItem[]
+	nextItems: BlogIndexItem[]
+	categories: string[]
+	existingStorageRaw: string | null
+	now?: Date
+}): SaveBlogEditsArtifacts {
+	const { originalItems, nextItems, existingStorageRaw } = params
+	const now = params.now ?? new Date()
 	const removedSlugs = originalItems.filter(item => !nextItems.some(next => next.slug === item.slug)).map(item => item.slug)
 	const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
+	let db = parseBlogStorageDB(existingStorageRaw)
 
+	for (const item of nextItems) {
+		db = upsertBlogRecord(db, item, { now })
+	}
+	for (const slug of uniqueRemoved) {
+		db = removeBlogRecord(db, slug, now)
+	}
+
+	const exported = exportStaticBlogArtifacts(db)
+
+	return {
+		removedSlugs: uniqueRemoved,
+		index: exported.index,
+		categories: exported.categories,
+		storage: exported.db
+	}
+}
+
+export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: BlogIndexItem[], categories: string[]): Promise<void> {
 	const token = await getAuthToken()
 
 	toast.info('正在获取分支信息...')
@@ -15,8 +51,22 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 	const latestCommitSha = refData.sha
 
 	const treeItems: TreeItem[] = []
+	const storagePath = 'public/blogs/storage.json'
+	let storageRaw: string | null = null
+	try {
+		storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, storagePath, GITHUB_CONFIG.BRANCH)
+	} catch {
+		storageRaw = null
+	}
 
-	for (const slug of uniqueRemoved) {
+	const artifacts = buildArtifactsForSaveBlogEdits({
+		originalItems,
+		nextItems,
+		categories,
+		existingStorageRaw: storageRaw
+	})
+
+	for (const slug of artifacts.removedSlugs) {
 		toast.info(`正在收集 ${slug} 文件...`)
 		const basePath = `public/blogs/${slug}`
 		const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, GITHUB_CONFIG.BRANCH)
@@ -32,8 +82,7 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 	}
 
 	toast.info('正在更新索引...')
-	const sortedItems = [...nextItems].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-	const indexJson = JSON.stringify(sortedItems, null, 2)
+	const indexJson = JSON.stringify(artifacts.index, null, 2)
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(indexJson), 'base64')
 	treeItems.push({
 		path: 'public/blogs/index.json',
@@ -43,8 +92,7 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 	})
 
 	toast.info('正在更新分类...')
-	const uniqueCategories = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)))
-	const categoriesJson = JSON.stringify({ categories: uniqueCategories }, null, 2)
+	const categoriesJson = serializeCategoriesConfig(artifacts.categories)
 	const categoriesBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(categoriesJson), 'base64')
 	treeItems.push({
 		path: 'public/blogs/categories.json',
@@ -53,16 +101,27 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 		sha: categoriesBlob.sha
 	})
 
+	toast.info('正在更新存储快照...')
+	const storageJson = JSON.stringify(artifacts.storage, null, 2)
+	const storageBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(storageJson), 'base64')
+	treeItems.push({
+		path: storagePath,
+		mode: '100644',
+		type: 'blob',
+		sha: storageBlob.sha
+	})
+
 	toast.info('正在创建提交...')
 	const treeData = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, treeItems, latestCommitSha)
 	const actionLabels: string[] = []
-	if (uniqueRemoved.length > 0) {
-		actionLabels.push(`删除:${uniqueRemoved.join(',')}`)
+	if (artifacts.removedSlugs.length > 0) {
+		actionLabels.push(`删除:${artifacts.removedSlugs.join(',')}`)
 	}
 	actionLabels.push('更新索引')
-	if (uniqueCategories.length > 0) {
+	if (artifacts.categories.length > 0) {
 		actionLabels.push('更新分类')
 	}
+	actionLabels.push('更新存储')
 	const commitLabel = actionLabels.join(' | ')
 	const commitData = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, commitLabel, treeData.sha, [latestCommitSha])
 
@@ -71,4 +130,3 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 
 	toast.success('保存成功！请等待页面部署后刷新')
 }
-

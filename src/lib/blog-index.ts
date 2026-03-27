@@ -20,6 +20,10 @@ const BLOG_INDEX_PATH = 'public/blogs/index.json'
 const BLOG_CATEGORIES_PATH = 'public/blogs/categories.json'
 const BLOG_STORAGE_PATH = 'public/blogs/storage.json'
 
+export function serializeCategoriesConfig(categories: string[]): string {
+	return JSON.stringify({ categories }, null, 2)
+}
+
 async function readIndexItemsFromRepo(token: string, owner: string, repo: string, branch: string): Promise<BlogIndexItem[]> {
 	try {
 		const txt = await readTextFileFromRepo(token, owner, repo, BLOG_INDEX_PATH, branch)
@@ -76,7 +80,7 @@ export async function upsertBlogsIndex(token: string, owner: string, repo: strin
 		upsertItem: item
 	})
 	await putFile(token, owner, repo, BLOG_INDEX_PATH, toBase64Utf8(JSON.stringify(artifacts.index, null, 2)), 'Update blogs index', branch)
-	await putFile(token, owner, repo, BLOG_CATEGORIES_PATH, toBase64Utf8(JSON.stringify(artifacts.categories, null, 2)), 'Update blogs categories', branch)
+	await putFile(token, owner, repo, BLOG_CATEGORIES_PATH, toBase64Utf8(serializeCategoriesConfig(artifacts.categories)), 'Update blogs categories', branch)
 	await putFile(token, owner, repo, BLOG_STORAGE_PATH, toBase64Utf8(JSON.stringify(artifacts.db, null, 2)), 'Update blogs storage', branch)
 }
 

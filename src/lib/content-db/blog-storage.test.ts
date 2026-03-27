@@ -7,7 +7,9 @@ import {
 	upsertBlogRecord,
 	createEmptyBlogStorageDB
 } from '@/lib/content-db/blog-storage'
-import { prepareBlogStaticArtifacts } from '@/lib/blog-index'
+import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
+import { loadBlog } from '@/lib/load-blog'
+import { buildArtifactsForSaveBlogEdits } from '@/app/blog/services/save-blog-edits'
 
 import type { BlogIndexItem } from '@/app/blog/types'
 
@@ -50,24 +52,232 @@ describe('blog storage model', () => {
 		assert.deepEqual(artifacts.categories, ['X', 'Y'])
 	})
 
-	it('blog-index 层可生成正式静态产物并包含 db 快照', async () => {
-		const item: BlogIndexItem = {
-			slug: 'storage-ready',
-			title: 'Storage Ready',
-			tags: ['infra'],
-			date: '2026-03-27T09:00:00.000Z',
-			category: 'Infra'
+	it('loadBlog 优先消费 storage.json 元数据并读取 Markdown 正文', async () => {
+		const originalFetch = globalThis.fetch
+		const responses = new Map<string, Response>([
+			[
+				'/blogs/storage.json',
+				new Response(
+					JSON.stringify({
+						version: 1,
+						updatedAt: '2026-03-27T10:00:00.000Z',
+						blogs: {
+							'storage-first': {
+								slug: 'storage-first',
+								title: '来自 storage',
+								tags: ['db'],
+								date: '2026-03-27T09:00:00.000Z',
+								summary: 'storage summary',
+								cover: '/cover-storage.png',
+								status: 'published'
+							}
+						}
+					}),
+					{ status: 200 }
+				)
+			],
+			[
+				'/blogs/storage-first/index.md',
+				new Response('# hello', { status: 200 })
+			],
+			[
+				'/blogs/storage-first/config.json',
+				new Response(
+					JSON.stringify({
+						title: '来自 config',
+						tags: ['legacy'],
+						date: '1999-01-01T00:00:00.000Z'
+					}),
+					{ status: 200 }
+				)
+			]
+		])
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const key = typeof input === 'string' ? input : input.toString()
+			return responses.get(key) ?? new Response(null, { status: 404 })
+		}) as typeof fetch
+		try {
+			const loaded = await loadBlog('storage-first')
+			assert.equal(loaded.config.title, '来自 storage')
+			assert.deepEqual(loaded.config.tags, ['db'])
+			assert.equal(loaded.cover, '/cover-storage.png')
+			assert.equal(loaded.markdown, '# hello')
+		} finally {
+			globalThis.fetch = originalFetch
 		}
+	})
+
+	it('loadBlog 在 storage 缺失时回退到 config.json', async () => {
+		const originalFetch = globalThis.fetch
+		const responses = new Map<string, Response>([
+			['/blogs/storage.json', new Response(null, { status: 404 })],
+			[
+				'/blogs/fallback-missing/config.json',
+				new Response(
+					JSON.stringify({
+						title: '来自 config fallback',
+						tags: ['legacy'],
+						date: '2026-03-27T09:30:00.000Z',
+						cover: '/cover-fallback.png'
+					}),
+					{ status: 200 }
+				)
+			],
+			['/blogs/fallback-missing/index.md', new Response('# fallback missing storage', { status: 200 })]
+		])
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const key = typeof input === 'string' ? input : input.toString()
+			return responses.get(key) ?? new Response(null, { status: 404 })
+		}) as typeof fetch
+		try {
+			const loaded = await loadBlog('fallback-missing')
+			assert.equal(loaded.config.title, '来自 config fallback')
+			assert.deepEqual(loaded.config.tags, ['legacy'])
+			assert.equal(loaded.cover, '/cover-fallback.png')
+			assert.equal(loaded.markdown, '# fallback missing storage')
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	it('loadBlog 在 storage 损坏时回退到 config.json', async () => {
+		const originalFetch = globalThis.fetch
+		const responses = new Map<string, Response>([
+			['/blogs/storage.json', new Response('{invalid json', { status: 200 })],
+			[
+				'/blogs/fallback-broken/config.json',
+				new Response(
+					JSON.stringify({
+						title: '来自损坏回退',
+						tags: ['broken-storage'],
+						date: '2026-03-27T09:40:00.000Z'
+					}),
+					{ status: 200 }
+				)
+			],
+			['/blogs/fallback-broken/index.md', new Response('# fallback broken storage', { status: 200 })]
+		])
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const key = typeof input === 'string' ? input : input.toString()
+			return responses.get(key) ?? new Response(null, { status: 404 })
+		}) as typeof fetch
+		try {
+			const loaded = await loadBlog('fallback-broken')
+			assert.equal(loaded.config.title, '来自损坏回退')
+			assert.deepEqual(loaded.config.tags, ['broken-storage'])
+			assert.equal(loaded.markdown, '# fallback broken storage')
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	it('loadBlog 在 storage 未命中 slug 时回退到 config.json', async () => {
+		const originalFetch = globalThis.fetch
+		const responses = new Map<string, Response>([
+			[
+				'/blogs/storage.json',
+				new Response(
+					JSON.stringify({
+						version: 1,
+						updatedAt: '2026-03-27T10:00:00.000Z',
+						blogs: {
+							other: {
+								slug: 'other',
+								title: 'other title',
+								tags: ['other'],
+								date: '2026-03-27T09:00:00.000Z'
+							}
+						}
+					}),
+					{ status: 200 }
+				)
+			],
+			[
+				'/blogs/fallback-miss-slug/config.json',
+				new Response(
+					JSON.stringify({
+						title: '来自未命中回退',
+						tags: ['miss-slug'],
+						date: '2026-03-27T09:50:00.000Z'
+					}),
+					{ status: 200 }
+				)
+			],
+			['/blogs/fallback-miss-slug/index.md', new Response('# fallback miss slug', { status: 200 })]
+		])
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const key = typeof input === 'string' ? input : input.toString()
+			return responses.get(key) ?? new Response(null, { status: 404 })
+		}) as typeof fetch
+		try {
+			const loaded = await loadBlog('fallback-miss-slug')
+			assert.equal(loaded.config.title, '来自未命中回退')
+			assert.deepEqual(loaded.config.tags, ['miss-slug'])
+			assert.equal(loaded.markdown, '# fallback miss slug')
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	it('categories.json 统一输出为对象 schema', async () => {
 		const artifacts = await prepareBlogStaticArtifacts({
-			readStorageRaw: async () => null,
-			fallbackReadIndexRaw: async () => '[]',
-			upsertItem: item,
-			now: new Date('2026-03-27T09:00:00.000Z')
+			readStorageRaw: async () =>
+				JSON.stringify({
+					version: 1,
+					updatedAt: '2026-03-27T12:00:00.000Z',
+					blogs: {
+						a: { slug: 'a', title: 'A', tags: [], date: '2026-03-27T10:00:00.000Z', category: 'X', status: 'published' }
+					}
+				})
+		})
+		assert.equal(serializeCategoriesConfig(artifacts.categories), JSON.stringify({ categories: ['X'] }, null, 2))
+	})
+
+	it('编辑与删除后会同步维护 storage/index/categories 产物', () => {
+		const originalItems: BlogIndexItem[] = [
+			{ slug: 'keep', title: 'Keep', tags: ['x'], date: '2026-03-10T00:00:00.000Z', category: 'A' },
+			{ slug: 'remove-me', title: 'Remove', tags: [], date: '2026-03-11T00:00:00.000Z', category: 'B' }
+		]
+		const nextItems: BlogIndexItem[] = [
+			{ slug: 'keep', title: 'Keep v2', tags: ['x', 'y'], date: '2026-03-12T00:00:00.000Z', category: 'C' }
+		]
+		const nextCategories = ['C', '历史脏分类']
+		const existingStorageRaw = JSON.stringify({
+			version: 1,
+			updatedAt: '2026-03-01T00:00:00.000Z',
+			blogs: {
+				keep: {
+					slug: 'keep',
+					title: 'Keep',
+					tags: ['x'],
+					date: '2026-03-10T00:00:00.000Z',
+					category: 'A',
+					status: 'published'
+				},
+				'remove-me': {
+					slug: 'remove-me',
+					title: 'Remove',
+					tags: [],
+					date: '2026-03-11T00:00:00.000Z',
+					category: 'B',
+					status: 'published'
+				}
+			}
 		})
 
-		assert.equal(artifacts.index.length, 1)
-		assert.equal(artifacts.index[0]?.slug, 'storage-ready')
-		assert.equal(artifacts.db.version, 1)
-		assert.ok(artifacts.db.blogs['storage-ready'])
+		const artifacts = buildArtifactsForSaveBlogEdits({
+			originalItems,
+			nextItems,
+			categories: nextCategories,
+			existingStorageRaw,
+			now: new Date('2026-03-27T12:00:00.000Z')
+		})
+
+		assert.deepEqual(artifacts.removedSlugs, ['remove-me'])
+		assert.deepEqual(artifacts.index.map(item => item.slug), ['keep'])
+		assert.deepEqual(artifacts.categories, ['C'])
+		assert.ok(artifacts.storage.blogs.keep)
+		assert.equal(artifacts.storage.blogs.keep.title, 'Keep v2')
+		assert.ok(!artifacts.storage.blogs['remove-me'])
 	})
 })

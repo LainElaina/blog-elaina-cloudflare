@@ -1,6 +1,6 @@
 import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem, readTextFileFromRepo } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
-import { prepareBlogStaticArtifacts } from '@/lib/blog-index'
+import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
@@ -170,7 +170,7 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		token,
 		GITHUB_CONFIG.OWNER,
 		GITHUB_CONFIG.REPO,
-		toBase64Utf8(JSON.stringify(artifacts.categories, null, 2)),
+		toBase64Utf8(serializeCategoriesConfig(artifacts.categories)),
 		'base64'
 	)
 	treeItems.push({
