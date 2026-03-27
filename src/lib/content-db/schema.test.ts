@@ -73,6 +73,40 @@ test('content database client defaults to repository data/content.db path', () =
 	assert.equal(getDefaultContentDbPath('/app/blog-elaina-cloudflare'), resolve('/app/blog-elaina-cloudflare', 'data/content.db'))
 })
 
+test('migrations upgrade legacy draft_items table to include Task 3 columns', async () => {
+	await withTempDb((dbPath) => {
+		const db = createContentDb(dbPath)
+
+		try {
+			db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+				version INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`)
+			db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(1, 'initial_content_schema')
+			db.exec(`CREATE TABLE IF NOT EXISTS draft_items (
+				id TEXT PRIMARY KEY,
+				entity_type TEXT NOT NULL,
+				entity_key TEXT NOT NULL,
+				status TEXT NOT NULL,
+				manifest_json TEXT NOT NULL DEFAULT '{}',
+				base_version TEXT,
+				last_error TEXT,
+				updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`)
+
+			applyContentDbMigrations(db)
+
+			const columns = listTableColumns(db, 'draft_items')
+			assert.equal(columns.includes('error_code'), true)
+			assert.equal(columns.includes('error_at'), true)
+			assert.equal(columns.includes('created_at'), true)
+		} finally {
+			db.close()
+		}
+	})
+})
+
 test('applying content database migrations twice stays idempotent', async () => {
 	await withTempDb((dbPath) => {
 		const db = createContentDb(dbPath)
@@ -86,7 +120,10 @@ test('applying content database migrations twice stays idempotent', async () => 
 				name: row.name
 			}))
 
-			assert.deepEqual(migrationRows, [{ version: 1, name: 'initial_content_schema' }])
+			assert.deepEqual(migrationRows, [
+				{ version: 1, name: 'initial_content_schema' },
+				{ version: 2, name: 'draft_items_task3_columns_upgrade' }
+			])
 		} finally {
 			db.close()
 		}

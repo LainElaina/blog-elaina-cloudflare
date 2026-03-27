@@ -8,6 +8,11 @@ export type DraftState = {
 	entityKey: string
 	status: DraftStatus
 	manifest: DraftManifestItem
+	/**
+	 * Formal content baseline revision captured when entering draft.
+	 * Although named baseVersion for compatibility, it can store either
+	 * a human-readable version string or a hash-style revision.
+	 */
 	baseVersion: string | null
 	lastError: string | null
 	errorCode: string | null

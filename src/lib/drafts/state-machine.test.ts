@@ -39,7 +39,7 @@ test('createDraftState creates draft status with required metadata', () => {
 	assert.equal(typeof state.updatedAt, 'string')
 })
 
-test('beginPromotion enters promoting when formal version matches baseVersion', () => {
+test('beginPromotion enters promoting when formal version matches baseVersion baseline', () => {
 	const draft = createDraftState({
 		id: 'd2',
 		entityType: 'blog',
@@ -49,6 +49,23 @@ test('beginPromotion enters promoting when formal version matches baseVersion', 
 	})
 
 	const result = beginPromotion(draft, { formalVersion: 'v1' })
+
+	assert.equal(result.canWrite, true)
+	assert.equal(result.error, null)
+	assert.equal(result.next.status, 'promoting')
+})
+
+test('beginPromotion accepts hash-style baseline revision in baseVersion', () => {
+	const hashBaseline = 'sha256:abc123def456'
+	const draft = createDraftState({
+		id: 'd2-hash',
+		entityType: 'blog',
+		entityKey: 'hello-world',
+		baseVersion: hashBaseline,
+		manifest: createSampleManifest()
+	})
+
+	const result = beginPromotion(draft, { formalVersion: hashBaseline })
 
 	assert.equal(result.canWrite, true)
 	assert.equal(result.error, null)
@@ -70,6 +87,22 @@ test('beginPromotion marks conflict and blocks write when formal version changed
 	assert.equal(result.next.status, 'conflict')
 	assert.equal(result.error?.code, 'FORMAL_VERSION_CONFLICT')
 	assert.match(result.error?.message ?? '', /冲突|conflict/i)
+})
+
+test('beginPromotion marks conflict for hash-style baseline mismatch', () => {
+	const draft = createDraftState({
+		id: 'd3-hash',
+		entityType: 'blog',
+		entityKey: 'hello-world',
+		baseVersion: 'sha256:old-hash',
+		manifest: createSampleManifest()
+	})
+
+	const result = beginPromotion(draft, { formalVersion: 'sha256:new-hash' })
+
+	assert.equal(result.canWrite, false)
+	assert.equal(result.next.status, 'conflict')
+	assert.equal(result.error?.code, 'FORMAL_VERSION_CONFLICT')
 })
 
 test('markPromoteFailed keeps draft and stores minimal error metadata', () => {
