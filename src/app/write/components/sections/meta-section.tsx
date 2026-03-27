@@ -4,6 +4,7 @@ import { TagInput } from '../ui/tag-input'
 import { useCategories } from '@/hooks/use-categories'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { Select } from '@/components/select'
+import { FolderSelect } from '../ui/folder-select'
 
 type MetaSectionProps = {
 	delay?: number
@@ -11,7 +12,6 @@ type MetaSectionProps = {
 
 export function MetaSection({ delay = 0 }: MetaSectionProps) {
 	const { form, updateForm } = useWriteStore()
-	console.log(form.date)
 
 	const { categories } = useCategories()
 	const { siteContent } = useConfigStore()
@@ -36,6 +36,7 @@ export function MetaSection({ delay = 0 }: MetaSectionProps) {
 				{enableCategories && (
 					<Select className='w-full text-sm' value={form.category || ''} onChange={value => updateForm({ category: value })} options={categoryOptions} />
 				)}
+				<FolderSelect className='w-full text-sm' value={form.folderPath || ''} onChange={value => updateForm({ folderPath: value })} />
 				<input
 					type='datetime-local'
 					placeholder='日期'
@@ -45,6 +46,19 @@ export function MetaSection({ delay = 0 }: MetaSectionProps) {
 						updateForm({ date: e.target.value })
 					}}
 				/>
+
+				<div className='flex items-center gap-2'>
+					<input
+						type='checkbox'
+						id='favorite-check'
+						checked={form.favorite || false}
+						onChange={e => updateForm({ favorite: e.target.checked })}
+						className='h-4 w-4 rounded border-gray-300'
+					/>
+					<label htmlFor='favorite-check' className='cursor-pointer text-sm text-gray-600 select-none'>
+						设为精选文章
+					</label>
+				</div>
 
 				<div className='flex items-center gap-2'>
 					<input

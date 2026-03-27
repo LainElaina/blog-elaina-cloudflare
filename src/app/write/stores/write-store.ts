@@ -54,7 +54,9 @@ const initialForm: PublishForm = {
 	date: formatDateTimeLocal(),
 	summary: '',
 	hidden: false,
-	category: ''
+	category: '',
+	folderPath: '',
+	favorite: false
 }
 
 export const useWriteStore = create<WriteStore>((set, get) => ({
@@ -195,7 +197,9 @@ export const useWriteStore = create<WriteStore>((set, get) => ({
 					date: blog.config.date ? formatDateTimeLocal(new Date(blog.config.date)) : formatDateTimeLocal(),
 					summary: blog.config.summary || '',
 					hidden: blog.config.hidden || false,
-					category: blog.config.category || ''
+					category: blog.config.category || '',
+					folderPath: blog.config.folderPath || '',
+					favorite: blog.config.favorite || false
 				},
 				images,
 				cover,
