@@ -2,8 +2,65 @@
 
 import useSWR from 'swr'
 
+type BlogFolderNodeLike = {
+	path: string
+	children?: unknown
+}
+
 export type BlogFoldersConfig = {
 	folders: string[]
+}
+
+function isFolderNode(value: unknown): value is BlogFolderNodeLike {
+	if (!value || typeof value !== 'object') return false
+	const node = value as BlogFolderNodeLike
+	return typeof node.path === 'string'
+}
+
+function flattenFolderTree(input: unknown): string[] {
+	if (!Array.isArray(input)) return []
+
+	const result: string[] = []
+	const visited = new Set<string>()
+	const stack = [...input]
+
+	while (stack.length > 0) {
+		const current = stack.shift()
+		if (!isFolderNode(current)) continue
+
+		const path = current.path.trim()
+		if (path && !visited.has(path)) {
+			visited.add(path)
+			result.push(path)
+		}
+
+		if (Array.isArray(current.children)) {
+			stack.unshift(...current.children)
+		}
+	}
+
+	return result
+}
+
+export function parseBlogFoldersConfig(data: unknown): BlogFoldersConfig {
+	if (Array.isArray(data)) {
+		const stringFolders = data.filter((item): item is string => typeof item === 'string')
+		if (stringFolders.length > 0) {
+			return { folders: stringFolders }
+		}
+		return { folders: flattenFolderTree(data) }
+	}
+
+	if (Array.isArray((data as any)?.folders)) {
+		const folders = (data as any).folders
+		const stringFolders = folders.filter((item: unknown): item is string => typeof item === 'string')
+		if (stringFolders.length > 0) {
+			return { folders: stringFolders }
+		}
+		return { folders: flattenFolderTree(folders) }
+	}
+
+	return { folders: [] }
 }
 
 const fetcher = async (url: string): Promise<BlogFoldersConfig> => {
@@ -13,13 +70,7 @@ const fetcher = async (url: string): Promise<BlogFoldersConfig> => {
 	}
 
 	const data = await res.json()
-	if (Array.isArray(data)) {
-		return { folders: data.filter((item): item is string => typeof item === 'string') }
-	}
-	if (Array.isArray((data as any)?.folders)) {
-		return { folders: (data as any).folders.filter((item: unknown): item is string => typeof item === 'string') }
-	}
-	return { folders: [] }
+	return parseBlogFoldersConfig(data)
 }
 
 export function useBlogFolders() {
