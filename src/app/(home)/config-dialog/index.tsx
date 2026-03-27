@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'motion/react'
 import { toast } from 'sonner'
 import { DialogModal } from '@/components/dialog-modal'
@@ -12,6 +12,12 @@ import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
 import { ColorConfig } from './color-config'
 import { normalizeCardStylePreset } from '@/lib/card-style-preset'
+
+interface DraftReminderItem {
+	key: string
+	label: string
+	page: string
+}
 
 interface ConfigDialogProps {
 	open: boolean
@@ -45,6 +51,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const [artImageUploads, setArtImageUploads] = useState<ArtImageUploads>({})
 	const [backgroundImageUploads, setBackgroundImageUploads] = useState<BackgroundImageUploads>({})
 	const [socialButtonImageUploads, setSocialButtonImageUploads] = useState<SocialButtonImageUploads>({})
+	const [draftItems, setDraftItems] = useState<DraftReminderItem[]>([])
 
 	useEffect(() => {
 		if (open) {
@@ -89,6 +96,22 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			})
 		}
 	}, [faviconItem, avatarItem, artImageUploads, backgroundImageUploads, socialButtonImageUploads])
+
+	const syncDraftState = useCallback(async () => {
+		if (process.env.NODE_ENV !== 'development') return
+		try {
+			const response = await fetch('/api/drafts/site-config')
+			if (!response.ok) return
+			const data = await response.json()
+			setDraftItems(Array.isArray(data?.items) ? data.items : [])
+		} catch {
+			// ignore reminder refresh errors
+		}
+	}, [])
+
+	useEffect(() => {
+		void syncDraftState()
+	}, [syncDraftState])
 
 	const handleChoosePrivateKey = async (file: File) => {
 		try {
@@ -150,7 +173,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 		}
 	}
 
-	const handleLocalSave = async () => {
+	const handleLocalSave = async (action: 'draft' | 'publish') => {
 		setIsSaving(true)
 		try {
 			// Calculate removed images
@@ -163,6 +186,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			const removedBackgroundImages = originalBackgroundImages.filter(orig => !currentBackgroundImages.some(current => current.id === orig.id))
 
 			await pushSiteContentLocal(
+				action,
 				formData,
 				originalData,
 				cardStylesData,
@@ -184,10 +208,46 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			setArtImageUploads({})
 			setBackgroundImageUploads({})
 			setSocialButtonImageUploads({})
-			toast.success('已保存到本地文件')
-			onClose()
+			await syncDraftState()
+			if (action === 'publish') {
+				onClose()
+			}
 		} catch (error: any) {
 			toast.error(`本地保存失败: ${error?.message || '未知错误'}`)
+		} finally {
+			setIsSaving(false)
+		}
+	}
+
+	const handlePublishFromDraftReminder = async () => {
+		setIsSaving(true)
+		try {
+			await pushSiteContentLocal(
+				'publish',
+				formData,
+				originalData,
+				cardStylesData,
+				originalCardStyles
+			)
+			await syncDraftState()
+		} catch (error: any) {
+			toast.error(`正式保存失败: ${error?.message || '未知错误'}`)
+		} finally {
+			setIsSaving(false)
+		}
+	}
+
+	const handleDiscardDraft = async () => {
+		setIsSaving(true)
+		try {
+			const response = await fetch('/api/drafts/site-config', { method: 'DELETE' })
+			if (!response.ok) {
+				throw new Error('放弃草稿失败')
+			}
+			await syncDraftState()
+			toast.success('已放弃本地草稿')
+		} catch (error: any) {
+			toast.error(error?.message || '放弃草稿失败')
 		} finally {
 			setIsSaving(false)
 		}
@@ -294,6 +354,22 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			/>
 
 			<DialogModal open={open} onClose={handleCancel} className='card scrollbar-none max-h-[90vh] min-h-[600px] w-[640px] overflow-y-auto'>
+				{process.env.NODE_ENV === 'development' && draftItems.length > 0 && (
+					<div className='mb-4 rounded-xl border border-amber-400/50 bg-amber-100/60 p-3 text-xs text-amber-900'>
+						<div className='mb-2 font-medium'>检测到本地草稿，受影响项：</div>
+						<ul className='mb-3 list-disc pl-5'>
+							{draftItems.map(item => (
+								<li key={item.key}>
+									<a className='underline' href={item.page}>{item.label}</a>
+								</li>
+							))}
+						</ul>
+						<div className='flex gap-2'>
+							<button className='rounded-md bg-amber-500 px-3 py-1 text-white disabled:opacity-50' onClick={handlePublishFromDraftReminder} disabled={isSaving}>正式保存</button>
+							<button className='rounded-md border border-amber-700 px-3 py-1 disabled:opacity-50' onClick={handleDiscardDraft} disabled={isSaving}>放弃草稿</button>
+						</div>
+					</div>
+				)}
 				<div className='mb-6 flex items-center justify-between'>
 					<div className='flex gap-1'>
 						{tabs.map(tab => (
@@ -310,14 +386,24 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 					</div>
 					<div className='flex gap-3'>
 						{process.env.NODE_ENV === 'development' && (
-							<motion.button
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-								onClick={handleLocalSave}
-								disabled={isSaving}
-								className='rounded-xl bg-green-500 px-6 py-2 text-sm text-white'>
-								{isSaving ? '保存中...' : '本地保存'}
-							</motion.button>
+							<>
+								<motion.button
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={() => handleLocalSave('draft')}
+									disabled={isSaving}
+									className='rounded-xl bg-green-500 px-6 py-2 text-sm text-white'>
+									{isSaving ? '保存中...' : '保存本地草稿'}
+								</motion.button>
+								<motion.button
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={() => handleLocalSave('publish')}
+									disabled={isSaving}
+									className='rounded-xl bg-emerald-600 px-6 py-2 text-sm text-white'>
+									{isSaving ? '保存中...' : '正式保存'}
+								</motion.button>
+							</>
 						)}
 						<motion.button
 							whileHover={{ scale: 1.05 }}

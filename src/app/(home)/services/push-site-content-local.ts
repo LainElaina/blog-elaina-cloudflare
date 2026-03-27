@@ -1,12 +1,13 @@
 import { toast } from 'sonner'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
-import { buildLocalConfigPayload, requestLocalEndpoint } from './push-site-content-local-utils'
+import { buildLocalConfigPayload, requestLocalEndpoint, getLocalSiteConfigEndpoint } from './push-site-content-local-utils'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
 
 export async function pushSiteContentLocal(
+	action: 'draft' | 'publish',
 	siteContent: SiteContent,
 	originalSiteContent: SiteContent,
 	cardStyles: CardStyles,
@@ -19,7 +20,7 @@ export async function pushSiteContentLocal(
 	removedBackgroundImages?: BackgroundImageConfig[],
 	socialButtonImageUploads?: SocialButtonImageUploads
 ): Promise<void> {
-	toast.info('正在保存到本地...')
+	toast.info(action === 'draft' ? '正在保存本地草稿...' : '正在正式保存到本地...')
 
 	const uploadPromises: Promise<void>[] = []
 
@@ -86,7 +87,7 @@ export async function pushSiteContentLocal(
 	if (Object.keys(configPayload).length > 0) {
 		await requestLocalEndpoint(
 			fetch,
-			'/api/config',
+			getLocalSiteConfigEndpoint(action),
 			{
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -96,7 +97,7 @@ export async function pushSiteContentLocal(
 		)
 	}
 
-	toast.success('已保存到本地')
+	toast.success(action === 'draft' ? '本地草稿已保存' : '已正式保存到本地文件')
 }
 
 async function uploadFile(file: File, path: string): Promise<void> {

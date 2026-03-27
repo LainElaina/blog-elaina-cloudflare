@@ -17,6 +17,10 @@ export function buildLocalConfigPayload<TSiteContent, TCardStyles>(
 	return payload
 }
 
+export function getLocalSiteConfigEndpoint(action: 'draft' | 'publish') {
+	return action === 'draft' ? '/api/drafts/site-config' : '/api/publish/site-config'
+}
+
 export async function requestLocalEndpoint(
 	fetchImpl: typeof fetch,
 	input: string,
