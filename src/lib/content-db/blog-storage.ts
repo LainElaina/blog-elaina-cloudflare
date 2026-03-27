@@ -122,6 +122,35 @@ export function exportStaticBlogArtifacts(db: BlogStorageDB): StaticBlogArtifact
 	}
 }
 
+function normalizeParsedFolderPath(value: unknown): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined
+	}
+	const normalized = value.trim()
+	return normalized.length > 0 ? normalized : undefined
+}
+
+function sanitizeParsedRecord(key: string, value: unknown): BlogStorageRecord {
+	const raw = value && typeof value === 'object' ? (value as Partial<BlogStorageRecord>) : {}
+	const tags = Array.isArray(raw.tags) && raw.tags.every(tag => typeof tag === 'string') ? raw.tags : []
+	const status: BlogStatus = raw.status === 'draft' || raw.status === 'archived' || raw.status === 'published' ? raw.status : 'published'
+
+	return {
+		slug: typeof raw.slug === 'string' && raw.slug.trim().length > 0 ? raw.slug : key,
+		title: typeof raw.title === 'string' ? raw.title : '',
+		tags,
+		date: typeof raw.date === 'string' ? raw.date : '',
+		summary: typeof raw.summary === 'string' ? raw.summary : undefined,
+		cover: typeof raw.cover === 'string' ? raw.cover : undefined,
+		hidden: typeof raw.hidden === 'boolean' ? raw.hidden : undefined,
+		category: typeof raw.category === 'string' ? raw.category : undefined,
+		folder: typeof raw.folder === 'string' ? raw.folder : undefined,
+		folderPath: normalizeParsedFolderPath(raw.folderPath),
+		favorite: typeof raw.favorite === 'boolean' ? raw.favorite : false,
+		status
+	}
+}
+
 export function parseBlogStorageDB(raw: string | null): BlogStorageDB {
 	if (!raw) {
 		return createEmptyBlogStorageDB()
@@ -134,7 +163,7 @@ export function parseBlogStorageDB(raw: string | null): BlogStorageDB {
 		return {
 			version: 1,
 			updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
-			blogs: parsed.blogs as Record<string, BlogStorageRecord>
+			blogs: Object.fromEntries(Object.entries(parsed.blogs).map(([key, value]) => [key, sanitizeParsedRecord(key, value)]))
 		}
 	} catch {
 		return createEmptyBlogStorageDB()

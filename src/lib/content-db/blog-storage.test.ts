@@ -86,27 +86,44 @@ describe('blog storage model', () => {
 		])
 	})
 
-	it('解析旧版 storage 仍可用，favorite 默认 false 且 folderPath 保持 undefined', () => {
+
+	it('parseBlogStorageDB 会最小化清洗非法字段形状', () => {
 		const db = parseBlogStorageDB(
 			JSON.stringify({
 				version: 1,
 				updatedAt: '2026-03-27T00:00:00.000Z',
 				blogs: {
-					legacy: {
-						slug: 'legacy',
-						title: 'Legacy',
-						tags: [],
-						date: '2026-01-01T00:00:00.000Z',
-						status: 'published'
+					dirty: {
+						slug: 'dirty',
+						title: 'Dirty',
+						tags: ['ok', 1],
+						date: '2026-01-02T00:00:00.000Z',
+						folderPath: '   ',
+						favorite: 'yes',
+						status: 'unknown'
+					},
+					clean: {
+						slug: 'clean',
+						title: 'Clean',
+						tags: ['a', 'b'],
+						date: '2026-01-03T00:00:00.000Z',
+						folderPath: ' /写作/技术 ',
+						favorite: true,
+						status: 'draft'
 					}
 				}
 			})
 		)
 
-		const item = exportStaticBlogArtifacts(db).index.find(v => v.slug === 'legacy')
-		assert.ok(item)
-		assert.equal(item?.favorite, false)
-		assert.equal(item?.folderPath, undefined)
+		assert.deepEqual(db.blogs.dirty.tags, [])
+		assert.equal(db.blogs.dirty.status, 'published')
+		assert.equal(db.blogs.dirty.favorite, false)
+		assert.equal(db.blogs.dirty.folderPath, undefined)
+
+		assert.deepEqual(db.blogs.clean.tags, ['a', 'b'])
+		assert.equal(db.blogs.clean.status, 'draft')
+		assert.equal(db.blogs.clean.favorite, true)
+		assert.equal(db.blogs.clean.folderPath, '/写作/技术')
 	})
 
 	it('loadBlog 优先消费 storage.json 元数据并读取 Markdown 正文', async () => {
