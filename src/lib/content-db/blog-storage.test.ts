@@ -349,7 +349,7 @@ describe('blog storage model', () => {
 
 		assert.deepEqual(artifacts.removedSlugs, ['remove-me'])
 		assert.deepEqual(artifacts.index.map(item => item.slug), ['keep'])
-		assert.deepEqual(artifacts.categories, ['C'])
+		assert.deepEqual(artifacts.categories, ['C', '历史脏分类'])
 		assert.deepEqual(artifacts.folders, [
 			{
 				name: '写作',
