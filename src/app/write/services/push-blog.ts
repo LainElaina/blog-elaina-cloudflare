@@ -1,6 +1,6 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem, readTextFileFromRepo } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
-import { prepareBlogsIndex } from '@/lib/blog-index'
+import { prepareBlogStaticArtifacts } from '@/lib/blog-index'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
@@ -138,12 +138,11 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		sha: configBlob.sha
 	})
 
-	// prepare and create blob for blogs index
-	const indexJson = await prepareBlogsIndex(
-		token,
-		GITHUB_CONFIG.OWNER,
-		GITHUB_CONFIG.REPO,
-		{
+	// prepare and create blobs for exported static artifacts
+	const artifacts = await prepareBlogStaticArtifacts({
+		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', GITHUB_CONFIG.BRANCH),
+		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH),
+		upsertItem: {
 			slug: form.slug,
 			title: form.title,
 			tags: form.tags,
@@ -152,15 +151,46 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 			cover: coverPath,
 			hidden: form.hidden,
 			category: form.category
-		},
-		GITHUB_CONFIG.BRANCH
+		}
+	})
+	const indexBlob = await createBlob(
+		token,
+		GITHUB_CONFIG.OWNER,
+		GITHUB_CONFIG.REPO,
+		toBase64Utf8(JSON.stringify(artifacts.index, null, 2)),
+		'base64'
 	)
-	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(indexJson), 'base64')
 	treeItems.push({
 		path: 'public/blogs/index.json',
 		mode: '100644',
 		type: 'blob',
 		sha: indexBlob.sha
+	})
+	const categoriesBlob = await createBlob(
+		token,
+		GITHUB_CONFIG.OWNER,
+		GITHUB_CONFIG.REPO,
+		toBase64Utf8(JSON.stringify(artifacts.categories, null, 2)),
+		'base64'
+	)
+	treeItems.push({
+		path: 'public/blogs/categories.json',
+		mode: '100644',
+		type: 'blob',
+		sha: categoriesBlob.sha
+	})
+	const storageBlob = await createBlob(
+		token,
+		GITHUB_CONFIG.OWNER,
+		GITHUB_CONFIG.REPO,
+		toBase64Utf8(JSON.stringify(artifacts.db, null, 2)),
+		'base64'
+	)
+	treeItems.push({
+		path: 'public/blogs/storage.json',
+		mode: '100644',
+		type: 'blob',
+		sha: storageBlob.sha
 	})
 
 	// create tree
