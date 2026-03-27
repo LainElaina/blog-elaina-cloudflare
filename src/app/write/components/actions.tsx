@@ -89,7 +89,7 @@ export function WriteActions() {
 				{mode === 'edit' && (
 					<>
 						<motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} className='flex items-center gap-2'>
-							<div className='rounded-lg border bg-blue-50 px-4 py-2 text-sm text-blue-700'>编辑模式</div>
+							<div className='rounded-lg border bg-blue-50 px-4 py-2 text-sm text-blue-700'>当前：编辑中</div>
 						</motion.div>
 
 						<motion.button
