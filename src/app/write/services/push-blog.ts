@@ -1,6 +1,7 @@
 import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem, readTextFileFromRepo } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
+import type { BlogIndexItem } from '@/lib/blog-index'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
@@ -18,11 +19,28 @@ export type PushBlogParams = {
 		summary?: string
 		hidden?: boolean
 		category?: string
+		folderPath?: string
+		favorite?: boolean
 	}
 	cover?: ImageItem | null
 	images?: ImageItem[]
 	mode?: 'create' | 'edit'
 	originalSlug?: string | null
+}
+
+export function buildBlogUpsertItem(form: PushBlogParams['form'], dateStr: string, coverPath?: string): BlogIndexItem {
+	return {
+		slug: form.slug,
+		title: form.title,
+		tags: form.tags,
+		date: dateStr,
+		summary: form.summary,
+		cover: coverPath,
+		hidden: form.hidden,
+		category: form.category,
+		folderPath: form.folderPath,
+		favorite: form.favorite
+	}
 }
 
 export async function pushBlog(params: PushBlogParams): Promise<void> {
@@ -127,7 +145,9 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		summary: form.summary,
 		cover: coverPath,
 		hidden: form.hidden,
-		category: form.category
+		category: form.category,
+		folderPath: form.folderPath,
+		favorite: form.favorite
 	}
 
 	const configBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(JSON.stringify(config, null, 2)), 'base64')
@@ -142,16 +162,7 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 	const artifacts = await prepareBlogStaticArtifacts({
 		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', GITHUB_CONFIG.BRANCH),
 		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH),
-		upsertItem: {
-			slug: form.slug,
-			title: form.title,
-			tags: form.tags,
-			date: dateStr,
-			summary: form.summary,
-			cover: coverPath,
-			hidden: form.hidden,
-			category: form.category
-		}
+		upsertItem: buildBlogUpsertItem(form, dateStr, coverPath)
 	})
 	const indexBlob = await createBlob(
 		token,

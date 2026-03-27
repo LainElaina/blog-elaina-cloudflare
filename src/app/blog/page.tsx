@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { saveBlogEdits } from './services/save-blog-edits'
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
+import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
 
 type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category'
 
@@ -252,15 +253,13 @@ export default function BlogPage() {
 
 	const handleSave = useCallback(async () => {
 		const removedSlugs = items.filter(item => !editableItems.some(editItem => editItem.slug === item.slug)).map(item => item.slug)
-		const normalizedCategoryList = categoryList.map(c => c.trim()).filter(Boolean)
-		const categoryListChanged = JSON.stringify(normalizedCategoryList) !== JSON.stringify((categoriesFromServer || []).map(c => c.trim()).filter(Boolean))
-		const categoryAssignmentChanged = items.some(origin => {
-			const next = editableItems.find(editItem => editItem.slug === origin.slug)
-			const originCategory = origin.category || ''
-			const nextCategory = next?.category || ''
-			return originCategory !== nextCategory
+		const normalizedCategoryList = normalizeCategoryList(categoryList)
+		const hasChanges = hasBlogSaveChanges({
+			items,
+			editableItems,
+			categoryList,
+			categoriesFromServer
 		})
-		const hasChanges = removedSlugs.length > 0 || categoryListChanged || categoryAssignmentChanged
 
 		if (!hasChanges) {
 			toast.info('没有需要保存的改动')
