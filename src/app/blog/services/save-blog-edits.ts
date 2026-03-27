@@ -6,6 +6,7 @@ import type { BlogIndexItem } from '@/lib/blog-index'
 import { serializeCategoriesConfig } from '@/lib/blog-index'
 import { exportStaticBlogArtifacts, parseBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
 import type { BlogFolderNode } from '@/lib/content-db/blog-folders'
+import { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave, type LocalSaveFilePayload } from './save-blog-edits-utils'
 
 export type SaveBlogEditsArtifacts = {
 	removedSlugs: string[]
@@ -22,7 +23,7 @@ export function buildArtifactsForSaveBlogEdits(params: {
 	existingStorageRaw: string | null
 	now?: Date
 }): SaveBlogEditsArtifacts {
-	const { originalItems, nextItems, existingStorageRaw } = params
+	const { originalItems, nextItems, categories: explicitCategories, existingStorageRaw } = params
 	const now = params.now ?? new Date()
 	const removedSlugs = originalItems.filter(item => !nextItems.some(next => next.slug === item.slug)).map(item => item.slug)
 	const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
@@ -36,14 +37,31 @@ export function buildArtifactsForSaveBlogEdits(params: {
 	}
 
 	const exported = exportStaticBlogArtifacts(db)
+	const mergedCategories = mergeCategoriesForSave(explicitCategories, exported.categories)
 
 	return {
 		removedSlugs: uniqueRemoved,
 		index: exported.index,
-		categories: exported.categories,
+		categories: mergedCategories,
 		folders: exported.folders,
 		storage: exported.db
 	}
+}
+
+export function buildLocalSaveFilePayloads(params: {
+	originalItems: BlogIndexItem[]
+	nextItems: BlogIndexItem[]
+	categories: string[]
+	existingStorageRaw: string | null
+	now?: Date
+}): LocalSaveFilePayload[] {
+	const artifacts = buildArtifactsForSaveBlogEdits(params)
+	return buildLocalSaveFilePayloadsFromContents({
+		index: JSON.stringify(artifacts.index, null, 2),
+		categories: serializeCategoriesConfig(artifacts.categories),
+		folders: JSON.stringify(artifacts.folders, null, 2),
+		storage: JSON.stringify(artifacts.storage, null, 2)
+	})
 }
 
 export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: BlogIndexItem[], categories: string[]): Promise<void> {

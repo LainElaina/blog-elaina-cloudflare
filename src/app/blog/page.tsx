@@ -18,7 +18,7 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { readFileAsText } from '@/lib/file-utils'
 import { cn } from '@/lib/utils'
-import { saveBlogEdits } from './services/save-blog-edits'
+import { buildLocalSaveFilePayloads, saveBlogEdits } from './services/save-blog-edits'
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
 import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
@@ -270,7 +270,6 @@ export default function BlogPage() {
 			setSaving(true)
 			if (process.env.NODE_ENV === 'development') {
 				const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
-				// Delete blog directories locally
 				for (const slug of uniqueRemoved) {
 					await fetch('/api/delete-dir', {
 						method: 'POST',
@@ -278,20 +277,30 @@ export default function BlogPage() {
 						body: JSON.stringify({ path: `public/blogs/${slug}` })
 					})
 				}
-				// Save index.json
-				const sortedItems = [...editableItems].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'public/blogs/index.json', content: JSON.stringify(sortedItems, null, 2) })
+
+				let existingStorageRaw: string | null = null
+				try {
+					const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
+					if (response.ok) {
+						existingStorageRaw = await response.text()
+					}
+				} catch {
+					existingStorageRaw = null
+				}
+
+				const payloads = buildLocalSaveFilePayloads({
+					originalItems: items,
+					nextItems: editableItems,
+					categories: normalizedCategoryList,
+					existingStorageRaw
 				})
-				// Save categories.json
-				const uniqueCategories = Array.from(new Set(normalizedCategoryList))
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'public/blogs/categories.json', content: JSON.stringify({ categories: uniqueCategories }, null, 2) })
-				})
+				for (const payload of payloads) {
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					})
+				}
 				toast.success('保存成功！')
 			} else {
 				await saveBlogEdits(items, editableItems, normalizedCategoryList)
