@@ -101,6 +101,49 @@ test('migrations upgrade legacy draft_items table to include Task 3 columns', as
 			assert.equal(columns.includes('error_code'), true)
 			assert.equal(columns.includes('error_at'), true)
 			assert.equal(columns.includes('created_at'), true)
+
+			const tableInfo = db.prepare('PRAGMA table_info(draft_items)').all() as Array<{ name: string; notnull: number; dflt_value: string | null }>
+			const createdAt = tableInfo.find((column) => column.name === 'created_at')
+			assert.equal(createdAt?.notnull, 1)
+			assert.equal(createdAt?.dflt_value, 'CURRENT_TIMESTAMP')
+		} finally {
+			db.close()
+		}
+	})
+})
+
+test('migrations repair Task 3 created_at constraints even after column upgrade was already recorded', async () => {
+	await withTempDb((dbPath) => {
+		const db = createContentDb(dbPath)
+
+		try {
+			db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+				version INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`)
+			db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(1, 'initial_content_schema')
+			db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(2, 'draft_items_task3_columns_upgrade')
+			db.exec(`CREATE TABLE IF NOT EXISTS draft_items (
+				id TEXT PRIMARY KEY,
+				entity_type TEXT NOT NULL,
+				entity_key TEXT NOT NULL,
+				status TEXT NOT NULL,
+				manifest_json TEXT NOT NULL DEFAULT '{}',
+				base_version TEXT,
+				last_error TEXT,
+				error_code TEXT,
+				error_at TEXT,
+				created_at TEXT,
+				updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`)
+
+			applyContentDbMigrations(db)
+
+			const tableInfo = db.prepare('PRAGMA table_info(draft_items)').all() as Array<{ name: string; notnull: number; dflt_value: string | null }>
+			const createdAt = tableInfo.find((column) => column.name === 'created_at')
+			assert.equal(createdAt?.notnull, 1)
+			assert.equal(createdAt?.dflt_value, 'CURRENT_TIMESTAMP')
 		} finally {
 			db.close()
 		}
@@ -122,7 +165,8 @@ test('applying content database migrations twice stays idempotent', async () => 
 
 			assert.deepEqual(migrationRows, [
 				{ version: 1, name: 'initial_content_schema' },
-				{ version: 2, name: 'draft_items_task3_columns_upgrade' }
+				{ version: 2, name: 'draft_items_task3_columns_upgrade' },
+				{ version: 3, name: 'draft_items_task3_constraints_upgrade' }
 			])
 		} finally {
 			db.close()
