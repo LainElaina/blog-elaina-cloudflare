@@ -1,4 +1,5 @@
 import type { BlogIndexItem } from '@/app/blog/types'
+import { buildBlogFolderTree, type BlogFolderNode } from '@/lib/content-db/blog-folders'
 
 export type BlogStatus = 'published' | 'draft' | 'archived'
 
@@ -26,7 +27,7 @@ export type BlogStorageDB = {
 export type StaticBlogArtifacts = {
 	index: BlogIndexItem[]
 	categories: string[]
-	folders: string[]
+	folders: BlogFolderNode[]
 	db: BlogStorageDB
 }
 
@@ -112,7 +113,7 @@ export function exportStaticBlogArtifacts(db: BlogStorageDB): StaticBlogArtifact
 		.map(toBlogIndexItem)
 		.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 	const categories = Array.from(new Set(records.map(r => r.category).filter((v): v is string => Boolean(v)))).sort((a, b) => a.localeCompare(b))
-	const folders = Array.from(new Set(records.map(r => r.folderPath).filter((v): v is string => Boolean(v)))).sort((a, b) => a.localeCompare(b))
+	const folders = buildBlogFolderTree(records.map(r => r.folderPath))
 	return {
 		index,
 		categories,

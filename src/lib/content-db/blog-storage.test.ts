@@ -5,7 +5,8 @@ import {
 	buildBlogStorageFromIndex,
 	exportStaticBlogArtifacts,
 	upsertBlogRecord,
-	createEmptyBlogStorageDB
+	createEmptyBlogStorageDB,
+	parseBlogStorageDB
 } from '@/lib/content-db/blog-storage'
 import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
 import { loadBlog } from '@/lib/load-blog'
@@ -73,7 +74,39 @@ describe('blog storage model', () => {
 				{ slug: 'fav-2', favorite: false }
 			]
 		)
-		assert.deepEqual(artifacts.folders, ['/A/B', '/A/C'])
+		assert.deepEqual(artifacts.folders, [
+			{
+				name: 'A',
+				path: '/A',
+				children: [
+					{ name: 'B', path: '/A/B', children: [] },
+					{ name: 'C', path: '/A/C', children: [] }
+				]
+			}
+		])
+	})
+
+	it('解析旧版 storage 仍可用，favorite 默认 false 且 folderPath 保持 undefined', () => {
+		const db = parseBlogStorageDB(
+			JSON.stringify({
+				version: 1,
+				updatedAt: '2026-03-27T00:00:00.000Z',
+				blogs: {
+					legacy: {
+						slug: 'legacy',
+						title: 'Legacy',
+						tags: [],
+						date: '2026-01-01T00:00:00.000Z',
+						status: 'published'
+					}
+				}
+			})
+		)
+
+		const item = exportStaticBlogArtifacts(db).index.find(v => v.slug === 'legacy')
+		assert.ok(item)
+		assert.equal(item?.favorite, false)
+		assert.equal(item?.folderPath, undefined)
 	})
 
 	it('loadBlog 优先消费 storage.json 元数据并读取 Markdown 正文', async () => {
