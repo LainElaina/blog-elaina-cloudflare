@@ -12,6 +12,7 @@ import { ANIMATION_DELAY, INIT_DELAY } from '@/consts'
 import ShortLineSVG from '@/svgs/short-line.svg'
 import { useBlogIndex, type BlogIndexItem } from '@/hooks/use-blog-index'
 import { useCategories } from '@/hooks/use-categories'
+import { useBlogFolders } from '@/hooks/use-blog-folders'
 import { useReadArticles } from '@/hooks/use-read-articles'
 import JuejinSVG from '@/svgs/juejin.svg'
 import { useAuthStore } from '@/hooks/use-auth'
@@ -22,12 +23,14 @@ import { buildLocalSaveFilePayloads, saveBlogEdits } from './services/save-blog-
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
 import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
+import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, collectFolderPaths, filterBlogItems, formatFolderOptionLabel } from './blog-filters'
 
 type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category'
 
 export default function BlogPage() {
 	const { items, loading } = useBlogIndex()
 	const { categories: categoriesFromServer } = useCategories()
+	const { folders } = useBlogFolders()
 	const { isRead } = useReadArticles()
 	const { isAuth, setPrivateKey } = useAuthStore()
 	const { siteContent } = useConfigStore()
@@ -43,6 +46,9 @@ export default function BlogPage() {
 	const [categoryModalOpen, setCategoryModalOpen] = useState(false)
 	const [categoryList, setCategoryList] = useState<string[]>([])
 	const [newCategory, setNewCategory] = useState('')
+	const [favoritesOnly, setFavoritesOnly] = useState(false)
+	const [activeFolderPath, setActiveFolderPath] = useState<string>(BLOG_FOLDER_ALL)
+	const [assignFolderPathValue, setAssignFolderPathValue] = useState<string>(BLOG_FOLDER_ALL)
 
 	useEffect(() => {
 		if (!editMode) {
@@ -61,9 +67,18 @@ export default function BlogPage() {
 	}, [categoriesFromServer])
 
 	const displayItems = editMode ? editableItems : items
+	const availableFolderPaths = useMemo(() => collectFolderPaths(displayItems, folders), [displayItems, folders])
+	const filteredDisplayItems = useMemo(
+		() =>
+			filterBlogItems(displayItems, {
+				favoritesOnly,
+				folderPath: activeFolderPath
+			}),
+		[displayItems, favoritesOnly, activeFolderPath]
+	)
 
 	const { groupedItems, groupKeys, getGroupLabel } = useMemo(() => {
-		const sorted = [...displayItems].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+		const sorted = [...filteredDisplayItems].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
 		const grouped = sorted.reduce(
 			(acc, item) => {
@@ -129,7 +144,7 @@ export default function BlogPage() {
 			groupKeys: keys,
 			getGroupLabel: (key: string) => grouped[key]?.label || key
 		}
-	}, [displayItems, displayMode, categoryList])
+	}, [filteredDisplayItems, displayMode, categoryList])
 
 	const selectedCount = selectedSlugs.size
 	const isDev = process.env.NODE_ENV === 'development'
@@ -140,6 +155,7 @@ export default function BlogPage() {
 			setEditMode(false)
 			setEditableItems(items)
 			setSelectedSlugs(new Set())
+			setAssignFolderPathValue(BLOG_FOLDER_ALL)
 		} else {
 			setEditableItems(items)
 			setEditMode(true)
@@ -160,8 +176,8 @@ export default function BlogPage() {
 
 	// 全选所有文章
 	const handleSelectAll = useCallback(() => {
-		setSelectedSlugs(new Set(editableItems.map(item => item.slug)))
-	}, [editableItems])
+		setSelectedSlugs(new Set(filteredDisplayItems.map(item => item.slug)))
+	}, [filteredDisplayItems])
 
 	// 全选/取消全选某个时间维度分组
 	const handleSelectGroup = useCallback(
@@ -226,6 +242,15 @@ export default function BlogPage() {
 		)
 	}, [])
 
+	const handleAssignFolderPathForSelected = useCallback(() => {
+		if (selectedCount === 0) {
+			toast.info('请选择要分配目录的文章')
+			return
+		}
+		const nextPath = assignFolderPathValue === BLOG_FOLDER_ALL ? undefined : assignFolderPathValue
+		setEditableItems(prev => assignFolderPath(prev, selectedSlugs, nextPath))
+	}, [selectedCount, assignFolderPathValue, selectedSlugs])
+
 	const handleAddCategory = useCallback(() => {
 		const value = newCategory.trim()
 		if (!value) {
@@ -248,6 +273,7 @@ export default function BlogPage() {
 	const handleCancel = useCallback(() => {
 		setEditableItems(items)
 		setSelectedSlugs(new Set())
+		setAssignFolderPathValue(BLOG_FOLDER_ALL)
 		setEditMode(false)
 	}, [items])
 
@@ -308,6 +334,7 @@ export default function BlogPage() {
 			setEditMode(false)
 			setSelectedSlugs(new Set())
 			setCategoryModalOpen(false)
+			setAssignFolderPathValue(BLOG_FOLDER_ALL)
 		} catch (error: any) {
 			console.error(error)
 			toast.error(error?.message || '保存失败')
@@ -372,30 +399,51 @@ export default function BlogPage() {
 
 			<div className='flex flex-col items-center justify-center gap-6 px-6 pt-24 max-sm:pt-24'>
 				{items.length > 0 && (
-					<motion.div
-						initial={{ opacity: 0, scale: 0.6 }}
-						animate={{ opacity: 1, scale: 1 }}
-						className='card btn-rounded relative mx-auto flex items-center gap-1 p-1 max-sm:hidden'>
-						{[
-							{ value: 'day', label: '日' },
-							{ value: 'week', label: '周' },
-							{ value: 'month', label: '月' },
-							{ value: 'year', label: '年' },
-							...(enableCategories ? ([{ value: 'category', label: '分类' }] as const) : [])
-						].map(option => (
-							<motion.button
-								key={option.value}
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-								onClick={() => setDisplayMode(option.value as DisplayMode)}
-								className={cn(
-									'btn-rounded px-3 py-1.5 text-xs font-medium transition-all',
-									displayMode === option.value ? 'bg-brand text-white shadow-sm' : 'text-secondary hover:text-brand hover:bg-white/60'
-								)}>
-								{option.label}
-							</motion.button>
-						))}
-					</motion.div>
+					<>
+						<motion.div
+							initial={{ opacity: 0, scale: 0.6 }}
+							animate={{ opacity: 1, scale: 1 }}
+							className='card btn-rounded relative mx-auto flex items-center gap-1 p-1 max-sm:hidden'>
+							{[
+								{ value: 'day', label: '日' },
+								{ value: 'week', label: '周' },
+								{ value: 'month', label: '月' },
+								{ value: 'year', label: '年' },
+								...(enableCategories ? ([{ value: 'category', label: '分类' }] as const) : [])
+							].map(option => (
+								<motion.button
+									key={option.value}
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={() => setDisplayMode(option.value as DisplayMode)}
+									className={cn(
+										'btn-rounded px-3 py-1.5 text-xs font-medium transition-all',
+										displayMode === option.value ? 'bg-brand text-white shadow-sm' : 'text-secondary hover:text-brand hover:bg-white/60'
+									)}>
+									{option.label}
+								</motion.button>
+							))}
+						</motion.div>
+
+						<div className='card flex w-full max-w-[840px] flex-wrap items-center gap-3 px-4 py-3 max-sm:hidden'>
+							<label className='text-secondary flex items-center gap-2 text-sm'>
+								<input type='checkbox' checked={favoritesOnly} onChange={event => setFavoritesOnly(event.target.checked)} />
+								仅看精选
+							</label>
+							<select
+								value={activeFolderPath}
+								onChange={event => setActiveFolderPath(event.target.value)}
+								className='rounded-lg border bg-white/80 px-3 py-1 text-sm'>
+								<option value={BLOG_FOLDER_ALL}>全部目录</option>
+								<option value={BLOG_FOLDER_UNFILED}>未归档</option>
+								{availableFolderPaths.map(path => (
+									<option key={path} value={path}>
+										{formatFolderOptionLabel(path)}
+									</option>
+								))}
+							</select>
+						</div>
+					</>
 				)}
 
 				{groupKeys.map((groupKey, index) => {
@@ -507,7 +555,7 @@ export default function BlogPage() {
 			</div>
 
 			<div className='pt-12'>
-				{!loading && items.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无文章</div>}
+				{!loading && filteredDisplayItems.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无文章</div>}
 				{loading && <div className='text-secondary py-6 text-center text-sm'>加载中...</div>}
 			</div>
 
@@ -538,9 +586,28 @@ export default function BlogPage() {
 						<motion.button
 							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
-							onClick={selectedCount === editableItems.length ? handleDeselectAll : handleSelectAll}
+							onClick={selectedCount === filteredDisplayItems.length && filteredDisplayItems.length > 0 ? handleDeselectAll : handleSelectAll}
 							className='rounded-xl border bg-white/60 px-4 py-2 text-sm transition-colors hover:bg-white/80'>
-							{selectedCount === editableItems.length ? '取消全选' : '全选'}
+							{selectedCount === filteredDisplayItems.length && filteredDisplayItems.length > 0 ? '取消全选' : '全选'}
+						</motion.button>
+						<select
+							value={assignFolderPathValue}
+							onChange={event => setAssignFolderPathValue(event.target.value)}
+							className='rounded-xl border bg-white/60 px-3 py-2 text-sm'>
+							<option value={BLOG_FOLDER_ALL}>清空目录</option>
+							{availableFolderPaths.map(path => (
+								<option key={path} value={path}>
+									{formatFolderOptionLabel(path)}
+								</option>
+							))}
+						</select>
+						<motion.button
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							onClick={handleAssignFolderPathForSelected}
+							disabled={selectedCount === 0}
+							className='rounded-xl border bg-white/60 px-4 py-2 text-sm transition-colors disabled:opacity-60'>
+							分配目录
 						</motion.button>
 						<motion.button
 							whileHover={{ scale: 1.05 }}
