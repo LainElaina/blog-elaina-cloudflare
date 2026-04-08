@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -6,14 +6,16 @@ import type { Share } from '../components/share-card'
 import type { LogoItem } from '../components/logo-upload-dialog'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
+import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads } from './share-artifacts'
 
 export type PushSharesParams = {
 	shares: Share[]
 	logoItems?: Map<string, LogoItem>
+	originalShares?: Share[]
 }
 
-export async function pushShares(params: PushSharesParams): Promise<void> {
-	const { shares, logoItems } = params
+export async function pushShares(params: PushSharesParams): Promise<Share[]> {
+	const { shares, logoItems, originalShares } = params
 
 	// 获取认证 token（自动从全局认证状态获取）
 	const token = await getAuthToken()
@@ -22,13 +24,13 @@ export async function pushShares(params: PushSharesParams): Promise<void> {
 	const refData = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
 	const latestCommitSha = refData.sha
 
-	const commitMessage = `更新分享列表`
+	const commitMessage = `更新分享正式产物`
 
 	toast.info('正在准备文件...')
 
 	const treeItems: TreeItem[] = []
 	const uploadedHashes = new Set<string>()
-	let updatedShares = [...shares]
+	const nextLogoPaths = new Map<string, string>()
 
 	// Process logo uploads
 	if (logoItems && logoItems.size > 0) {
@@ -53,21 +55,31 @@ export async function pushShares(params: PushSharesParams): Promise<void> {
 					uploadedHashes.add(hash)
 				}
 
-				// Update share logo URL
-				updatedShares = updatedShares.map(s => (s.url === url ? { ...s, logo: publicPath } : s))
+				nextLogoPaths.set(url, publicPath)
 			}
 		}
 	}
 
-	// Create blob for shares list.json
-	const sharesJson = JSON.stringify(updatedShares, null, '\t')
-	const sharesBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(sharesJson), 'base64')
-	treeItems.push({
-		path: 'src/app/share/list.json',
-		mode: '100644',
-		type: 'blob',
-		sha: sharesBlob.sha
-	})
+	const updatedShares = applyShareLogoPathUpdates(shares, nextLogoPaths)
+	const renamedUrls = new Map<string, string>()
+	for (const share of shares) {
+		const previous = originalShares?.find(item => item.name === share.name)
+		if (previous && previous.url !== share.url) {
+			renamedUrls.set(share.url, previous.url)
+		}
+	}
+	const existingStorageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/storage.json', GITHUB_CONFIG.BRANCH)
+	const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls)
+
+	for (const payload of payloads) {
+		const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(payload.content), 'base64')
+		treeItems.push({
+			path: payload.path,
+			mode: '100644',
+			type: 'blob',
+			sha: blob.sha
+		})
+	}
 
 	// Create tree
 	toast.info('正在创建文件树...')
@@ -82,5 +94,6 @@ export async function pushShares(params: PushSharesParams): Promise<void> {
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 	toast.success('发布成功！')
+	return updatedShares
 }
 

@@ -8,11 +8,12 @@ import CreateDialog from './components/create-dialog'
 import { pushShares } from './services/push-shares'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
-import initialList from './list.json'
+import initialList from '@/../public/share/list.json'
 import type { Share } from './components/share-card'
 import type { LogoItem } from './components/logo-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
+import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads } from './services/share-artifacts'
 
 export default function Page() {
 	const [shares, setShares] = useState<Share[]>(initialList as Share[])
@@ -30,9 +31,21 @@ export default function Page() {
 
 	const handleUpdate = (updatedShare: Share, oldShare: Share, logoItem?: LogoItem) => {
 		setShares(prev => prev.map(s => (s.url === oldShare.url ? updatedShare : s)))
+		if (oldShare.url !== updatedShare.url) {
+			setLogoItems(prev => {
+				const newMap = new Map(prev)
+				const existingLogoItem = newMap.get(oldShare.url)
+				newMap.delete(oldShare.url)
+				if (existingLogoItem && !logoItem) {
+					newMap.set(updatedShare.url, existingLogoItem)
+				}
+				return newMap
+			})
+		}
 		if (logoItem) {
 			setLogoItems(prev => {
 				const newMap = new Map(prev)
+				newMap.delete(oldShare.url)
 				newMap.set(updatedShare.url, logoItem)
 				return newMap
 			})
@@ -86,7 +99,7 @@ export default function Page() {
 
 		try {
 			if (process.env.NODE_ENV === 'development') {
-				let updatedShares = [...shares]
+				const nextLogoPaths = new Map<string, string>()
 				for (const [url, logoItem] of logoItems.entries()) {
 					if (logoItem.type === 'file') {
 						const hash = logoItem.hash || (await hashFileSHA256(logoItem.file))
@@ -97,20 +110,35 @@ export default function Page() {
 						formData.append('file', logoItem.file)
 						formData.append('path', `public${publicPath}`)
 						await fetch('/api/upload-image', { method: 'POST', body: formData })
-						updatedShares = updatedShares.map(s => s.logo === url ? { ...s, logo: publicPath } : s)
+						nextLogoPaths.set(url, publicPath)
 					}
 				}
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'src/app/share/list.json', content: JSON.stringify(updatedShares, null, '\t') })
-				})
+				const existingStorageResponse = await fetch('/share/storage.json', { cache: 'no-store' })
+				const existingStorageRaw = existingStorageResponse.ok ? await existingStorageResponse.text() : null
+				const renamedUrls = new Map<string, string>()
+				for (const share of shares) {
+					const previous = originalShares.find(item => item.name === share.name)
+					if (previous && previous.url !== share.url) {
+						renamedUrls.set(share.url, previous.url)
+					}
+				}
+				const updatedShares = applyShareLogoPathUpdates(shares, nextLogoPaths)
+				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls)
+				for (const payload of payloads) {
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: payload.path, content: payload.content })
+					})
+				}
 				setShares(updatedShares)
+				setOriginalShares(updatedShares)
 			} else {
-				await pushShares({ shares, logoItems })
+				const publishedShares = await pushShares({ shares, logoItems, originalShares })
+				setShares(publishedShares)
+				setOriginalShares(publishedShares)
 			}
 
-			setOriginalShares(shares)
 			setLogoItems(new Map())
 			setIsEditMode(false)
 			toast.success('保存成功！')

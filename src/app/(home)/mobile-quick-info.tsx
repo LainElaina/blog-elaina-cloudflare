@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
-import shareList from '@/app/share/list.json'
+import shareList from '@/../public/share/list.json'
 import Link from 'next/link'
 import { useConfigStore } from './stores/config-store'
 
