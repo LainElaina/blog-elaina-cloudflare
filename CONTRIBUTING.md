@@ -23,8 +23,66 @@
 - [样式规范](#样式规范)
 - [部署流程](#部署流程)
 - [常见问题排查](#常见问题排查)
+- [当前数据库主源补充（2026-04）](#当前数据库主源补充2026-04)
 
 ---
+
+## 当前数据库主源补充（2026-04）
+
+### 正式信息来源与协作边界
+- 仓库内文档（`README.md`、本文件）是长期有效的正式说明。
+- `/app` 根目录下的续接说明只用于会话/本地交接，不替代仓库规范。
+- 不要提交 `.claude/**` 与 `docs/superpowers/**`。
+- 不要覆盖与当前任务无关的本地未提交改动（例如 `src/config/site-content.json`）。
+
+### 仓库内数据库主源
+- **结构化正式主源：** `data/content.db`
+  - 存站点配置、布局配置、博客元数据、分享元数据、分类/目录关系、草稿状态等结构化信息。
+- **正文正式载体：** `public/blogs/<slug>/index.md`
+- **正式静态产物：**
+  - 博客：`public/blogs/index.json`、`public/blogs/categories.json`、`public/blogs/folders.json`、`public/blogs/storage.json`
+  - 分享：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+- `src/app/share/list.json` 当前仅保留为迁移输入/编辑入口遗留数据，不再作为运行时正式主逻辑。
+- 旧架构纪念快照：`/app/blog-elaina-cloudflare-无数据库版`
+
+### 草稿保存、正式保存与发布边界
+- **首页配置草稿：** `/api/drafts/site-config` → `data/site-config.draft.json`
+- **首页配置正式保存：** `/api/publish/site-config` → 写入 `src/config/site-content.json`、`card-styles.json`、`custom-components.json`、`color-presets.json`
+- **博客正式保存：** 围绕 `public/blogs/storage.json` 及其导出产物写入，同时保留正文 Markdown 文件。
+- **分享正式保存：** 围绕 `public/share/storage.json` 及其导出产物写入。
+- **动作区别：**
+  - 保存本地草稿：仅写草稿文件，不更新正式源。
+  - 正式保存：更新本地仓库工作区中的正式源/正式产物，但不会自动 `git push`。
+  - git push / 线上正式保存：前者由你手动推送，后者由 GitHub API 直接更新仓库；两者都会触发 Cloudflare 构建。
+
+### 关键语义
+- `folderPath`：博客目录路径，用于目录树与筛选聚合。
+- `favorite`：博客是否为精选。
+- `/share` 是独立的分享推荐数据，不是 favorites 系统，禁止混用。
+- 新增可编辑模块时，优先沿用“storage 主源 + public 正式静态产物 + 页面只消费正式产物”的模式；不要把旧 JSON 路径继续当长期唯一主逻辑。
+
+### 本地开发 API 路由补充
+- `/api/drafts/site-config` — 首页配置草稿读写/清理
+- `/api/publish/site-config` — 首页配置正式保存
+
+### `content.db` 冲突处理 SOP
+1. 不要手工合并数据库二进制内容。
+2. 先备份当前数据库，例如 `data/backups/content.<timestamp>.db`。
+3. 优先通过迁移/重建流程恢复：
+   - `node scripts/migrate-legacy-to-db.ts --dry-run`
+   - `node scripts/migrate-legacy-to-db.ts --confirm-overwrite`
+   - `node scripts/verify-db-migration.ts`
+4. 基于恢复后的数据库重新生成 `public/blogs/*.json`、`public/share/*.json` 正式产物。
+5. 若仍无法恢复，再转人工介入，不要继续自动覆盖。
+
+> 当前 `.gitattributes` 还没有数据库专用 merge 策略，因此更要避免手工处理二进制冲突。
+
+### 最小维护者验收清单
+1. `data/content.db` 与导出的 `public/blogs/*.json`、`public/share/*.json` 语义一致。
+2. 首页配置草稿不会直接覆盖正式源；正式保存只改工作区，不自动 push。
+3. 博客的 `folderPath`、`favorite` 与列表/筛选/导出产物一致。
+4. `/share` 不引入 favorites 语义，且 `public/share/*.json` 彼此一致。
+5. 提交中不包含 `.claude/**`、`docs/superpowers/**`，也不误覆盖无关本地改动。
 
 ## 技术栈
 

@@ -151,24 +151,36 @@
   - 线上部署环境（绿色标识）：保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证
 - **PEM 缓存**：可选开启，将 GitHub App 私钥加密后缓存到 sessionStorage，刷新页面无需重新导入（关闭标签页自动清除）
 
+### 💾 仓库内数据库主源（当前内容架构）
+本仓库正在从“直接编辑分散 JSON 文件”迁移到“仓库内数据库 + 正式静态产物”架构：
+
+- **正式结构化主源：** `data/content.db`
+  - 站点配置、布局配置、博客元数据、分享元数据、分类/目录关系、草稿状态等结构化信息以仓库内 SQLite 为正式主源。
+- **正文正式载体：** 博客正文仍保留在 `public/blogs/<slug>/index.md`。
+- **正式静态产物：** 页面运行时优先消费数据库导出的 `public/**` 产物，而不是把单一 JSON 继续当长期唯一主逻辑。
+  - 博客：`public/blogs/index.json`、`public/blogs/categories.json`、`public/blogs/folders.json`、`public/blogs/storage.json`
+  - 分享：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+- **旧架构纪念快照：** `/app/blog-elaina-cloudflare-无数据库版`
+  - 仅作为迁移前留档，不是当前开发目录，也不能把新架构改动混入该目录。
+
 ### 💾 全站本地开发保存支持
 所有可编辑页面在本地开发环境下均可直接保存，无需导入密钥：
 
-| 页面 | 保存内容 | 图片/文件处理 |
+| 页面 | 正式保存内容 | 图片/文件处理 |
 |---|---|---|
-| 首页配置（网站设置/色彩配置） | `site-content.json` + `card-styles.json` | 头像/首图/背景图上传 + 删除同步 |
-| 首页布局 | `card-styles.json` + `custom-components.json` | - |
+| 首页配置（网站设置/色彩配置） | 先写 `data/site-config.draft.json`，再通过正式保存写入 `src/config/*.json` | 头像/首图/背景图上传 + 删除同步 |
+| 首页布局 | 先写 `data/site-config.draft.json`，再通过正式保存写入 `src/config/*.json` | - |
 | 自定义组件 | `custom-components.json` | 组件图片上传 |
 | 色彩预设 | `color-presets.json` | - |
 | 关于页面 | `about/list.json` | - |
 | 语录页面 | `snippets/list.json` | - |
 | 博主墙 | `bloggers/list.json` | 头像上传 |
 | 项目展示 | `projects/list.json` | 封面上传 |
-| 分享推荐 | `share/list.json` | Logo 上传 |
+| 分享推荐 | `public/share/list.json` + `categories.json` + `folders.json` + `storage.json` | Logo 上传 |
 | 图片展示 | `pictures/list.json` | 图片上传 + 孤立图片清理 |
-| 博客列表管理 | `blogs/index.json` + `categories.json` | 删除博客目录 |
-| 文章发布/编辑 | `blogs/<slug>/index.md` + `config.json` + `index.json` | 内容图片 + 封面上传 |
-| 文章删除 | 删除 `blogs/<slug>/` + 更新 `index.json` | 目录递归删除 |
+| 博客列表管理 | `public/blogs/index.json` + `categories.json` + `folders.json` + `storage.json` | 删除博客目录 |
+| 文章发布/编辑 | `blogs/<slug>/index.md` + `config.json` + `public/blogs/*.json` | 内容图片 + 封面上传 |
+| 文章删除 | 删除 `blogs/<slug>/` + 更新 `public/blogs/*.json` | 目录递归删除 |
 
 **本地开发 API 路由**（仅 `NODE_ENV === 'development'` 可用，生产环境返回 403）：
 - `/api/upload-image` — 上传图片到 `public/` 目录
@@ -176,6 +188,28 @@
 - `/api/delete-dir` — 递归删除 `public/` 目录内的文件夹
 - `/api/save-file` — 写入任意项目文件（用于保存 JSON/MD 等）
 - `/api/config` — 写入配置文件（`site-content.json`、`card-styles.json`、`custom-components.json`、`color-presets.json`）
+- `/api/drafts/site-config` — 保存/读取/清理首页配置草稿
+- `/api/publish/site-config` — 将首页配置草稿正式写入仓库文件
+
+### 📝 草稿保存 vs 正式保存 vs git push
+- **保存本地草稿**：仅在开发环境下把首页配置写入 `data/site-config.draft.json`，不会触碰正式源。
+- **正式保存**：把当前编辑结果写入仓库工作区中的正式源或正式静态产物，但**不会自动 push**。
+- **git push**：由你手动把本地已正式保存的改动推到远端，随后 Cloudflare 重新构建。
+- **线上正式保存**：网页端通过 GitHub API 直接更新仓库文件，等价于“远端正式保存”，随后触发 Cloudflare 构建。
+
+### ⚠️ `content.db` Git 冲突处理 SOP
+`data/content.db` 是仓库内的二进制正式主源。发生冲突时：
+
+1. 不要手工合并数据库二进制内容。
+2. 先备份当前数据库，例如 `data/backups/content.<timestamp>.db`。
+3. 优先使用迁移/导出脚本重新生成数据库与静态产物：
+   - `node scripts/migrate-legacy-to-db.ts --dry-run`
+   - `node scripts/migrate-legacy-to-db.ts --confirm-overwrite`
+   - `node scripts/verify-db-migration.ts`
+4. 若仍无法恢复，再转人工介入，不要继续自动覆盖。
+5. 处理完后核对 `public/blogs/*.json`、`public/share/*.json` 与页面展示一致。
+
+> 当前 `.gitattributes` 尚未加入数据库专用 merge 策略，因此协作时更要避免直接手工处理二进制冲突。
 
 ### 🔒 安全措施
 - **所有本地 API 路由**均仅限开发环境可用，生产环境直接返回 403
