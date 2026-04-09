@@ -37,13 +37,44 @@
 
 ### 仓库内数据库主源
 - **结构化正式主源：** `data/content.db`
-  - 存站点配置、布局配置、博客元数据、分享元数据、分类/目录关系、草稿状态等结构化信息。
+  - 当前 schema 已包含：`site_config`、`layout_config`、`blog_entries`、`share_entries`、`draft_items`、`content_versions`、`schema_migrations`
+  - 对应站点配置、布局配置、博客元数据、分享元数据、草稿状态、版本记录与迁移版本管理。
 - **正文正式载体：** `public/blogs/<slug>/index.md`
 - **正式静态产物：**
   - 博客：`public/blogs/index.json`、`public/blogs/categories.json`、`public/blogs/folders.json`、`public/blogs/storage.json`
   - 分享：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
 - `src/app/share/list.json` 当前仅保留为迁移输入/编辑入口遗留数据，不再作为运行时正式主逻辑。
 - 旧架构纪念快照：`/app/blog-elaina-cloudflare-无数据库版`
+
+### 当前数据库覆盖范围与数据库外内容
+- **已纳入数据库主源设计的结构化内容：**
+  - 站点配置、布局配置
+  - 博客 / 分享的结构化元数据
+  - 草稿状态与版本记录
+- **当前仍在数据库外的正式内容：**
+  - `public/blogs/<slug>/index.md` 正文与文章目录下资源
+  - `public/images/**` 等图片资源
+  - 仍以 JSON 维护的页面数据：`src/app/about/list.json`、`src/app/snippets/list.json`、`src/app/bloggers/list.json`、`src/app/projects/list.json`、`src/app/pictures/list.json`
+  - 首页正式配置当前仍写回 `src/config/*.json`
+- **当前运行时消费边界：**
+  - 页面运行时当前仍以 `public/**` 导出物为主，而不是页面直接读 `content.db`
+  - 例如博客读取 `public/blogs/storage.json` 并在缺失时回退 `config.json`，分享读取 `public/share/*.json`
+
+### 容量边界与维护建议
+- 当前架构适用于个人博客与中小规模内容站，不应直接视为通用大规模 CMS 方案。
+- 在现有“仓库内数据库 + 全量静态产物导出 + Git 协作”模型下，数百到低千级博客 / 分享记录通常仍是合理区间；再往上或进入多人高频协作时，需要重新评估架构。
+- 主要扩展瓶颈通常不是 SQLite 本身，而是：
+  - `content.db` 的 Git 二进制冲突
+  - `public/*.json` 导出体积与回写成本
+  - 构建时全量读取正式产物
+  - GitHub API / Git 协作频率升高后的维护成本
+- 若内容量继续增长，优先考虑：静态产物分片、增量导出、更明确的主源/派生产物重建流程、以及数据库冲突规避策略。
+- 以上容量判断属于基于当前实现方式的工程估算，不是压测结论。
+
+### 最近架构更新（2026-04）
+- `/share` 已切到 `public/share/*` 正式产物链路，运行时与正式保存不再把 `src/app/share/list.json` 当正式主逻辑。
+- 文档已同步明确数据库内 / 外边界、正式产物消费层与冲突处理 SOP，便于后续交接。
+- 当前数据库主源化仍在迁移中：运行时继续优先消费 `public/**` 导出物，尚未变成“全站页面直接读库”。
 
 ### 草稿保存、正式保存与发布边界
 - **首页配置草稿：** `/api/drafts/site-config` → `data/site-config.draft.json`

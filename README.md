@@ -155,13 +155,30 @@
 本仓库正在从“直接编辑分散 JSON 文件”迁移到“仓库内数据库 + 正式静态产物”架构：
 
 - **正式结构化主源：** `data/content.db`
-  - 站点配置、布局配置、博客元数据、分享元数据、分类/目录关系、草稿状态等结构化信息以仓库内 SQLite 为正式主源。
+  - 当前 schema 已包含：`site_config`、`layout_config`、`blog_entries`、`share_entries`、`draft_items`、`content_versions`、`schema_migrations`
+  - 这些表对应站点配置、布局配置、博客元数据、分享元数据、草稿状态、版本记录与迁移版本管理。
 - **正文正式载体：** 博客正文仍保留在 `public/blogs/<slug>/index.md`。
-- **正式静态产物：** 页面运行时优先消费数据库导出的 `public/**` 产物，而不是把单一 JSON 继续当长期唯一主逻辑。
+- **正式静态产物：** 页面运行时当前仍优先消费数据库导出的 `public/**` 产物，而不是直接连接 `content.db`。
   - 博客：`public/blogs/index.json`、`public/blogs/categories.json`、`public/blogs/folders.json`、`public/blogs/storage.json`
   - 分享：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+- **数据库外但仍属正式内容的部分：**
+  - 博客 Markdown 正文与文章目录下资源文件
+  - 各类图片资源（如 `public/images/**`）
+  - 当前仍以 JSON 维护的页面数据：`src/app/about/list.json`、`src/app/snippets/list.json`、`src/app/bloggers/list.json`、`src/app/projects/list.json`、`src/app/pictures/list.json`
+  - 首页正式配置当前仍写回 `src/config/*.json`，尚未变成“页面直接读库”的单一路径
 - **旧架构纪念快照：** `/app/blog-elaina-cloudflare-无数据库版`
   - 仅作为迁移前留档，不是当前开发目录，也不能把新架构改动混入该目录。
+
+### 📏 当前容量边界与适用范围
+- **定性判断：** 当前架构更适合个人博客与中小规模内容站，不应直接理解为面向大规模多租户 CMS。
+- **真实瓶颈：** 先到上限的通常不是 SQLite 本身，而是 `content.db` 的 Git 二进制冲突、`public/*.json` 全量导出体积、构建时全量读取、以及 GitHub API / Git 协作成本。
+- **粗略量级判断：** 在现有“仓库内数据库 + 全量静态产物导出 + Git 协作”模型下，数百到低千级博客 / 分享记录通常仍属于合理区间；若继续增长，或进入多人高频协作场景，需要重新评估分片导出、增量构建、冲突规避与正式主源策略。
+- **说明：** 上述容量判断是基于当前实现方式的工程估算，不是压测承诺。
+
+### 🆕 最近架构更新（2026-04）
+- `/share` 运行时与正式保存链路已切到 `public/share/*` 正式产物，不再以 `src/app/share/list.json` 作为运行时正式主源。
+- 文档已同步补充“数据库内 / 外边界”“正式产物消费层”“冲突处理 SOP”等说明，方便后续交接。
+- 当前页面运行时仍以 `public/**` 导出物为主，数据库主源化仍在持续迁移中。
 
 ### 💾 全站本地开发保存支持
 所有可编辑页面在本地开发环境下均可直接保存，无需导入密钥：
