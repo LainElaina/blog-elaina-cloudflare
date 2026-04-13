@@ -2,10 +2,11 @@ import { useCallback } from 'react'
 import { readFileAsText, hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
-import { pushBlog } from '../services/push-blog'
-import { deleteBlog } from '../services/delete-blog'
+import { pushBlog, buildBlogUpsertItem, buildRemoteArtifactContents } from '../services/push-blog'
+import { deleteBlog, buildDeleteArtifactContents } from '../services/delete-blog'
 import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
 import { useAuthStore } from '@/hooks/use-auth'
+import { buildLocalSaveFilePayloadsFromContents } from '@/app/blog/services/save-blog-edits-utils'
 
 export function usePublish() {
 	const { loading, setLoading, form, cover, images, mode, originalSlug } = useWriteStore()
@@ -44,7 +45,6 @@ export function usePublish() {
 		let mdToUpload = form.md
 		let coverPath: string | undefined
 
-		// Upload content images + cover
 		const allLocalImages: Array<{ file: File; id: string; hash?: string }> = []
 		for (const img of images || []) {
 			if (img.type === 'file') {
@@ -78,14 +78,12 @@ export function usePublish() {
 			coverPath = cover.url
 		}
 
-		// Save index.md
 		await fetch('/api/save-file', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ path: `${basePath}/index.md`, content: mdToUpload })
 		})
 
-		// Save config.json
 		const dateStr = form.date || formatDateTimeLocal()
 		const config = {
 			title: form.title,
@@ -94,7 +92,9 @@ export function usePublish() {
 			summary: form.summary,
 			cover: coverPath,
 			hidden: form.hidden,
-			category: form.category
+			category: form.category,
+			folderPath: form.folderPath,
+			favorite: form.favorite
 		}
 		await fetch('/api/save-file', {
 			method: 'POST',
@@ -102,31 +102,28 @@ export function usePublish() {
 			body: JSON.stringify({ path: `${basePath}/config.json`, content: JSON.stringify(config, null, 2) })
 		})
 
-		// Update blogs index.json
-		const indexRes = await fetch('/blogs/index.json')
-		let indexItems: any[] = []
-		if (indexRes.ok) {
-			try { indexItems = await indexRes.json() } catch {}
-		}
-		const newEntry = {
-			slug: form.slug,
-			title: form.title,
-			tags: form.tags,
-			date: dateStr,
-			summary: form.summary,
-			cover: coverPath,
-			hidden: form.hidden,
-			category: form.category
-		}
-		indexItems = indexItems.filter((item: any) => item.slug !== form.slug)
-		indexItems.unshift(newEntry)
-		indexItems.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-		await fetch('/api/save-file', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path: 'public/blogs/index.json', content: JSON.stringify(indexItems, null, 2) })
+		const artifactContents = await buildRemoteArtifactContents({
+			form,
+			dateStr,
+			coverPath,
+			readStorageRaw: async () => {
+				const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
+				return response.ok ? response.text() : null
+			},
+			fallbackReadIndexRaw: async () => {
+				const response = await fetch('/blogs/index.json', { cache: 'no-store' })
+				return response.ok ? response.text() : null
+			}
 		})
+
+		const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
+		for (const payload of payloads) {
+			await fetch('/api/save-file', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			})
+		}
 	}, [form, cover, images])
 
 	const onDelete = useCallback(async () => {
@@ -138,24 +135,32 @@ export function usePublish() {
 		try {
 			setLoading(true)
 			if (process.env.NODE_ENV === 'development') {
-				// Delete blog directory
 				await fetch('/api/delete-dir', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
 				})
-				// Update index
-				const indexRes = await fetch('/blogs/index.json')
-				let indexItems: any[] = []
-				if (indexRes.ok) {
-					try { indexItems = await indexRes.json() } catch {}
-				}
-				indexItems = indexItems.filter((item: any) => item.slug !== targetSlug)
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'public/blogs/index.json', content: JSON.stringify(indexItems, null, 2) })
+
+				const artifactContents = await buildDeleteArtifactContents({
+					slug: targetSlug,
+					readStorageRaw: async () => {
+						const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
+						return response.ok ? response.text() : null
+					},
+					fallbackReadIndexRaw: async () => {
+						const response = await fetch('/blogs/index.json', { cache: 'no-store' })
+						return response.ok ? response.text() : null
+					}
 				})
+
+				const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
+				for (const payload of payloads) {
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					})
+				}
 				toast.success('删除成功！')
 			} else {
 				await deleteBlog(targetSlug)

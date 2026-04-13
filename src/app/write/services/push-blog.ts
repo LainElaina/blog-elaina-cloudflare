@@ -43,6 +43,27 @@ export function buildBlogUpsertItem(form: PushBlogParams['form'], dateStr: strin
 	}
 }
 
+export async function buildRemoteArtifactContents(params: {
+	form: PushBlogParams['form']
+	dateStr: string
+	coverPath?: string
+	readStorageRaw: () => Promise<string | null>
+	fallbackReadIndexRaw: () => Promise<string | null>
+}): Promise<{ index: string; categories: string; folders: string; storage: string }> {
+	const artifacts = await prepareBlogStaticArtifacts({
+		readStorageRaw: params.readStorageRaw,
+		fallbackReadIndexRaw: params.fallbackReadIndexRaw,
+		upsertItem: buildBlogUpsertItem(params.form, params.dateStr, params.coverPath)
+	})
+
+	return {
+		index: JSON.stringify(artifacts.index, null, 2),
+		categories: serializeCategoriesConfig(artifacts.categories),
+		folders: JSON.stringify(artifacts.folders, null, 2),
+		storage: JSON.stringify(artifacts.db, null, 2)
+	}
+}
+
 export async function pushBlog(params: PushBlogParams): Promise<void> {
 	const { form, cover, images, mode = 'create', originalSlug } = params
 
@@ -52,7 +73,6 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		throw new Error('编辑模式下不支持修改 slug，请保持原 slug 不变')
 	}
 
-	// 获取认证 token（自动从全局认证状态获取）
 	const token = await getAuthToken()
 
 	toast.info('正在获取分支信息...')
@@ -62,17 +82,12 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 	const basePath = `public/blogs/${form.slug}`
 	const commitMessage = mode === 'edit' ? `更新文章: ${form.slug}` : `新增文章: ${form.slug}`
 
-	// collect all local images (content + cover)
 	const allLocalImages: Array<{ img: Extract<ImageItem, { type: 'file' }>; id: string }> = []
-
-	// add content images
 	for (const img of images || []) {
 		if (img.type === 'file') {
 			allLocalImages.push({ img, id: img.id })
 		}
 	}
-
-	// add cover if local
 	if (cover?.type === 'file') {
 		allLocalImages.push({ img: cover, id: cover.id })
 	}
@@ -82,11 +97,8 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 	const uploadedHashes = new Set<string>()
 	let mdToUpload = form.md
 	let coverPath: string | undefined
-
-	// prepare tree items for all files
 	const treeItems: TreeItem[] = []
 
-	// process all images
 	if (allLocalImages.length > 0) {
 		toast.info('正在上传图片...')
 		for (const { img, id } of allLocalImages) {
@@ -98,7 +110,6 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 			if (!uploadedHashes.has(hash)) {
 				const path = `${basePath}/${filename}`
 				const contentBase64 = await fileToBase64NoPrefix(img.file)
-				// create blob for image
 				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
 				treeItems.push({
 					path,
@@ -109,25 +120,21 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 				uploadedHashes.add(hash)
 			}
 
-			// replace placeholder in markdown
 			const placeholder = `local-image:${id}`
 			mdToUpload = mdToUpload.split(`(${placeholder})`).join(`(${publicPath})`)
 
-			// set cover path if this is the cover
 			if (cover?.type === 'file' && cover.id === id) {
 				coverPath = publicPath
 			}
 		}
 	}
 
-	// handle external cover URL
 	if (cover?.type === 'url') {
 		coverPath = cover.url
 	}
 
 	toast.info('正在创建文件...')
 
-	// create blob for index.md
 	const mdBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(mdToUpload), 'base64')
 	treeItems.push({
 		path: `${basePath}/index.md`,
@@ -136,7 +143,6 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		sha: mdBlob.sha
 	})
 
-	// create blob for config.json
 	const dateStr = form.date || formatDateTimeLocal()
 	const config = {
 		title: form.title,
@@ -158,74 +164,32 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 		sha: configBlob.sha
 	})
 
-	// prepare and create blobs for exported static artifacts
-	const artifacts = await prepareBlogStaticArtifacts({
+	const artifactContents = await buildRemoteArtifactContents({
+		form,
+		dateStr,
+		coverPath,
 		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', GITHUB_CONFIG.BRANCH),
-		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH),
-		upsertItem: buildBlogUpsertItem(form, dateStr, coverPath)
-	})
-	const indexBlob = await createBlob(
-		token,
-		GITHUB_CONFIG.OWNER,
-		GITHUB_CONFIG.REPO,
-		toBase64Utf8(JSON.stringify(artifacts.index, null, 2)),
-		'base64'
-	)
-	treeItems.push({
-		path: 'public/blogs/index.json',
-		mode: '100644',
-		type: 'blob',
-		sha: indexBlob.sha
-	})
-	const categoriesBlob = await createBlob(
-		token,
-		GITHUB_CONFIG.OWNER,
-		GITHUB_CONFIG.REPO,
-		toBase64Utf8(serializeCategoriesConfig(artifacts.categories)),
-		'base64'
-	)
-	treeItems.push({
-		path: 'public/blogs/categories.json',
-		mode: '100644',
-		type: 'blob',
-		sha: categoriesBlob.sha
-	})
-	const foldersBlob = await createBlob(
-		token,
-		GITHUB_CONFIG.OWNER,
-		GITHUB_CONFIG.REPO,
-		toBase64Utf8(JSON.stringify(artifacts.folders, null, 2)),
-		'base64'
-	)
-	treeItems.push({
-		path: 'public/blogs/folders.json',
-		mode: '100644',
-		type: 'blob',
-		sha: foldersBlob.sha
-	})
-	const storageBlob = await createBlob(
-		token,
-		GITHUB_CONFIG.OWNER,
-		GITHUB_CONFIG.REPO,
-		toBase64Utf8(JSON.stringify(artifacts.db, null, 2)),
-		'base64'
-	)
-	treeItems.push({
-		path: 'public/blogs/storage.json',
-		mode: '100644',
-		type: 'blob',
-		sha: storageBlob.sha
+		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH)
 	})
 
-	// create tree
+	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.index), 'base64')
+	treeItems.push({ path: 'public/blogs/index.json', mode: '100644', type: 'blob', sha: indexBlob.sha })
+
+	const categoriesBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.categories), 'base64')
+	treeItems.push({ path: 'public/blogs/categories.json', mode: '100644', type: 'blob', sha: categoriesBlob.sha })
+
+	const foldersBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.folders), 'base64')
+	treeItems.push({ path: 'public/blogs/folders.json', mode: '100644', type: 'blob', sha: foldersBlob.sha })
+
+	const storageBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.storage), 'base64')
+	treeItems.push({ path: 'public/blogs/storage.json', mode: '100644', type: 'blob', sha: storageBlob.sha })
+
 	toast.info('正在创建文件树...')
 	const treeData = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, treeItems, latestCommitSha)
 
-	// create commit
 	toast.info('正在创建提交...')
 	const commitData = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, commitMessage, treeData.sha, [latestCommitSha])
 
-	// update branch reference
 	toast.info('正在更新分支...')
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 

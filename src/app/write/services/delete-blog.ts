@@ -1,8 +1,27 @@
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
-import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, toBase64Utf8, TreeItem, updateRef } from '@/lib/github-client'
-import { removeBlogFromIndex } from '@/lib/blog-index'
+import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, TreeItem, updateRef } from '@/lib/github-client'
+import { prepareBlogStaticArtifacts } from '@/lib/blog-index'
+
+export async function buildDeleteArtifactContents(params: {
+	slug: string
+	readStorageRaw: () => Promise<string | null>
+	fallbackReadIndexRaw: () => Promise<string | null>
+}): Promise<{ index: string; categories: string; folders: string; storage: string }> {
+	const artifacts = await prepareBlogStaticArtifacts({
+		readStorageRaw: params.readStorageRaw,
+		fallbackReadIndexRaw: params.fallbackReadIndexRaw,
+		removeSlugs: [params.slug]
+	})
+
+	return {
+		index: JSON.stringify(artifacts.index, null, 2),
+		categories: JSON.stringify({ categories: artifacts.categories }, null, 2),
+		folders: JSON.stringify(artifacts.folders, null, 2),
+		storage: JSON.stringify(artifacts.db, null, 2)
+	}
+}
 
 export async function deleteBlog(slug: string): Promise<void> {
 	if (!slug) throw new Error('需要 slug')
@@ -28,15 +47,24 @@ export async function deleteBlog(slug: string): Promise<void> {
 		sha: null
 	}))
 
-	toast.info('正在更新索引...')
-	const indexJson = await removeBlogFromIndex(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, slug, GITHUB_CONFIG.BRANCH)
-	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(indexJson), 'base64')
-	treeItems.push({
-		path: 'public/blogs/index.json',
-		mode: '100644',
-		type: 'blob',
-		sha: indexBlob.sha
+	toast.info('正在更新正式产物...')
+	const artifacts = await buildDeleteArtifactContents({
+		slug,
+		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', GITHUB_CONFIG.BRANCH),
+		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH)
 	})
+
+	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifacts.index), 'base64')
+	treeItems.push({ path: 'public/blogs/index.json', mode: '100644', type: 'blob', sha: indexBlob.sha })
+
+	const categoriesBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifacts.categories), 'base64')
+	treeItems.push({ path: 'public/blogs/categories.json', mode: '100644', type: 'blob', sha: categoriesBlob.sha })
+
+	const foldersBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifacts.folders), 'base64')
+	treeItems.push({ path: 'public/blogs/folders.json', mode: '100644', type: 'blob', sha: foldersBlob.sha })
+
+	const storageBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifacts.storage), 'base64')
+	treeItems.push({ path: 'public/blogs/storage.json', mode: '100644', type: 'blob', sha: storageBlob.sha })
 
 	toast.info('正在创建提交...')
 	const treeData = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, treeItems, latestCommitSha)
