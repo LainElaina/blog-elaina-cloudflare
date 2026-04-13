@@ -23,9 +23,11 @@ import { buildLocalSaveFilePayloads, saveBlogEdits } from './services/save-blog-
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
 import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
-import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, collectFolderPaths, filterBlogItems, formatFolderOptionLabel, retainSelectionInView } from './blog-filters'
+import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, buildFolderGroups, collectFolderPaths, filterBlogItems, formatFolderOptionLabel, retainSelectionInView } from './blog-filters'
+import { getAssignFolderActionState, getClearFolderActionState } from './folder-edit-actions'
+import { buildClearFolderDialogCopy } from './folder-interactions'
 
-type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category'
+type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category' | 'folder'
 
 export default function BlogPage() {
 	const { items, loading } = useBlogIndex()
@@ -78,6 +80,10 @@ export default function BlogPage() {
 	)
 
 	const { groupedItems, groupKeys, getGroupLabel } = useMemo(() => {
+		if (displayMode === 'folder') {
+			return buildFolderGroups(filteredDisplayItems)
+		}
+
 		const sorted = [...filteredDisplayItems].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
 		const grouped = sorted.reduce(
@@ -95,11 +101,12 @@ export default function BlogPage() {
 						key = date.format('YYYY-MM-DD')
 						label = date.format('YYYY年MM月DD日')
 						break
-					case 'week':
+					case 'week': {
 						const week = date.week()
 						key = `${date.format('YYYY')}-W${week.toString().padStart(2, '0')}`
 						label = `${date.format('YYYY')}年第${week}周`
 						break
+					}
 					case 'month':
 						key = date.format('YYYY-MM')
 						label = date.format('YYYY年MM月')
@@ -128,9 +135,7 @@ export default function BlogPage() {
 				if (aOrder !== bOrder) return aOrder - bOrder
 				return a.localeCompare(b)
 			}
-			// 按时间倒序排序
 			if (displayMode === 'week') {
-				// 周格式：YYYY-WW
 				const [yearA, weekA] = a.split('-W').map(Number)
 				const [yearB, weekB] = b.split('-W').map(Number)
 				if (yearA !== yearB) return yearB - yearA
@@ -178,29 +183,24 @@ export default function BlogPage() {
 		})
 	}, [])
 
-	// 全选所有文章
 	const handleSelectAll = useCallback(() => {
 		setSelectedSlugs(new Set(filteredDisplayItems.map(item => item.slug)))
 	}, [filteredDisplayItems])
 
-	// 全选/取消全选某个时间维度分组
 	const handleSelectGroup = useCallback(
 		(groupKey: string) => {
 			const group = groupedItems[groupKey]
 			if (!group) return
 
-			// 检查该分组是否所有文章都已选中
-			const allSelected = group.items.every(item => selectedSlugs.has(item.slug))
+			const groupAllSelected = group.items.every(item => selectedSlugs.has(item.slug))
 
 			setSelectedSlugs(prev => {
 				const next = new Set(prev)
-				if (allSelected) {
-					// 如果已全选，则取消该分组的选择
+				if (groupAllSelected) {
 					group.items.forEach(item => {
 						next.delete(item.slug)
 					})
 				} else {
-					// 如果未全选，则全选该分组
 					group.items.forEach(item => {
 						next.add(item.slug)
 					})
@@ -211,7 +211,6 @@ export default function BlogPage() {
 		[groupedItems, selectedSlugs]
 	)
 
-	// 取消全选
 	const handleDeselectAll = useCallback(() => {
 		setSelectedSlugs(new Set())
 	}, [])
@@ -247,13 +246,31 @@ export default function BlogPage() {
 	}, [])
 
 	const handleAssignFolderPathForSelected = useCallback(() => {
-		if (selectedCount === 0) {
-			toast.info('请选择要分配目录的文章')
+		const actionState = getAssignFolderActionState({
+			selectedCount,
+			availableFolderPaths
+		})
+		if (!actionState.allowed) {
+			if (actionState.message) {
+				toast.info(actionState.message)
+			}
 			return
 		}
 		const nextPath = assignFolderPathValue === BLOG_FOLDER_ALL ? undefined : assignFolderPathValue
 		setEditableItems(prev => assignFolderPath(prev, selectedSlugs, nextPath))
-	}, [selectedCount, assignFolderPathValue, selectedSlugs])
+	}, [selectedCount, availableFolderPaths, assignFolderPathValue, selectedSlugs])
+
+	const handleClearFolderForSelected = useCallback(() => {
+		if (selectedCount === 0) {
+			toast.info('请选择要清空目录的文章')
+			return
+		}
+		const actionState = getClearFolderActionState(selectedCount)
+		const dialogCopy = buildClearFolderDialogCopy(actionState.selectedCount)
+		const confirmed = window.confirm(`${dialogCopy.title}\n\n${dialogCopy.description}`)
+		if (!confirmed) return
+		setEditableItems(prev => assignFolderPath(prev, selectedSlugs, undefined))
+	}, [selectedCount, selectedSlugs])
 
 	const handleAddCategory = useCallback(() => {
 		const value = newCategory.trim()
@@ -413,7 +430,8 @@ export default function BlogPage() {
 								{ value: 'week', label: '周' },
 								{ value: 'month', label: '月' },
 								{ value: 'year', label: '年' },
-								...(enableCategories ? ([{ value: 'category', label: '分类' }] as const) : [])
+								...(enableCategories ? ([{ value: 'category', label: '分类' }] as const) : []),
+								{ value: 'folder', label: '目录' }
 							].map(option => (
 								<motion.button
 									key={option.value}
@@ -434,23 +452,25 @@ export default function BlogPage() {
 								<input type='checkbox' checked={favoritesOnly} onChange={event => setFavoritesOnly(event.target.checked)} />
 								仅看精选
 							</label>
-							<select
-								value={activeFolderPath}
-								onChange={event => setActiveFolderPath(event.target.value)}
-								className='rounded-lg border bg-white/80 px-3 py-1 text-sm'>
-								<option value={BLOG_FOLDER_ALL}>全部目录</option>
-								<option value={BLOG_FOLDER_UNFILED}>未归档</option>
-								{availableFolderPaths.map(path => (
-									<option key={path} value={path}>
-										{formatFolderOptionLabel(path)}
-									</option>
-								))}
-							</select>
+							{displayMode === 'folder' && (
+								<select
+									value={activeFolderPath}
+									onChange={event => setActiveFolderPath(event.target.value)}
+									className='rounded-lg border bg-white/80 px-3 py-1 text-sm'>
+									<option value={BLOG_FOLDER_ALL}>全部目录</option>
+									<option value={BLOG_FOLDER_UNFILED}>未归档</option>
+									{availableFolderPaths.map(path => (
+										<option key={path} value={path}>
+											{formatFolderOptionLabel(path)}
+										</option>
+									))}
+								</select>
+							)}
 						</div>
 					</>
 				)}
 
-				{groupKeys.map((groupKey, index) => {
+				{groupKeys.map(groupKey => {
 					const group = groupedItems[groupKey]
 					if (!group) return null
 
@@ -498,10 +518,7 @@ export default function BlogPage() {
 											className={cn(
 												'group flex min-h-10 items-center gap-3 py-3 transition-all',
 												editMode
-													? cn(
-															'rounded-lg border px-3',
-															isSelected ? 'border-brand/60 bg-brand/5' : 'hover:border-brand/40 border-transparent hover:bg-white/60'
-														)
+													? cn('rounded-lg border px-3', isSelected ? 'border-brand/60 bg-brand/5' : 'hover:border-brand/40 border-transparent hover:bg-white/60')
 													: 'cursor-pointer'
 											)}>
 											{editMode && (
@@ -514,16 +531,11 @@ export default function BlogPage() {
 												</span>
 											)}
 											<span className='text-secondary w-[44px] shrink-0 text-sm font-medium'>{dayjs(it.date).format('MM-DD')}</span>
-
 											<div className='relative flex h-2 w-2 items-center justify-center'>
 												<div className='bg-secondary group-hover:bg-brand h-[5px] w-[5px] rounded-full transition-all group-hover:h-4'></div>
 												<ShortLineSVG className='absolute bottom-4' />
 											</div>
-											<div
-												className={cn(
-													'flex-1 truncate text-sm font-medium transition-all',
-													editMode ? null : 'group-hover:text-brand group-hover:translate-x-2'
-												)}>
+											<div className={cn('flex-1 truncate text-sm font-medium transition-all', editMode ? null : 'group-hover:text-brand group-hover:translate-x-2')}>
 												{it.title || it.slug}
 												{hasRead && <span className='text-secondary ml-2 text-xs'>[已阅读]</span>}
 											</div>
@@ -559,7 +571,9 @@ export default function BlogPage() {
 			</div>
 
 			<div className='pt-12'>
-				{!loading && filteredDisplayItems.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无文章</div>}
+				{!loading && displayMode === 'folder' && availableFolderPaths.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无目录，请先为文章设置目录</div>}
+				{!loading && displayMode === 'folder' && availableFolderPaths.length > 0 && filteredDisplayItems.length === 0 && <div className='text-secondary py-6 text-center text-sm'>当前筛选条件下暂无文章</div>}
+				{!loading && displayMode !== 'folder' && filteredDisplayItems.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无文章</div>}
 				{loading && <div className='text-secondary py-6 text-center text-sm'>加载中...</div>}
 			</div>
 
@@ -598,7 +612,7 @@ export default function BlogPage() {
 							value={assignFolderPathValue}
 							onChange={event => setAssignFolderPathValue(event.target.value)}
 							className='rounded-xl border bg-white/60 px-3 py-2 text-sm'>
-							<option value={BLOG_FOLDER_ALL}>清空目录</option>
+							<option value={BLOG_FOLDER_ALL}>选择目录</option>
 							{availableFolderPaths.map(path => (
 								<option key={path} value={path}>
 									{formatFolderOptionLabel(path)}
@@ -612,6 +626,14 @@ export default function BlogPage() {
 							disabled={selectedCount === 0}
 							className='rounded-xl border bg-white/60 px-4 py-2 text-sm transition-colors disabled:opacity-60'>
 							分配目录
+						</motion.button>
+						<motion.button
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							onClick={handleClearFolderForSelected}
+							disabled={selectedCount === 0}
+							className='rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 transition-colors disabled:opacity-60'>
+							清空目录
 						</motion.button>
 						<motion.button
 							whileHover={{ scale: 1.05 }}

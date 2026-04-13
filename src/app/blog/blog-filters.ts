@@ -8,6 +8,12 @@ export type BlogFilterParams = {
 	folderPath: string
 }
 
+export type FolderGroupResult = {
+	groupedItems: Record<string, { items: BlogIndexItem[]; label: string }>
+	groupKeys: string[]
+	getGroupLabel: (key: string) => string
+}
+
 function normalizeFolderPath(folderPath?: string): string | undefined {
 	const value = folderPath?.trim()
 	if (!value) return undefined
@@ -31,6 +37,32 @@ export function filterBlogItems(items: BlogIndexItem[], params: BlogFilterParams
 		}
 		return normalized === folderPath
 	})
+}
+
+export function buildFolderGroups(items: BlogIndexItem[]): FolderGroupResult {
+	const groupedItems: Record<string, { items: BlogIndexItem[]; label: string }> = {}
+
+	for (const item of items) {
+		const normalized = normalizeFolderPath(item.folderPath)
+		const key = normalized ?? BLOG_FOLDER_UNFILED
+		const label = normalized ?? '未归档'
+		if (!groupedItems[key]) {
+			groupedItems[key] = { items: [], label }
+		}
+		groupedItems[key].items.push(item)
+	}
+
+	const groupKeys = Object.keys(groupedItems).sort((a, b) => {
+		if (a === BLOG_FOLDER_UNFILED) return 1
+		if (b === BLOG_FOLDER_UNFILED) return -1
+		return a.localeCompare(b)
+	})
+
+	return {
+		groupedItems,
+		groupKeys,
+		getGroupLabel: (key: string) => groupedItems[key]?.label || key
+	}
 }
 
 export function retainSelectionInView(selectedSlugs: Set<string>, visibleItems: BlogIndexItem[]): Set<string> {
