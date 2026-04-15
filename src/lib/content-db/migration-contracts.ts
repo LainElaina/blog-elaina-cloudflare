@@ -121,7 +121,9 @@ export function syncBlogRuntimeArtifactsToLedger(params: {
 }): SyncContractResult {
 	const indexItems = parseBlogIndexItems(params.indexRaw)
 	const baseStorage = params.storageRaw ? parseBlogStorageDB(params.storageRaw) : { version: 1 as const, updatedAt: new Date().toISOString(), blogs: {} }
-	const blogs: Record<string, BlogStorageRecord> = { ...baseStorage.blogs }
+	const blogs: Record<string, BlogStorageRecord> = Object.fromEntries(
+		Object.entries(baseStorage.blogs).filter(([, record]) => record.status !== 'published')
+	)
 
 	for (const item of indexItems) {
 		blogs[item.slug] = {

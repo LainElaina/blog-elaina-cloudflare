@@ -31,4 +31,18 @@ describe('blog migration route helper', () => {
     assert.equal(response.status, 400)
     assert.equal(response.body.message, '执行前需要明确确认')
   })
+
+  it('execute route 在确认且提供执行结果时返回真实 payload', () => {
+    const response = buildExecuteResponse({
+      confirmed: true,
+      writtenArtifacts: ['public/blogs/index.json', 'public/blogs/storage.json'],
+      artifactsToRebuildBeforeExecute: ['public/blogs/storage.json'],
+      artifactsToRebuildAfterExecute: []
+    })
+
+    assert.equal(response.status, 200)
+    assert.equal(response.body.ok, true)
+    assert.deepEqual(response.body.writtenArtifacts, ['public/blogs/index.json', 'public/blogs/storage.json'])
+    assert.match(response.body.summary, /已同步账本并重建 2 个产物/)
+  })
 })

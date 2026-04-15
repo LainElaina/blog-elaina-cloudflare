@@ -1,7 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { BLOG_MIGRATION_PANEL_MODEL } from './blog-migration-panel-constants'
+import {
+  BLOG_MIGRATION_PANEL_MODEL,
+  resolveBlogMigrationMessage
+} from './blog-migration-panel-constants'
+
+type BlogMigrationResponsePayload = {
+  message?: unknown
+  summary?: unknown
+  artifactsToRebuild?: unknown
+}
+
+function resolveFailureMessage(message: unknown, fallback: string) {
+  return typeof message === 'string' && message.trim().length > 0 ? message : fallback
+}
 
 export function BlogMigrationPanel() {
   const model = BLOG_MIGRATION_PANEL_MODEL
@@ -10,12 +23,13 @@ export function BlogMigrationPanel() {
   const handlePreview = async () => {
     const response = await fetch('/api/blog-migration/preview')
     const data = await response.json().catch(() => ({}))
+    const payload = (typeof data === 'object' && data ? data : {}) as BlogMigrationResponsePayload
     if (!response.ok) {
-      setMessage(data?.message || '预检查失败')
+      setMessage(resolveFailureMessage(payload.message, '预检查失败'))
       return
     }
-    const artifacts = Array.isArray(data?.artifactsToRebuild) ? data.artifactsToRebuild.join('、') : '无'
-    setMessage(`待重建产物：${artifacts}`)
+    const artifacts = Array.isArray(payload.artifactsToRebuild) ? payload.artifactsToRebuild.join('、') : '无'
+    setMessage(resolveBlogMigrationMessage(payload, `待重建产物：${artifacts}`))
   }
 
   const handleExecute = async () => {
@@ -28,11 +42,12 @@ export function BlogMigrationPanel() {
       body: JSON.stringify({ confirmed: true })
     })
     const data = await response.json().catch(() => ({}))
+    const payload = (typeof data === 'object' && data ? data : {}) as BlogMigrationResponsePayload
     if (!response.ok) {
-      setMessage(data?.message || '执行失败')
+      setMessage(resolveFailureMessage(payload.message, '执行失败'))
       return
     }
-    setMessage('已执行同步/重建')
+    setMessage(resolveBlogMigrationMessage(payload, '已执行同步/重建'))
   }
 
   return (

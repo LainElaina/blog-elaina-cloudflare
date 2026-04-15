@@ -1,4 +1,8 @@
-import { buildPreviewResponse, validateExecuteRequest } from './blog-migration-contracts.ts'
+import {
+  buildExecuteSuccessResponse,
+  buildPreviewResponse,
+  validateExecuteRequest
+} from './blog-migration-contracts.ts'
 
 export function enforceDevelopmentOnly(nodeEnv: string) {
   if (nodeEnv !== 'development') {
@@ -23,10 +27,30 @@ export function buildPreviewRouteResponse(params: { artifactsToRebuild: string[]
   }
 }
 
-export function buildExecuteResponse(params: { confirmed: boolean }) {
-  const validation = validateExecuteRequest(params)
+export function buildExecuteResponse(
+  params:
+    | { confirmed: false }
+    | {
+        confirmed: true
+        writtenArtifacts: string[]
+        artifactsToRebuildBeforeExecute: string[]
+        artifactsToRebuildAfterExecute: string[]
+      }
+) {
+  const validation = validateExecuteRequest({ confirmed: params.confirmed })
+  if (!validation.allowed) {
+    return {
+      status: 400,
+      body: { message: validation.message }
+    }
+  }
+
   return {
-    status: validation.allowed ? 200 : 400,
-    body: validation.allowed ? { ok: true } : { message: validation.message }
+    status: 200,
+    body: buildExecuteSuccessResponse({
+      writtenArtifacts: params.writtenArtifacts,
+      artifactsToRebuildBeforeExecute: params.artifactsToRebuildBeforeExecute,
+      artifactsToRebuildAfterExecute: params.artifactsToRebuildAfterExecute
+    })
   }
 }
