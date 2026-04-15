@@ -1,4 +1,7 @@
-import { migrateLegacyContentToDb } from '../src/lib/content-db/migration.ts'
+import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+
+import { syncBlogRuntimeArtifactsToLedger } from '../src/lib/content-db/migration-contracts.ts'
 
 type Args = {
 	dryRun: boolean
@@ -34,22 +37,40 @@ function parseArgs(argv: string[]): Args {
 	return args
 }
 
+function readText(path: string): string {
+	return readFileSync(path, 'utf8')
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2))
-	const result = await migrateLegacyContentToDb({
-		baseDir: args.baseDir,
-		dbPath: args.dbPath,
-		dryRun: args.dryRun,
-		confirmOverwrite: args.confirmOverwrite
+	const baseDir = args.baseDir ?? process.cwd()
+	const blogsDir = resolve(baseDir, 'public/blogs')
+	const indexRaw = readText(join(blogsDir, 'index.json'))
+	let storageRaw: string | null = null
+	try {
+		storageRaw = readText(join(blogsDir, 'storage.json'))
+	} catch {
+		storageRaw = null
+	}
+
+	const result = syncBlogRuntimeArtifactsToLedger({
+		indexRaw,
+		storageRaw
 	})
 
 	console.log(
 		JSON.stringify(
 			{
-				dryRun: result.dryRun,
-				before: result.before,
-				after: result.after,
-				imported: result.imported
+				dryRun: args.dryRun,
+				confirmOverwrite: args.confirmOverwrite,
+				ledger: {
+					storageRaw: result.storageRaw
+				},
+				contract: {
+					touchesMarkdown: result.touchesMarkdown,
+					touchesImages: result.touchesImages,
+					atomic: result.atomic
+				}
 			},
 			null,
 			2

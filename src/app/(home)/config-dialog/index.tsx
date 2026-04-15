@@ -11,6 +11,7 @@ import { pushSiteContentLocal } from '../services/push-site-content-local'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
 import { ColorConfig } from './color-config'
+import { BlogMigrationPanel } from './blog-migration-panel'
 import { normalizeCardStylePreset } from '@/lib/card-style-preset'
 
 interface DraftReminderItem {
@@ -443,7 +444,9 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 							setSocialButtonImageUploads={setSocialButtonImageUploads}
 						/>
 					)}
+
 					{activeTab === 'color' && <ColorConfig formData={formData} setFormData={setFormData} />}
+					{process.env.NODE_ENV === 'development' && <BlogMigrationPanel />}
 				</div>
 			</DialogModal>
 		</>

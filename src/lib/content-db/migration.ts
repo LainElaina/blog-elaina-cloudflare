@@ -4,6 +4,11 @@ import { join, resolve } from 'node:path'
 
 import { createContentDb, getDefaultContentDbPath, type ContentDb } from './client.ts'
 import { applyContentDbMigrations } from './migrations.ts'
+import {
+	rebuildBlogRuntimeArtifactsFromStorage,
+	syncBlogRuntimeArtifactsToLedger,
+	verifyBlogLedgerAgainstRuntime
+} from './migration-contracts.ts'
 
 type SiteConfig = Record<string, unknown>
 type LayoutConfig = Record<string, unknown>
@@ -133,6 +138,26 @@ function loadLegacyShareEntries(baseDir: string): Array<{ id: string; slug: stri
 			metadata: item as Record<string, unknown>
 		}
 	})
+}
+
+export function syncBlogRuntimeArtifacts(params: { indexRaw: string; storageRaw: string | null }) {
+	return syncBlogRuntimeArtifactsToLedger(params)
+}
+
+export function rebuildBlogRuntimeArtifacts(storageRaw: string) {
+	return rebuildBlogRuntimeArtifactsFromStorage(storageRaw)
+}
+
+export function verifyBlogRuntimeArtifacts(params: {
+	storageRaw: string
+	runtimeArtifacts: {
+		index: string
+		categories: string
+		folders: string
+		storage: string
+	}
+}) {
+	return verifyBlogLedgerAgainstRuntime(params)
 }
 
 export async function migrateLegacyContentToDb(options: MigrateLegacyContentOptions = {}): Promise<MigrationResult> {
