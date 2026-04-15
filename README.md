@@ -151,16 +151,18 @@
   - 线上部署环境（绿色标识）：保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证
 - **PEM 缓存**：可选开启，将 GitHub App 私钥加密后缓存到 sessionStorage，刷新页面无需重新导入（关闭标签页自动清除）
 
-### 💾 仓库内数据库主源（当前内容架构）
-本仓库正在从“直接编辑分散 JSON 文件”迁移到“仓库内数据库 + 正式静态产物”架构：
+### 💾 仓库内数据库与正式产物边界（当前内容架构）
+本仓库正在从“直接编辑分散 JSON 文件”迁移到“本地结构化账本 + 正式静态产物”架构：
 
-- **正式结构化主源：** `data/content.db`
+- **本地结构化账本 / 校验 / 重建工具层：** `data/content.db`
   - 当前 schema 已包含：`site_config`、`layout_config`、`blog_entries`、`share_entries`、`draft_items`、`content_versions`、`schema_migrations`
   - 这些表对应站点配置、布局配置、博客元数据、分享元数据、草稿状态、版本记录与迁移版本管理。
+  - 它当前用于本地结构化沉淀、低频校验与重建工具链，**不是页面运行时直接读取的数据源**。
 - **正文正式载体：** 博客正文仍保留在 `public/blogs/<slug>/index.md`。
-- **正式静态产物：** 页面运行时当前仍优先消费数据库导出的 `public/**` 产物，而不是直接连接 `content.db`。
+- **正式运行时产物：** 页面运行时当前优先消费 `public/**` 产物，而不是直接连接 `content.db`。
   - 博客：`public/blogs/index.json`、`public/blogs/categories.json`、`public/blogs/folders.json`、`public/blogs/storage.json`
   - 分享：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+  - 其中 `public/blogs/storage.json` 会继续保留为博客正式运行时产物之一。
 - **数据库外但仍属正式内容的部分：**
   - 博客 Markdown 正文与文章目录下资源文件
   - 各类图片资源（如 `public/images/**`）
@@ -178,7 +180,7 @@
 ### 🆕 最近架构更新（2026-04）
 - `/share` 运行时与正式保存链路已切到 `public/share/*` 正式产物，不再以 `src/app/share/list.json` 作为运行时正式主源。
 - 文档已同步补充“数据库内 / 外边界”“正式产物消费层”“冲突处理 SOP”等说明，方便后续交接。
-- 当前页面运行时仍以 `public/**` 导出物为主，数据库主源化仍在持续迁移中。
+- 当前页面运行时仍以 `public/**` 导出物为主；`content.db` 继续收敛为本地账本 / 校验 / 重建工具层，而不是页面直读主链路。
 - 博客目录模式已并入 `/blog` 主切换器；目录筛选仅在“目录”模式下生效，避免隐藏过滤状态泄漏到年/月/周/分类视图。
 - 写作页支持即时新建目录并自动选中；`/blog` 编辑态支持分配目录与“清空目录”独立确认动作。
 - 网站设置开发环境中新增“博客账本工具”面板，可预检查或执行账本同步 / 正式产物重建；该入口只会处理 `public/blogs/*.json` 与 `storage.json`，不会修改 Markdown 或图片。
@@ -241,7 +243,7 @@
 - **线上正式保存**：网页端通过 GitHub API 直接更新仓库文件，等价于“远端正式保存”，随后触发 Cloudflare 构建。
 
 ### ⚠️ `content.db` Git 冲突处理 SOP
-`data/content.db` 是仓库内的二进制正式主源。发生冲突时：
+`data/content.db` 是仓库内的二进制本地账本/重建工具源，不是页面运行时直接读取的正式源。发生冲突时：
 
 1. 不要手工合并数据库二进制内容。
 2. 先备份当前数据库，例如 `data/backups/content.<timestamp>.db`。

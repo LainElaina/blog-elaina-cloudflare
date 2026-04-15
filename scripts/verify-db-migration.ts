@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { verifyBlogLedgerAgainstRuntime } from '../src/lib/content-db/migration-contracts.ts'
+import { syncBlogRuntimeArtifactsToLedger, verifyBlogLedgerAgainstRuntime } from '../src/lib/content-db/migration-contracts.ts'
 
 type VerifyArgs = {
 	baseDir?: string
@@ -46,18 +46,29 @@ function readText(path: string): string {
 	return readFileSync(path, 'utf8')
 }
 
+function readOptionalText(path: string): string | null {
+	try {
+		return readText(path)
+	} catch (error) {
+		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+			return null
+		}
+		throw error
+	}
+}
+
 function readRuntimeArtifacts(baseDir: string) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	return {
 		index: readText(join(blogsDir, 'index.json')),
 		categories: readText(join(blogsDir, 'categories.json')),
 		folders: readText(join(blogsDir, 'folders.json')),
-		storage: readText(join(blogsDir, 'storage.json'))
+		storage: readOptionalText(join(blogsDir, 'storage.json'))
 	}
 }
 
-function readLedgerStorageFromRuntime(baseDir: string): string {
-	return readText(resolve(baseDir, 'public/blogs/storage.json'))
+function readLedgerStorageFromRuntime(baseDir: string): string | null {
+	return readOptionalText(resolve(baseDir, 'public/blogs/storage.json'))
 }
 
 async function main(): Promise<void> {
@@ -65,19 +76,31 @@ async function main(): Promise<void> {
 	const baseDir = args.baseDir ?? process.cwd()
 	const runtimeArtifacts = readRuntimeArtifacts(baseDir)
 	const storageRaw = readLedgerStorageFromRuntime(baseDir)
-	const parsedStorage = JSON.parse(storageRaw) as BlogStorageDB
-
-	const result = verifyBlogLedgerAgainstRuntime({
-		storageRaw,
-		runtimeArtifacts
+	const synced = syncBlogRuntimeArtifactsToLedger({
+		indexRaw: runtimeArtifacts.index,
+		storageRaw
 	})
+	const parsedStorage = JSON.parse(synced.storageRaw) as BlogStorageDB
+	const result = verifyBlogLedgerAgainstRuntime({
+		storageRaw: synced.storageRaw,
+		runtimeArtifacts: {
+			index: runtimeArtifacts.index,
+			categories: runtimeArtifacts.categories,
+			folders: runtimeArtifacts.folders,
+			storage: runtimeArtifacts.storage ?? ''
+		}
+	})
+
+	const artifactsToRebuild = runtimeArtifacts.storage === null
+		? Array.from(new Set(['public/blogs/storage.json', ...result.artifactsToRebuild]))
+		: result.artifactsToRebuild
 
 	const summary = {
 		ledger: {
 			blogEntriesCount: Object.keys(parsedStorage.blogs ?? {}).length
 		},
 		verify: {
-			artifactsToRebuild: result.artifactsToRebuild,
+			artifactsToRebuild,
 			touchesMarkdown: result.touchesMarkdown,
 			touchesImages: result.touchesImages,
 			atomic: result.atomic
@@ -86,7 +109,7 @@ async function main(): Promise<void> {
 
 	console.log(JSON.stringify(summary, null, 2))
 
-	if (result.artifactsToRebuild.length > 0) {
+	if (artifactsToRebuild.length > 0) {
 		throw new Error('博客正式产物与账本不一致')
 	}
 }

@@ -35,14 +35,16 @@
 - 不要提交 `.claude/**` 与 `docs/superpowers/**`。
 - 不要覆盖与当前任务无关的本地未提交改动（例如 `src/config/site-content.json`）。
 
-### 仓库内数据库主源
-- **结构化正式主源：** `data/content.db`
+### 仓库内数据库与正式产物边界
+- **本地结构化账本 / 校验 / 重建工具层：** `data/content.db`
   - 当前 schema 已包含：`site_config`、`layout_config`、`blog_entries`、`share_entries`、`draft_items`、`content_versions`、`schema_migrations`
   - 对应站点配置、布局配置、博客元数据、分享元数据、草稿状态、版本记录与迁移版本管理。
+  - 当前职责是本地结构化沉淀、低频校验与重建工具链，不是页面运行时直接读取的数据源。
 - **正文正式载体：** `public/blogs/<slug>/index.md`
-- **正式静态产物：**
+- **正式运行时产物：**
   - 博客：`public/blogs/index.json`、`public/blogs/categories.json`、`public/blogs/folders.json`、`public/blogs/storage.json`
   - 分享：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+  - 其中 `public/blogs/storage.json` 与 `public/share/storage.json` 继续保留为正式运行时产物的一部分。
 - `src/app/share/list.json` 当前仅保留为迁移输入/编辑入口遗留数据，不再作为运行时正式主逻辑。
 - 旧架构纪念快照：`/app/blog-elaina-cloudflare-无数据库版`
 
@@ -58,7 +60,7 @@
   - 首页正式配置当前仍写回 `src/config/*.json`
 - **当前运行时消费边界：**
   - 页面运行时当前仍以 `public/**` 导出物为主，而不是页面直接读 `content.db`
-  - 例如博客读取 `public/blogs/storage.json` 并在缺失时回退 `config.json`，分享读取 `public/share/*.json`
+  - 例如博客读取 `public/blogs/storage.json` 等正式产物，并在兼容场景下才回退 `config.json`，分享读取 `public/share/*.json`
 
 ### 容量边界与维护建议
 - 当前架构适用于个人博客与中小规模内容站，不应直接视为通用大规模 CMS 方案。
@@ -74,7 +76,7 @@
 ### 最近架构更新（2026-04）
 - `/share` 已切到 `public/share/*` 正式产物链路，运行时与正式保存不再把 `src/app/share/list.json` 当正式主逻辑。
 - 文档已同步明确数据库内 / 外边界、正式产物消费层与冲突处理 SOP，便于后续交接。
-- 当前数据库主源化仍在迁移中：运行时继续优先消费 `public/**` 导出物，尚未变成“全站页面直接读库”。
+- 当前运行时继续优先消费 `public/**` 导出物；`content.db` 收敛为本地账本 / 校验 / 重建工具层，而不是“全站页面直接读库”。
 - 博客目录模式已经并入 `/blog` 的主切换器；目录过滤只在 `displayMode === 'folder'` 时生效，避免不可见的目录过滤状态泄漏到其他浏览模式。
 - 写作页支持即时新建目录并自动选中；`/blog` 编辑态支持显式分配目录与“清空目录”独立确认动作。
 - 开发环境新增博客账本工具入口：preview 会返回真实 `artifactsToRebuild`，execute 会在明确确认后同步账本并重建正式产物，且不会修改 Markdown / 图片。
