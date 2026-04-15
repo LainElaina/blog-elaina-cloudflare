@@ -75,6 +75,39 @@
 - `/share` 已切到 `public/share/*` 正式产物链路，运行时与正式保存不再把 `src/app/share/list.json` 当正式主逻辑。
 - 文档已同步明确数据库内 / 外边界、正式产物消费层与冲突处理 SOP，便于后续交接。
 - 当前数据库主源化仍在迁移中：运行时继续优先消费 `public/**` 导出物，尚未变成“全站页面直接读库”。
+- 博客目录模式已经并入 `/blog` 的主切换器；目录过滤只在 `displayMode === 'folder'` 时生效，避免不可见的目录过滤状态泄漏到其他浏览模式。
+- 写作页支持即时新建目录并自动选中；`/blog` 编辑态支持显式分配目录与“清空目录”独立确认动作。
+- 开发环境新增博客账本工具入口：preview 会返回真实 `artifactsToRebuild`，execute 会在明确确认后同步账本并重建正式产物，且不会修改 Markdown / 图片。
+
+### 博客账本开发工具补充（仅 development）
+- `preview`: `src/app/api/blog-migration/preview/route.ts`
+  - 基于当前 `public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json` 计算 verify 结果
+  - 返回真实待重建产物列表，而不是固定空结果
+- `execute`: `src/app/api/blog-migration/execute/route.ts`
+  - 必须显式确认后才允许执行
+  - 当前会同步账本并重建：
+    - `public/blogs/index.json`
+    - `public/blogs/categories.json`
+    - `public/blogs/folders.json`
+    - `public/blogs/storage.json`
+  - 不修改 `public/blogs/<slug>/index.md` 与图片资源
+- 关键契约入口：`src/lib/content-db/migration-contracts.ts`
+  - `syncBlogRuntimeArtifactsToLedger`
+  - `verifyBlogLedgerAgainstRuntime`
+  - `rebuildBlogRuntimeArtifactsFromStorage`
+
+### 目录交互验收补充
+- `/blog` 目录模式切换到其他模式后，不应继续隐式保留目录过滤。
+- `/blog` 编辑态默认“选择目录”状态下点击“分配目录”必须给出显式提示，不允许默默等价为清空目录。
+- 写作页新建目录后，即使服务端目录产物尚未刷新，也应继续保留当前选中的新目录。
+- “清空目录”必须明确说明：不会删除文章内容、不会删除目录本身、只会清除所选文章的目录归属。
+
+### 本阶段维护者最小验证建议
+1. 运行目录交互相关测试，确认 folder mode / assign / clear / create-folder 行为一致。
+2. 运行账本契约与 blog migration API 测试，确认 preview / execute 不再是空壳。
+3. 手动检查 development 下配置弹窗里的“博客账本工具”是否可见，并能返回真实 summary。
+4. 提交时继续排除 `.claude/**`、`docs/superpowers/**` 与其他无关本地文件。
+
 
 ### 草稿保存、正式保存与发布边界
 - **首页配置草稿：** `/api/drafts/site-config` → `data/site-config.draft.json`

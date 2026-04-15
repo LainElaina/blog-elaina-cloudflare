@@ -179,6 +179,32 @@
 - `/share` 运行时与正式保存链路已切到 `public/share/*` 正式产物，不再以 `src/app/share/list.json` 作为运行时正式主源。
 - 文档已同步补充“数据库内 / 外边界”“正式产物消费层”“冲突处理 SOP”等说明，方便后续交接。
 - 当前页面运行时仍以 `public/**` 导出物为主，数据库主源化仍在持续迁移中。
+- 博客目录模式已并入 `/blog` 主切换器；目录筛选仅在“目录”模式下生效，避免隐藏过滤状态泄漏到年/月/周/分类视图。
+- 写作页支持即时新建目录并自动选中；`/blog` 编辑态支持分配目录与“清空目录”独立确认动作。
+- 网站设置开发环境中新增“博客账本工具”面板，可预检查或执行账本同步 / 正式产物重建；该入口只会处理 `public/blogs/*.json` 与 `storage.json`，不会修改 Markdown 或图片。
+
+### 🧰 博客账本开发工具（仅 development）
+- 预检查入口：`/api/blog-migration/preview`
+  - 读取当前 `public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json`
+  - 基于账本契约返回当前仍需重建的正式产物列表
+- 执行入口：`/api/blog-migration/execute`
+  - 仅在明确确认后执行
+  - 会同步账本并重建 `public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json`
+  - 不会修改 `public/blogs/<slug>/index.md` 或图片资源
+- 路由最小集成验证已覆盖 preview / execute 的 dev-only 边界与真实写回行为
+
+### 🗂️ 博客目录交互补充说明
+- `/blog` 的“目录”是与 日 / 周 / 月 / 年 / 分类 同级的主视图，不再是独立漂浮筛选区。
+- “清空目录”不再混在目录下拉的默认项中，而是独立动作，并会在执行前明确说明不会删除文章内容或目录本身。
+- 当没有任何目录时，写作页和 `/blog` 页会给出显式提示，而不是静默失败。
+- 当刚新建目录且服务端目录产物尚未刷新时，写作页仍会保留当前选中的新目录，避免视觉回退到“默认目录”。
+
+### 🧪 当前阶段关键验证点
+- 发布 / 删除博客后，`public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json` 保持一致。
+- `folderPath` / `favorite` 会在写作页、列表页、导出产物与正式存储中一致回显。
+- 账本工具的 sync / verify / rebuild 契约只处理结构化产物，不触碰 Markdown 或图片。
+- dev-only blog migration 入口在 preview / execute 两条路径上都有自动化验证。
+
 
 ### 💾 全站本地开发保存支持
 所有可编辑页面在本地开发环境下均可直接保存，无需导入密钥：
