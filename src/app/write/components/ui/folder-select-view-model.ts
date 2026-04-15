@@ -13,7 +13,8 @@ export function buildFolderSelectViewModel(params: {
 	createdFolderInput?: string
 }): FolderSelectViewModel {
 	const createdFolderPath = params.createdFolderInput ? normalizeCreatedFolderPath(params.createdFolderInput) : undefined
-	const folders = createFolderOptionList(params.folders, createdFolderPath)
+	const representableValue = createdFolderPath ?? (params.value || undefined)
+	const folders = createFolderOptionList(params.folders, representableValue)
 
 	return {
 		options: [{ value: '', label: '默认目录' }, ...folders.map(folder => ({ value: folder, label: folder }))],

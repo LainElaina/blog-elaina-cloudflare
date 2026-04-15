@@ -23,7 +23,7 @@ import { buildLocalSaveFilePayloads, saveBlogEdits } from './services/save-blog-
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
 import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
-import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, buildFolderGroups, collectFolderPaths, filterBlogItems, formatFolderOptionLabel, retainSelectionInView } from './blog-filters'
+import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, buildFolderGroups, collectFolderPaths, formatFolderOptionLabel, getFilteredDisplayItems, retainSelectionInView } from './blog-filters'
 import { getAssignFolderActionState, getClearFolderActionState } from './folder-edit-actions'
 import { buildClearFolderDialogCopy } from './folder-interactions'
 
@@ -72,11 +72,12 @@ export default function BlogPage() {
 	const availableFolderPaths = useMemo(() => collectFolderPaths(displayItems, folders), [displayItems, folders])
 	const filteredDisplayItems = useMemo(
 		() =>
-			filterBlogItems(displayItems, {
+			getFilteredDisplayItems(displayItems, {
 				favoritesOnly,
-				folderPath: activeFolderPath
+				activeFolderPath,
+				displayMode
 			}),
-		[displayItems, favoritesOnly, activeFolderPath]
+		[displayItems, favoritesOnly, activeFolderPath, displayMode]
 	)
 
 	const { groupedItems, groupKeys, getGroupLabel } = useMemo(() => {
@@ -248,7 +249,8 @@ export default function BlogPage() {
 	const handleAssignFolderPathForSelected = useCallback(() => {
 		const actionState = getAssignFolderActionState({
 			selectedCount,
-			availableFolderPaths
+			availableFolderPaths,
+			selectedFolderPath: assignFolderPathValue
 		})
 		if (!actionState.allowed) {
 			if (actionState.message) {

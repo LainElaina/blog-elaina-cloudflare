@@ -16,4 +16,12 @@ describe('folder-select view model', () => {
 		assert.deepEqual(view.options.map(item => item.value), ['', '/写作/技术', '/生活'])
 		assert.equal(view.nextValueAfterCreate, '/写作/技术')
 	})
+
+	it('创建完成且输入已清空后，未刷新的目录列表里仍保留当前选中目录', () => {
+		const creatingView = buildFolderSelectViewModel({ folders: ['/生活'], value: '', createdFolderInput: '写作/技术' })
+		const selectedValue = creatingView.nextValueAfterCreate ?? ''
+
+		const createdView = buildFolderSelectViewModel({ folders: ['/生活'], value: selectedValue })
+		assert.deepEqual(createdView.options.map(item => item.value), ['', '/写作/技术', '/生活'])
+	})
 })

@@ -8,6 +8,7 @@ import {
 	assignFolderPath,
 	buildFolderGroups,
 	filterBlogItems,
+	getFilteredDisplayItems,
 	retainSelectionInView
 } from './blog-filters.ts'
 
@@ -49,6 +50,16 @@ describe('blog-filters', () => {
 		})
 
 		assert.deepEqual(filtered.map(item => item.slug), ['c'])
+	})
+
+	it('非 folder 模式应忽略 activeFolderPath，仅保留 favoritesOnly 过滤', () => {
+		const filtered = getFilteredDisplayItems(items, {
+			favoritesOnly: true,
+			activeFolderPath: '/生活/随笔',
+			displayMode: 'year'
+		})
+
+		assert.deepEqual(filtered.map(item => item.slug), ['a'])
 	})
 
 	it('retainSelectionInView 应移除当前过滤视图不可见的选中项', () => {

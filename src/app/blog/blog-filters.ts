@@ -8,6 +8,8 @@ export type BlogFilterParams = {
 	folderPath: string
 }
 
+export type BlogDisplayMode = 'day' | 'week' | 'month' | 'year' | 'category' | 'folder'
+
 export type FolderGroupResult = {
 	groupedItems: Record<string, { items: BlogIndexItem[]; label: string }>
 	groupKeys: string[]
@@ -36,6 +38,20 @@ export function filterBlogItems(items: BlogIndexItem[], params: BlogFilterParams
 			return !normalized
 		}
 		return normalized === folderPath
+	})
+}
+
+export function getFilteredDisplayItems(
+	items: BlogIndexItem[],
+	params: {
+		favoritesOnly: boolean
+		activeFolderPath: string
+		displayMode: BlogDisplayMode
+	}
+): BlogIndexItem[] {
+	return filterBlogItems(items, {
+		favoritesOnly: params.favoritesOnly,
+		folderPath: params.displayMode === 'folder' ? params.activeFolderPath : BLOG_FOLDER_ALL
 	})
 }
 
