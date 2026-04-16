@@ -369,6 +369,7 @@ git commit -m "fix: 收紧 share 正式产物保存与 URL 冲突语义"
 **Files:**
 - Modify: `README.md`
 - Modify: `CONTRIBUTING.md`
+- Create: `src/app/(home)/share-consumers.test.ts`
 - Verify: `public/share/list.json`
 - Verify: `public/share/categories.json`
 - Verify: `public/share/folders.json`
@@ -389,9 +390,11 @@ Checklist must include:
 
 - [ ] **Step 2: Run the focused automated test suites**
 
+By this point, the new test files from Tasks 1-4 should already exist in the working tree.
+
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts /app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts
 ```
 Expected:
 - PASS
@@ -435,7 +438,7 @@ Then verify in browser:
 
 Run:
 ```bash
-git diff -- README.md CONTRIBUTING.md && node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts
+git diff -- README.md CONTRIBUTING.md && node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts /app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts
 ```
 Expected:
 - Doc diff matches final behavior
@@ -444,6 +447,7 @@ Expected:
 - [ ] **Step 7: Commit**
 
 ```bash
-git add README.md CONTRIBUTING.md src/app/share src/app/(home)/share-consumers.test.ts public/share src/lib/content-db/share-storage.ts src/lib/content-db/share-index.test.ts
+git add README.md CONTRIBUTING.md public/share/list.json public/share/categories.json public/share/folders.json public/share/storage.json src/app/share/share-runtime.ts src/app/share/share-runtime.test.ts src/app/share/share-page-state.ts src/app/share/share-page-state.test.ts src/app/share/page.tsx src/app/share/grid-view.tsx src/app/share/components/share-card.tsx src/app/share/components/create-dialog.tsx src/app/share/components/share-folder-select.tsx src/app/share/components/share-folder-select-view-model.ts src/app/share/components/share-folder-select-view-model.test.ts src/app/share/services/share-artifacts.ts src/app/share/services/push-shares.ts src/app/share/services/push-shares.test.ts src/app/(home)/share-consumers.test.ts src/lib/content-db/share-storage.ts src/lib/content-db/share-index.test.ts
+# If you created src/app/share/folder-tree.tsx or src/app/share/category-tabs.tsx, add them in the same commit.
 git commit -m "feat: 完成 share 正式产物闭环与双栏导航收口"
 ```
