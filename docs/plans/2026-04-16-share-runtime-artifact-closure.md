@@ -17,6 +17,10 @@
   - 抽出 `/share` 的目录/分类/搜索/标签过滤、空状态与目录树候选逻辑，避免 `page.tsx` 继续膨胀
 - Create: `src/app/share/share-runtime.test.ts`
   - 纯逻辑测试：目录主导、分类回退、搜索/标签叠加、空状态语义
+- Create: `src/app/share/share-page-state.ts`
+  - 抽出 `page.tsx` 的状态编排层，承接 list/categories/folders 三份正式产物、当前筛选状态与编辑上下文
+- Create: `src/app/share/share-page-state.test.ts`
+  - 验证页面确实消费 `list.json` / `categories.json` / `folders.json`，并锁定目录/分类/编辑上下文状态保持合同
 - Modify: `src/app/share/page.tsx`
   - 使用新 view-model，接入双栏布局、目录树、分类 tabs、编辑态上下文保持
 - Modify: `src/app/share/grid-view.tsx`
@@ -89,7 +93,8 @@ Add tests that prove:
 - selecting a parent directory includes share items from all descendant folder paths, not just exact path matches
 - category tabs only filter within the active directory scope
 - search and tag filters apply after directory/category filtering
-- switching directory resets category to `all` when the current category is no longer valid
+- switching directory keeps the current category when that category is still valid in the new directory scope
+- switching directory resets category to `all` only when the current category is no longer valid
 - switching directory preserves the current search term and selected tag
 - switching category preserves the current search term and selected tag
 - unfiled items appear in all-directory aggregate results but do not create a fake folder node
@@ -144,33 +149,38 @@ git commit -m "test: 固化 share 双栏过滤与空状态语义"
 ### Task 2: Wire `/share` page to runtime artifacts and dual-navigation layout
 
 **Files:**
+- Create: `src/app/share/share-page-state.ts`
+- Create: `src/app/share/share-page-state.test.ts`
 - Modify: `src/app/share/page.tsx`
 - Modify: `src/app/share/grid-view.tsx`
 - Possibly Create: `src/app/share/folder-tree.tsx`
 - Possibly Create: `src/app/share/category-tabs.tsx`
 - Test: `src/app/share/share-runtime.test.ts`
+- Test: `src/app/share/share-page-state.test.ts`
 - Verify: `src/app/(home)/share-card.tsx`
 - Verify: `src/app/(home)/mobile-quick-info.tsx`
 
 - [ ] **Step 1: Write the failing integration-oriented checks**
 
-Add or extend tests/checklist proving:
-- `/share` page consumes `list.json` as the direct card/filter data source
+Add tests that prove:
+- `/share` page state consumes `list.json` as the direct card/filter data source
 - directory tree consumes `folders.json`
 - category tabs consume `categories.json` as candidate source, then narrow by current directory scope
-- search/tag UI still exist after dual-navigation is added
+- current filtered context is preserved across edit mode entry/exit
+- search/tag UI state still exists after dual-navigation is added
 - homepage share card still only depends on the base list behavior and does not regress
 
-If a direct component test is too expensive, write a runtime-facing checklist in the plan and ensure Task 5 covers the focused verification command.
+Do not rely on checklist-only acceptance here; make `share-page-state.test.ts` the executable gate for the page-level data wiring contract.
 
 - [ ] **Step 2: Run existing focused tests as the red baseline**
 
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts
 ```
 Expected:
-- PASS for pure logic, while page layout still lacks the required dual-navigation structure.
+- `share-runtime.test.ts` may already PASS for pure filtering logic once Task 1 lands
+- `share-page-state.test.ts` FAILS because page-level artifact consumption and state orchestration do not exist yet.
 
 - [ ] **Step 3: Write minimal page implementation**
 
@@ -232,6 +242,7 @@ Add tests that prove:
 - create/edit UI carries `oldUrl/currentUrl` explicitly through the editing flow rather than inferring rename from `name`
 - category blank input normalizes to undefined rather than a literal sentinel value
 - saving an edited share after changing both `name` and `url` still preserves the correct old URL anchor
+- changing URL and replacing logo in the same edit session migrates pending `logoItems` to the new URL key before save
 
 Example test shape:
 ```ts
@@ -243,10 +254,10 @@ assert.equal(viewModel.options.some(option => option.value === '/设计/图片�
 
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-editing.test.tsx
 ```
 Expected:
-- FAIL because the share folder selector/view-model does not exist yet.
+- FAIL because the share folder selector/view-model does not exist yet and the real create/edit propagation contract is not implemented.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -265,7 +276,7 @@ Do not keep `name`-based rename inference alive in parallel with the new URL-anc
 
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-editing.test.tsx
 ```
 Expected:
 - PASS
@@ -378,7 +389,7 @@ Checklist must include:
 
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-editing.test.tsx /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts
 ```
 Expected:
 - PASS
