@@ -388,29 +388,43 @@ Checklist must include:
 - homepage share consumers do not regress
 - README / CONTRIBUTING match final behavior
 
-- [ ] **Step 2: Run the focused automated test suites**
+- [ ] **Step 2: Write the failing homepage consumer regression test**
 
-By this point, the new test files from Tasks 1-4 should already exist in the working tree.
+Create `src/app/(home)/share-consumers.test.ts` and prove:
+- homepage share consumers still read from `public/share/list.json`
+- they do not require `categories.json`, `folders.json`, or `storage.json` to render their existing basic behavior
+- `/share` phase changes do not force homepage consumers into the new dual-navigation contract
 
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts /app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test "/app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts"
+```
+Expected:
+- FAIL because the test file does not exist yet.
+
+- [ ] **Step 3: Run the focused automated test suites**
+
+By this point, the new test files from Tasks 1-4 and the homepage consumer test from Step 2 should already exist in the working tree.
+
+Run:
+```bash
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts "/app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts"
 ```
 Expected:
 - PASS
 
-- [ ] **Step 3: Run broader regression checks touching shared runtime consumers**
+- [ ] **Step 4: Run broader regression checks touching shared runtime consumers**
 
 Run:
 ```bash
-node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts /app/blog-elaina-cloudflare/src/lib/load-blog.test.ts /app/blog-elaina-cloudflare/src/app/(home)/config-dialog/blog-migration-panel.test.ts /app/blog-elaina-cloudflare/src/app/api/blog-migration/route-files.test.ts
+node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test "/app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts" /app/blog-elaina-cloudflare/src/lib/load-blog.test.ts "/app/blog-elaina-cloudflare/src/app/(home)/config-dialog/blog-migration-panel.test.ts" /app/blog-elaina-cloudflare/src/app/api/blog-migration/route-files.test.ts
 ```
 Expected:
 - PASS
 - Homepage share consumers still only depend on `public/share/list.json`
 - No collateral regression in other runtime-artifact-first areas.
 
-- [ ] **Step 4: Update README and CONTRIBUTING**
+- [ ] **Step 5: Update README and CONTRIBUTING**
 
 Document specifically:
 - `/share` runtime consumes `public/share/list.json` directly and uses `categories.json` / `folders.json` for navigation
@@ -419,7 +433,7 @@ Document specifically:
 - URL conflicts fail before writing any share artifact
 - manual acceptance should be done through `pnpm run dev`
 
-- [ ] **Step 5: Run manual acceptance in the real dev app**
+- [ ] **Step 6: Run manual acceptance in the real dev app**
 
 Run:
 ```bash
@@ -432,22 +446,24 @@ Then verify in browser:
 - create/edit supports category + folder selection/new folder
 - save + refresh preserve data results
 - conflicting URL save is rejected with no partial write
+- deleting a share does not leave stale visible data behind
+- changing a share URL does not leave the old published record behind
 - homepage share references still render
 
-- [ ] **Step 6: Run post-doc verification and inspect final repo diff**
+- [ ] **Step 7: Run post-doc verification and inspect final repo diff**
 
 Run:
 ```bash
-git diff -- README.md CONTRIBUTING.md && node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts /app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts
+git diff -- README.md CONTRIBUTING.md && node --require /app/blog-elaina-cloudflare/test-alias-register.cjs --import jiti/register --test /app/blog-elaina-cloudflare/src/app/share/share-runtime.test.ts /app/blog-elaina-cloudflare/src/app/share/share-page-state.test.ts /app/blog-elaina-cloudflare/src/app/share/components/share-folder-select-view-model.test.ts /app/blog-elaina-cloudflare/src/lib/content-db/share-index.test.ts /app/blog-elaina-cloudflare/src/app/share/services/push-shares.test.ts "/app/blog-elaina-cloudflare/src/app/(home)/share-consumers.test.ts"
 ```
 Expected:
 - Doc diff matches final behavior
 - Targeted tests PASS
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add README.md CONTRIBUTING.md public/share/list.json public/share/categories.json public/share/folders.json public/share/storage.json src/app/share/share-runtime.ts src/app/share/share-runtime.test.ts src/app/share/share-page-state.ts src/app/share/share-page-state.test.ts src/app/share/page.tsx src/app/share/grid-view.tsx src/app/share/components/share-card.tsx src/app/share/components/create-dialog.tsx src/app/share/components/share-folder-select.tsx src/app/share/components/share-folder-select-view-model.ts src/app/share/components/share-folder-select-view-model.test.ts src/app/share/services/share-artifacts.ts src/app/share/services/push-shares.ts src/app/share/services/push-shares.test.ts src/app/(home)/share-consumers.test.ts src/lib/content-db/share-storage.ts src/lib/content-db/share-index.test.ts
-# If you created src/app/share/folder-tree.tsx or src/app/share/category-tabs.tsx, add them in the same commit.
+git add README.md CONTRIBUTING.md public/share/list.json public/share/categories.json public/share/folders.json public/share/storage.json src/app/share/share-runtime.ts src/app/share/share-runtime.test.ts src/app/share/share-page-state.ts src/app/share/share-page-state.test.ts src/app/share/page.tsx src/app/share/grid-view.tsx src/app/share/components/share-card.tsx src/app/share/components/create-dialog.tsx src/app/share/components/share-folder-select.tsx src/app/share/components/share-folder-select-view-model.ts src/app/share/components/share-folder-select-view-model.test.ts src/app/share/services/share-artifacts.ts src/app/share/services/push-shares.ts src/app/share/services/push-shares.test.ts "src/app/(home)/share-consumers.test.ts" src/lib/content-db/share-storage.ts src/lib/content-db/share-index.test.ts
+# If you created src/app/share/folder-tree.tsx, src/app/share/category-tabs.tsx, src/app/share/components/share-form-types.ts, or src/app/share/services/share-save-errors.ts, add them in the same commit.
 git commit -m "feat: 完成 share 正式产物闭环与双栏导航收口"
 ```
