@@ -106,9 +106,10 @@
 
 ### 本阶段维护者最小验证建议
 1. 运行目录交互相关测试，确认 folder mode / assign / clear / create-folder 行为一致。
-2. 运行账本契约与 blog migration API 测试，确认 preview / execute 不再是空壳。
-3. 手动检查 development 下配置弹窗里的“博客账本工具”是否可见，并能返回真实 summary。
-4. 提交时继续排除 `.claude/**`、`docs/superpowers/**` 与其他无关本地文件。
+2. 运行 share focused tests，确认 `/share` 双导航、URL 冲突原子失败、以及 homepage share consumer 的 list-only 边界仍成立。
+3. 运行账本契约与 blog migration API 测试，确认 preview / execute 不再是空壳。
+4. 手动检查 development 下配置弹窗里的“博客账本工具”是否可见，并能返回真实 summary。
+5. 提交时继续排除 `.claude/**`、`docs/superpowers/**` 与其他无关本地文件。
 
 
 ### 草稿保存、正式保存与发布边界
@@ -126,6 +127,14 @@
 - `favorite`：博客是否为精选。
 - `/share` 是独立的分享推荐数据，不是 favorites 系统，禁止混用。
 - 新增可编辑模块时，优先沿用“storage 主源 + public 正式静态产物 + 页面只消费正式产物”的模式；不要把旧 JSON 路径继续当长期唯一主逻辑。
+
+### `/share` 运行时与保存约束（2026-04）
+- `/share` 正式数据链路围绕四份正式产物展开：`public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`；其中页面运行时直接消费前 3 份，`storage.json` 主要承载正式保存 / 发布语义。
+- `/share` 双导航职责固定：左侧目录树读 `folders.json`，顶部分类 tabs 读 `categories.json`，列表本体读 `list.json`；不要把目录/分类候选改成由组件各自临时推断。
+- 首页 share consumers 仍保持最小契约，只读 `public/share/list.json` 与首页实际渲染所需的基础展示字段；不要让首页卡片依赖 `/share` 的目录树、分类 tabs 或 `storage.json`。
+- share 编辑字段中的 `category` 与 `folderPath` 都属于正式元数据，保存后必须同时回流到 list 导出、导航产物与 storage，而不是只更新当前页面局部状态。
+- 本地正式保存与远端发布必须复用同一套 share artifact builder，确保四产物同批重建；禁止出现只更新 `list.json` 或本地/远端语义分叉的实现。
+- URL 冲突必须在写出前整体失败：包括重复目标 URL、rename 后复用旧 URL、swap/rebind、删除后同批复用已删除 published URL；失败时不能留下半套产物。
 
 ### 本地开发 API 路由补充
 - `/api/drafts/site-config` — 首页配置草稿读写/清理

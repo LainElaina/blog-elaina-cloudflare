@@ -179,6 +179,9 @@
 
 ### 🆕 最近架构更新（2026-04）
 - `/share` 运行时与正式保存链路已切到 `public/share/*` 正式产物，不再以 `src/app/share/list.json` 作为运行时正式主源。
+- `/share` 双导航语义已固定：左侧目录树消费 `public/share/folders.json`，顶部分类 tabs 先消费 `public/share/categories.json`，再按当前目录范围收窄。
+- `/share` 的本地正式保存与远端发布都必须统一重建 `public/share/list.json`、`categories.json`、`folders.json`、`storage.json` 四份正式产物；出现 URL 冲突时整批原子失败，不允许只写出部分产物。
+- 首页 share widgets 继续只消费 `public/share/list.json`，只依赖首页实际渲染所需的基础展示字段，不接入 `/share` 的目录树 / 分类 tabs 契约。
 - 文档已同步补充“数据库内 / 外边界”“正式产物消费层”“冲突处理 SOP”等说明，方便后续交接。
 - 当前页面运行时仍以 `public/**` 导出物为主；`content.db` 继续收敛为本地账本 / 校验 / 重建工具层，而不是页面直读主链路。
 - 博客目录模式已并入 `/blog` 主切换器；目录筛选仅在“目录”模式下生效，避免隐藏过滤状态泄漏到年/月/周/分类视图。
@@ -203,6 +206,8 @@
 
 ### 🧪 当前阶段关键验证点
 - 发布 / 删除博客后，`public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json` 保持一致。
+- `/share` 正式保存与远端发布后，`public/share/list.json`、`categories.json`、`folders.json`、`storage.json` 保持一致，且 URL 冲突会在写出前整批失败。
+- 首页 share consumers 继续只读取 `public/share/list.json`，不会依赖 `/share` 的目录树、分类 tabs 或 `storage.json`。
 - `folderPath` / `favorite` 会在写作页、列表页、导出产物与正式存储中一致回显。
 - 账本工具的 sync / verify / rebuild 契约只处理结构化产物，不触碰 Markdown 或图片。
 - dev-only blog migration 入口在 preview / execute 两条路径上都有自动化验证。
