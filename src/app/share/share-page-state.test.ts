@@ -452,7 +452,7 @@ describe('share page state', () => {
 	it('page 保存本地产物时继续沿用 pending URL 映射生成 storage payload', async () => {
 		const { pageSource } = await readShareEditingSources()
 
-		assert.match(pageSource, /buildLocalShareSaveFilePayloads\(updatedShares, existingStorageRaw, renamedUrls\)/)
+		assert.match(pageSource, /buildLocalShareSaveFilePayloads\(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls\)/)
 	})
 
 	it('page 不再通过名称推断 rename 来源', async () => {
@@ -736,6 +736,19 @@ describe('share page state', () => {
 
 		assert.match(pageSource, /mergeEditingSharesIntoVisibleItems\(/)
 		assert.match(pageSource, /editingAnchorUrls/)
+	})
+
+	it('draft-only 改 URL 时仍会为卡片提供稳定 key', async () => {
+		const { pageSource } = await readShareEditingSources()
+
+		assert.match(pageSource, /draftOnlyUrls/)
+		assert.match(pageSource, /const getShareKey = \(share: Share\)/)
+	})
+
+	it('draft-only 取消编辑不会写入伪 renamedUrls 映射', async () => {
+		const { pageSource } = await readShareEditingSources()
+
+		assert.match(pageSource, /if \(!prev\.has\(params\.draftShare\.url\)\)/)
 	})
 
 	it('grid-view 不再只用 share.url 作为编辑态 key', async () => {

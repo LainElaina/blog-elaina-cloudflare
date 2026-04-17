@@ -4,6 +4,14 @@ import { describe, it } from 'node:test'
 import { buildShareStorageFromList, exportStaticShareArtifacts, parseShareStorageDB } from './share-storage.ts'
 import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads } from '../../app/share/services/share-artifacts.ts'
 
+function createStorageRaw(shares: Record<string, Record<string, unknown>>) {
+	return JSON.stringify({
+		version: 1,
+		updatedAt: '2026-04-07T00:00:00.000Z',
+		shares
+	})
+}
+
 describe('share storage model', () => {
 	it('支持大列表并导出分类与目录索引', () => {
 		const input = Array.from({ length: 40 }, (_, index) => ({
@@ -326,6 +334,308 @@ describe('share storage model', () => {
 
 		const categoriesPayload = payloads.find(payload => payload.path === 'public/share/categories.json')
 		assert.equal(categoriesPayload?.content, JSON.stringify({ categories: ['tool'] }, null, 2))
+	})
+
+	it('list 导出显式携带 category 与 folderPath，空白值会被省略', () => {
+		const payloads = buildLocalShareSaveFilePayloads([
+			{
+				name: 'Alpha',
+				logo: '/alpha.png',
+				url: 'https://alpha.dev',
+				description: 'alpha',
+				tags: ['tool'],
+				stars: 4,
+				category: ' 工具 ',
+				folderPath: ' /设计//图片 '
+			},
+			{
+				name: 'Beta',
+				logo: '/beta.png',
+				url: 'https://beta.dev',
+				description: 'beta',
+				tags: ['design'],
+				stars: 5,
+				category: '   ',
+				folderPath: '   '
+			}
+		])
+
+		const listPayload = JSON.parse(payloads.find(payload => payload.path === 'public/share/list.json')!.content)
+
+		assert.deepEqual(listPayload, [
+			{
+				name: 'Alpha',
+				logo: '/alpha.png',
+				url: 'https://alpha.dev',
+				description: 'alpha',
+				tags: ['tool'],
+				stars: 4,
+				category: '工具',
+				folderPath: '/设计/图片'
+			},
+			{
+				name: 'Beta',
+				logo: '/beta.png',
+				url: 'https://beta.dev',
+				description: 'beta',
+				tags: ['design'],
+				stars: 5
+			}
+		])
+	})
+
+	it('新建 share 与既有 published URL 冲突时会在写出前失败', () => {
+		let payloads: ReturnType<typeof buildLocalShareSaveFilePayloads> | undefined
+
+		assert.throws(
+			() => {
+				payloads = buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4
+						},
+						{
+							name: 'New Alpha',
+							logo: '/alpha-next.png',
+							url: 'https://alpha.dev',
+							description: 'next',
+							tags: ['tool'],
+							stars: 5
+						}
+					],
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						}
+					})
+				)
+			},
+			/URL 已存在/
+		)
+
+		assert.equal(payloads, undefined)
+	})
+
+	it('编辑 share 改到另一个已存在 published URL 时会在写出前失败', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Alpha',
+							logo: '/alpha-next.png',
+							url: 'https://beta.dev',
+							description: 'alpha next',
+							tags: ['tool'],
+							stars: 5
+						},
+						{
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://beta.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 4
+						}
+					],
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						},
+						beta: {
+							slug: 'beta',
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://beta.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 4,
+							status: 'published'
+						}
+					}),
+					new Map([['https://beta.dev', 'https://alpha.dev']])
+				),
+			/URL 已存在/
+		)
+	})
+
+	it('同次保存内重复目标 URL 会整体失败', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads([
+					{
+						name: 'Alpha',
+						logo: '/alpha.png',
+						url: 'https://dup.dev',
+						description: 'alpha',
+						tags: ['tool'],
+						stars: 4
+					},
+					{
+						name: 'Beta',
+						logo: '/beta.png',
+						url: 'https://dup.dev',
+						description: 'beta',
+						tags: ['design'],
+						stars: 5
+					}
+				]),
+			/URL 已存在/
+		)
+	})
+
+	it('同次保存内 URL swap / rebind 会被拒绝', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Alpha',
+							logo: '/alpha-next.png',
+							url: 'https://beta.dev',
+							description: 'alpha next',
+							tags: ['tool'],
+							stars: 5
+						},
+						{
+							name: 'Beta',
+							logo: '/beta-next.png',
+							url: 'https://alpha.dev',
+							description: 'beta next',
+							tags: ['design'],
+							stars: 4
+						}
+					],
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						},
+						beta: {
+							slug: 'beta',
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://beta.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 4,
+							status: 'published'
+						}
+					}),
+					new Map([
+						['https://beta.dev', 'https://alpha.dev'],
+						['https://alpha.dev', 'https://beta.dev']
+					])
+				),
+			/URL 已存在/
+		)
+	})
+
+	it('删除后同批复用原 URL 会被拒绝', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Beta',
+							logo: '/beta-next.png',
+							url: 'https://alpha.dev',
+							description: 'beta next',
+							tags: ['design'],
+							stars: 5
+						}
+					],
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						},
+						beta: {
+							slug: 'beta',
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://beta.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 4,
+							status: 'published'
+						}
+					}),
+					new Map([['https://alpha.dev', 'https://beta.dev']])
+				),
+			/URL 已存在/
+		)
+	})
+
+	it('重命名后同批复用被腾出的旧 URL 会被拒绝', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Alpha',
+							logo: '/alpha-next.png',
+							url: 'https://beta.dev',
+							description: 'alpha next',
+							tags: ['tool'],
+							stars: 5
+						},
+						{
+							name: 'Gamma',
+							logo: '/gamma.png',
+							url: 'https://alpha.dev',
+							description: 'gamma',
+							tags: ['design'],
+							stars: 4
+						}
+					],
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						}
+					}),
+					new Map([['https://beta.dev', 'https://alpha.dev']])
+				),
+			/URL 已存在/
+		)
 	})
 
 	it('parseShareStorageDB 会最小化清洗非法字段形状', () => {

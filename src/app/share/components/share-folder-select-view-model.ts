@@ -188,6 +188,39 @@ export function migratePendingShareLogoItems<T>(
 	return next
 }
 
+export function assertPendingShareUrlAvailable(params: {
+	currentUrl: string
+	oldUrl?: string
+	shares: Array<{ url: string }>
+	renamedUrls: Map<string, string>
+	deletedPublishedUrls: Set<string>
+	draftOnlyUrls?: Set<string>
+}): void {
+	const currentUrl = normalizeShareUrlInput(params.currentUrl)
+	const oldUrl = params.oldUrl ? normalizeShareUrlInput(params.oldUrl) : undefined
+	if (!currentUrl) {
+		return
+	}
+
+	const currentShareUrls = new Set(params.shares.map(share => normalizeShareUrlInput(share.url)).filter(Boolean))
+	if (currentShareUrls.has(currentUrl) && currentUrl !== oldUrl) {
+		throw new Error(`URL 已存在: ${currentUrl}`)
+	}
+
+	const draftOnlyUrls = params.draftOnlyUrls ?? new Set<string>()
+	const ownBaseUrl = oldUrl ? params.renamedUrls.get(oldUrl) ?? oldUrl : undefined
+	const pendingRenamedFromUrls = new Set(
+		Array.from(params.renamedUrls.values()).filter(url => !draftOnlyUrls.has(url))
+	)
+	if (pendingRenamedFromUrls.has(currentUrl) && currentUrl !== ownBaseUrl) {
+		throw new Error(`URL 已存在: ${currentUrl}`)
+	}
+
+	if (params.deletedPublishedUrls.has(currentUrl) && currentUrl !== ownBaseUrl && !draftOnlyUrls.has(currentUrl)) {
+		throw new Error(`URL 已存在: ${currentUrl}`)
+	}
+}
+
 export function normalizeShareCategoryInput(input: string): string | undefined {
 	const normalized = input.trim()
 	return normalized || undefined

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { motion } from 'motion/react'
+import { toast } from 'sonner'
 import StarRating from '@/components/star-rating'
 import { useSize } from '@/hooks/use-size'
 import { cn } from '@/lib/utils'
@@ -90,8 +91,12 @@ export function ShareCard({ share, isEditMode = false, onUpdate, onDelete }: Sha
 						? normalizeShareUrlInput(typeof value === 'string' ? value : '')
 						: value
 		const updated = { ...localShare, [field]: nextValue }
-		setLocalShare(updated)
-		emitUpdate(updated, logoItem || undefined)
+		try {
+			emitUpdate(updated, logoItem || undefined)
+			setLocalShare(updated)
+		} catch (error: any) {
+			toast.error(error?.message || '更新失败')
+		}
 	}
 
 	const handleLogoSubmit = (logo: LogoItem) => {

@@ -10,6 +10,7 @@ import { ShareFolderSelectFoldersContext } from './components/share-folder-selec
 import { ShareCardEditCallbacksContext, type Share } from './components/share-card'
 import type { LogoItem } from './components/logo-upload-dialog'
 import {
+	assertPendingShareUrlAvailable,
 	buildShareRuntimeArtifactsFromList,
 	collectShareFolderPaths,
 	migratePendingShareLogoItems,
@@ -156,8 +157,29 @@ export default function Page() {
 	const [isSaving, setIsSaving] = useState(false)
 	const [logoItems, setLogoItems] = useState<Map<string, LogoItem>>(new Map())
 	const [renamedUrls, setRenamedUrls] = useState<Map<string, string>>(new Map())
+	const [draftOnlyUrls, setDraftOnlyUrls] = useState<Set<string>>(new Set())
+	const [draftStableKeys, setDraftStableKeys] = useState<Map<string, string>>(new Map())
+	const [deletedPublishedUrls, setDeletedPublishedUrls] = useState<Set<string>>(new Set())
 	const [editingAnchorUrls, setEditingAnchorUrls] = useState<string[]>([])
+	const draftKeySequenceRef = useRef(0)
 	const keyInputRef = useRef<HTMLInputElement>(null)
+
+	const createDraftStableKey = () => {
+		draftKeySequenceRef.current += 1
+		return `draft-${draftKeySequenceRef.current}`
+	}
+
+	const moveDraftStableKey = (next: Map<string, string>, oldUrl: string, currentUrl: string) => {
+		const stableKey = next.get(oldUrl)
+		if (!stableKey) {
+			return next
+		}
+		next.delete(oldUrl)
+		next.set(currentUrl, stableKey)
+		return next
+	}
+
+	const replaceEditingAnchorUrl = (next: string[], oldUrl: string, currentUrl: string) => next.map(url => (url === oldUrl ? currentUrl : url))
 
 	const { isAuth, setPrivateKey } = useAuthStore()
 	const { siteContent } = useConfigStore()
@@ -174,7 +196,7 @@ export default function Page() {
 		[pageState.artifacts.list, pageState.runtime.visibleItems, editingAnchorUrls, renamedUrls]
 	)
 	const folderOptions = useMemo(() => collectShareFolderPaths(pageState.artifacts.folders), [pageState.artifacts.folders])
-	const getShareKey = (share: Share) => resolveShareEditAnchorUrl(share.url, renamedUrls)
+	const getShareKey = (share: Share) => draftStableKeys.get(share.url) ?? resolveShareEditAnchorUrl(share.url, renamedUrls)
 	const tagOptions = useMemo(
 		() => collectTagOptions(pageState.artifacts.list, pageState.filters.selectedTag),
 		[pageState.artifacts.list, pageState.filters.selectedTag]
@@ -186,16 +208,36 @@ export default function Page() {
 	const emptyMessage = getEmptyMessage(pageState.runtime.emptyState)
 
 	const handleUpdate = (updatedShare: Share, oldShare: Share, logoItem?: LogoItem, oldUrl = oldShare.url, currentUrl = updatedShare.url) => {
+		const isDraftOnly = draftOnlyUrls.has(oldUrl)
+		assertPendingShareUrlAvailable({
+			currentUrl,
+			oldUrl,
+			shares: pageState.artifacts.list,
+			renamedUrls,
+			deletedPublishedUrls,
+			draftOnlyUrls
+		})
 		setPageState(current => {
 			const nextList = replaceShareByUrl(current.artifacts.list, oldUrl, updatedShare)
 			return replaceArtifactsInState(current, buildArtifactsFromList(nextList), { preserveFilters: true })
 		})
-		setRenamedUrls(prev =>
-			updatePendingShareUrlMappings(new Map(prev), {
-				oldUrl,
-				currentUrl
+		if (isDraftOnly) {
+			setDraftOnlyUrls(prev => {
+				const next = new Set(prev)
+				next.delete(oldUrl)
+				next.add(currentUrl)
+				return next
 			})
-		)
+			setDraftStableKeys(prev => moveDraftStableKey(new Map(prev), oldUrl, currentUrl))
+			setEditingAnchorUrls(prev => replaceEditingAnchorUrl(prev, oldUrl, currentUrl))
+		} else {
+			setRenamedUrls(prev =>
+				updatePendingShareUrlMappings(new Map(prev), {
+					oldUrl,
+					currentUrl
+				})
+			)
+		}
 		setLogoItems(prev => {
 			const next = migratePendingShareLogoItems(new Map(prev), {
 				oldUrl,
@@ -210,11 +252,11 @@ export default function Page() {
 	}
 
 	const handleEditSessionStart = (url: string) => {
-		setEditingAnchorUrls(prev => startShareEditSession(prev, url, renamedUrls))
+		setEditingAnchorUrls(prev => startShareEditSession(prev, url, draftOnlyUrls.has(url) ? undefined : renamedUrls))
 	}
 
 	const handleEditSessionFinish = (url: string) => {
-		setEditingAnchorUrls(prev => finishShareEditSession(prev, url, renamedUrls))
+		setEditingAnchorUrls(prev => finishShareEditSession(prev, url, draftOnlyUrls.has(url) ? undefined : renamedUrls))
 	}
 
 	const handleAdd = () => {
@@ -223,6 +265,15 @@ export default function Page() {
 	}
 
 	const handleSaveShare = (payload: ShareEditSubmitPayload<Share, LogoItem>) => {
+		const isDraftOnlyEdit = payload.oldUrl ? draftOnlyUrls.has(payload.oldUrl) : false
+		assertPendingShareUrlAvailable({
+			currentUrl: payload.currentUrl,
+			oldUrl: payload.oldUrl,
+			shares: pageState.artifacts.list,
+			renamedUrls,
+			deletedPublishedUrls,
+			draftOnlyUrls
+		})
 		setPageState(current => {
 			const nextList = payload.oldUrl
 				? replaceShareByUrl(current.artifacts.list, payload.oldUrl, payload.share)
@@ -230,12 +281,33 @@ export default function Page() {
 
 			return replaceArtifactsInState(current, buildArtifactsFromList(nextList), { preserveFilters: true })
 		})
-		setRenamedUrls(prev =>
-			updatePendingShareUrlMappings(new Map(prev), {
-				oldUrl: payload.oldUrl,
-				currentUrl: payload.currentUrl
+		if (!payload.oldUrl) {
+			setDraftOnlyUrls(prev => {
+				const next = new Set(prev)
+				next.add(payload.currentUrl)
+				return next
 			})
-		)
+			setDraftStableKeys(prev => {
+				const next = new Map(prev)
+				next.set(payload.currentUrl, createDraftStableKey())
+				return next
+			})
+		} else if (isDraftOnlyEdit) {
+			setDraftOnlyUrls(prev => {
+				const next = new Set(prev)
+				next.delete(payload.oldUrl)
+				next.add(payload.currentUrl)
+				return next
+			})
+			setDraftStableKeys(prev => moveDraftStableKey(new Map(prev), payload.oldUrl, payload.currentUrl))
+		} else {
+			setRenamedUrls(prev =>
+				updatePendingShareUrlMappings(new Map(prev), {
+					oldUrl: payload.oldUrl,
+					currentUrl: payload.currentUrl
+				})
+			)
+		}
 		if (payload.oldUrl) {
 			handleEditSessionFinish(payload.oldUrl)
 		}
@@ -250,6 +322,9 @@ export default function Page() {
 	}
 
 	const resetEditingSessions = () => {
+		setDraftOnlyUrls(new Set())
+		setDraftStableKeys(new Map())
+		setDeletedPublishedUrls(new Set())
 		setEditingAnchorUrls([])
 	}
 
@@ -263,12 +338,25 @@ export default function Page() {
 			const nextList = replaceShareByUrl(current.artifacts.list, params.draftShare.url, params.originalShare)
 			return replaceArtifactsInState(current, buildArtifactsFromList(nextList))
 		})
-		setRenamedUrls(prev =>
-			updatePendingShareUrlMappings(new Map(prev), {
-				oldUrl: params.draftShare.url,
-				currentUrl: params.originalShare.url
-			})
-		)
+		const isDraftOnlyDraft = draftOnlyUrls.has(params.draftShare.url)
+		setDraftOnlyUrls(prev => {
+			if (!prev.has(params.draftShare.url)) {
+				return prev
+			}
+			const next = new Set(prev)
+			next.delete(params.draftShare.url)
+			next.add(params.originalShare.url)
+			return next
+		})
+		setDraftStableKeys(prev => moveDraftStableKey(new Map(prev), params.draftShare.url, params.originalShare.url))
+		if (!isDraftOnlyDraft) {
+			setRenamedUrls(prev =>
+				updatePendingShareUrlMappings(new Map(prev), {
+					oldUrl: params.draftShare.url,
+					currentUrl: params.originalShare.url
+				})
+			)
+		}
 		setLogoItems(prev => {
 			if (params.initialLogoItem !== undefined) {
 				return migratePendingShareLogoItems(new Map(prev), {
@@ -290,6 +378,25 @@ export default function Page() {
 			return
 		}
 
+		const isDraftOnly = draftOnlyUrls.has(share.url)
+		if (!isDraftOnly) {
+			setDeletedPublishedUrls(prev => {
+				const next = new Set(prev)
+				next.add(resolveShareEditAnchorUrl(share.url, renamedUrls))
+				return next
+			})
+		} else {
+			setDraftOnlyUrls(prev => {
+				const next = new Set(prev)
+				next.delete(share.url)
+				return next
+			})
+			setDraftStableKeys(prev => {
+				const next = new Map(prev)
+				next.delete(share.url)
+				return next
+			})
+		}
 		setPageState(current => {
 			const nextList = current.artifacts.list.filter(item => item.url !== share.url)
 			return replaceArtifactsInState(current, buildArtifactsFromList(nextList), { preserveFilters: true })
@@ -350,7 +457,7 @@ export default function Page() {
 				const existingStorageResponse = await fetch('/share/storage.json', { cache: 'no-store' })
 				const existingStorageRaw = existingStorageResponse.ok ? await existingStorageResponse.text() : null
 				const updatedShares = applyShareLogoPathUpdates(currentShares, nextLogoPaths)
-				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls)
+				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls)
 				for (const payload of payloads) {
 					await fetch('/api/save-file', {
 						method: 'POST',
@@ -367,7 +474,8 @@ export default function Page() {
 					urlMappings: Array.from(renamedUrls.entries()).map(([currentUrl, oldUrl]) => ({
 						oldUrl,
 						currentUrl
-					}))
+					})),
+					deletedPublishedUrls
 				})
 				nextArtifacts = publishedArtifacts
 			}

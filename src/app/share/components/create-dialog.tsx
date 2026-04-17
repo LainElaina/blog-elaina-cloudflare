@@ -88,9 +88,13 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 			oldUrl: share?.url,
 			logoItem: logoItem ?? undefined
 		})
-		onSave(payload)
-		onClose()
-		toast.success(share ? '更新成功' : '添加成功')
+		try {
+			onSave(payload)
+			onClose()
+			toast.success(share ? '更新成功' : '添加成功')
+		} catch (error: any) {
+			toast.error(error?.message || '保存失败')
+		}
 	}
 
 	return (

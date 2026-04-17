@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
+	assertPendingShareUrlAvailable,
 	buildShareEditSubmitPayload,
 	buildShareFolderSelectViewModel,
 	buildShareRuntimeArtifactsFromList,
@@ -152,6 +153,85 @@ describe('share-folder-select view model', () => {
 		})
 
 		assert.deepEqual(Array.from(next.entries()), [['https://new.example', { kind: 'new-logo' }]])
+	})
+
+	it('编辑时改成当前列表已占用 URL 会失败', () => {
+		assert.throws(
+			() =>
+				assertPendingShareUrlAvailable({
+					currentUrl: 'https://beta.dev',
+					oldUrl: 'https://alpha.dev',
+					shares: [{ url: 'https://alpha.dev' }, { url: 'https://beta.dev' }],
+					renamedUrls: new Map(),
+					deletedPublishedUrls: new Set()
+				}),
+			/URL 已存在/
+		)
+	})
+
+	it('同 session 内不能复用 pending rename 腾出的旧 URL', () => {
+		assert.throws(
+			() =>
+				assertPendingShareUrlAvailable({
+					currentUrl: 'https://alpha.dev',
+					shares: [{ url: 'https://beta.dev' }],
+					renamedUrls: new Map([['https://beta.dev', 'https://alpha.dev']]),
+					deletedPublishedUrls: new Set()
+				}),
+			/URL 已存在/
+		)
+	})
+
+	it('同 session 内不能复用已删除 published URL', () => {
+		assert.throws(
+			() =>
+				assertPendingShareUrlAvailable({
+					currentUrl: 'https://beta.dev',
+					shares: [{ url: 'https://alpha.dev' }],
+					renamedUrls: new Map(),
+					deletedPublishedUrls: new Set(['https://beta.dev'])
+				}),
+			/URL 已存在/
+		)
+	})
+
+	it('本次会话中新建 draft 改 URL 后仍可复用旧 draft URL', () => {
+		assert.equal(
+			assertPendingShareUrlAvailable({
+				currentUrl: 'https://draft-a.dev',
+				shares: [{ url: 'https://final-a.dev' }],
+				renamedUrls: new Map([['https://final-a.dev', 'https://draft-a.dev']]),
+				deletedPublishedUrls: new Set(),
+				draftOnlyUrls: new Set(['https://draft-a.dev'])
+			}),
+			undefined
+		)
+	})
+
+	it('本次会话中新建后删除的 draft URL 仍可复用', () => {
+		assert.equal(
+			assertPendingShareUrlAvailable({
+				currentUrl: 'https://draft-b.dev',
+				shares: [],
+				renamedUrls: new Map(),
+				deletedPublishedUrls: new Set(['https://draft-b.dev']),
+				draftOnlyUrls: new Set(['https://draft-b.dev'])
+			}),
+			undefined
+		)
+	})
+
+	it('未冲突的新 URL 仍允许通过', () => {
+		assert.equal(
+			assertPendingShareUrlAvailable({
+				currentUrl: 'https://gamma.dev',
+				oldUrl: 'https://alpha.dev',
+				shares: [{ url: 'https://alpha.dev' }, { url: 'https://beta.dev' }],
+				renamedUrls: new Map(),
+				deletedPublishedUrls: new Set()
+			}),
+			undefined
+		)
 	})
 
 	it('分类空白输入会归一化为 undefined', () => {

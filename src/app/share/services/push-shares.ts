@@ -25,6 +25,29 @@ export type PushSharesParams = {
 	urlMappings?: ShareUrlMapping[]
 }
 
+export function buildRemoteShareArtifactContents(params: {
+	shares: Share[]
+	existingStorageRaw: string | null
+	urlMappings?: ShareUrlMapping[]
+	deletedPublishedUrls?: Set<string>
+}): { list: string; categories: string; folders: string; storage: string } {
+	const renamedUrls = new Map<string, string>()
+	for (const mapping of params.urlMappings ?? []) {
+		if (mapping.oldUrl !== mapping.currentUrl) {
+			renamedUrls.set(mapping.currentUrl, mapping.oldUrl)
+		}
+	}
+	const payloads = buildLocalShareSaveFilePayloads(params.shares, params.existingStorageRaw, renamedUrls, params.deletedPublishedUrls)
+	const list = payloads.find(payload => payload.path === 'public/share/list.json')?.content
+	const categories = payloads.find(payload => payload.path === 'public/share/categories.json')?.content
+	const folders = payloads.find(payload => payload.path === 'public/share/folders.json')?.content
+	const storage = payloads.find(payload => payload.path === 'public/share/storage.json')?.content
+	if (!list || !categories || !folders || !storage) {
+		throw new Error('share 正式产物不完整')
+	}
+	return { list, categories, folders, storage }
+}
+
 export async function pushShares(params: PushSharesParams): Promise<PushSharesResult> {
 	const { shares, logoItems, urlMappings } = params
 
@@ -70,14 +93,18 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	}
 
 	const updatedShares = applyShareLogoPathUpdates(shares, nextLogoPaths)
-	const renamedUrls = new Map<string, string>()
-	for (const mapping of urlMappings ?? []) {
-		if (mapping.oldUrl !== mapping.currentUrl) {
-			renamedUrls.set(mapping.currentUrl, mapping.oldUrl)
-		}
-	}
 	const existingStorageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/storage.json', GITHUB_CONFIG.BRANCH)
-	const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls)
+	const artifactContents = buildRemoteShareArtifactContents({
+		shares: updatedShares,
+		existingStorageRaw,
+		urlMappings
+	})
+	const payloads = [
+		{ path: 'public/share/list.json', content: artifactContents.list },
+		{ path: 'public/share/categories.json', content: artifactContents.categories },
+		{ path: 'public/share/folders.json', content: artifactContents.folders },
+		{ path: 'public/share/storage.json', content: artifactContents.storage }
+	]
 
 	for (const payload of payloads) {
 		const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(payload.content), 'base64')
