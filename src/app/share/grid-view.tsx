@@ -13,7 +13,8 @@ interface GridViewProps {
 	onSelectTag: (tag: string) => void
 	emptyMessage?: string
 	isEditMode?: boolean
-	onUpdate?: (share: Share, oldShare: Share, logoItem?: LogoItem) => void
+	getShareKey?: (share: Share) => string
+	onUpdate?: (share: Share, oldShare: Share, logoItem?: LogoItem, oldUrl?: string, currentUrl?: string) => void
 	onDelete?: (share: Share) => void
 }
 
@@ -26,6 +27,7 @@ export default function GridView({
 	onSelectTag,
 	emptyMessage = '没有找到相关资源',
 	isEditMode = false,
+	getShareKey = share => share.url,
 	onUpdate,
 	onDelete
 }: GridViewProps) {
@@ -65,7 +67,7 @@ export default function GridView({
 
 			<div className='grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3'>
 				{shares.map(share => (
-					<ShareCard key={share.url} share={share} isEditMode={isEditMode} onUpdate={onUpdate} onDelete={() => onDelete?.(share)} />
+					<ShareCard key={getShareKey(share)} share={share} isEditMode={isEditMode} onUpdate={onUpdate} onDelete={() => onDelete?.(share)} />
 				))}
 			</div>
 

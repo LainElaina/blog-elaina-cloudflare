@@ -7,17 +7,27 @@ import type { LogoItem } from '../components/logo-upload-dialog'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
 import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads } from './share-artifacts'
+import type { ShareUrlMapping as ShareUrlMappingContract } from '../components/share-folder-select-view-model'
+import type { ShareCategoriesArtifact } from '../share-page-state'
+import type { ShareFolderNode } from '../share-runtime'
+
+type ShareUrlMapping = ShareUrlMappingContract
+
+export type PushSharesResult = {
+	list: Share[]
+	categories: ShareCategoriesArtifact
+	folders: ShareFolderNode[]
+}
 
 export type PushSharesParams = {
 	shares: Share[]
 	logoItems?: Map<string, LogoItem>
-	originalShares?: Share[]
+	urlMappings?: ShareUrlMapping[]
 }
 
-export async function pushShares(params: PushSharesParams): Promise<Share[]> {
-	const { shares, logoItems, originalShares } = params
+export async function pushShares(params: PushSharesParams): Promise<PushSharesResult> {
+	const { shares, logoItems, urlMappings } = params
 
-	// 获取认证 token（自动从全局认证状态获取）
 	const token = await getAuthToken()
 
 	toast.info('正在获取分支信息...')
@@ -32,7 +42,6 @@ export async function pushShares(params: PushSharesParams): Promise<Share[]> {
 	const uploadedHashes = new Set<string>()
 	const nextLogoPaths = new Map<string, string>()
 
-	// Process logo uploads
 	if (logoItems && logoItems.size > 0) {
 		toast.info('正在上传图标...')
 		for (const [url, logoItem] of logoItems.entries()) {
@@ -62,10 +71,9 @@ export async function pushShares(params: PushSharesParams): Promise<Share[]> {
 
 	const updatedShares = applyShareLogoPathUpdates(shares, nextLogoPaths)
 	const renamedUrls = new Map<string, string>()
-	for (const share of shares) {
-		const previous = originalShares?.find(item => item.name === share.name)
-		if (previous && previous.url !== share.url) {
-			renamedUrls.set(share.url, previous.url)
+	for (const mapping of urlMappings ?? []) {
+		if (mapping.oldUrl !== mapping.currentUrl) {
+			renamedUrls.set(mapping.currentUrl, mapping.oldUrl)
 		}
 	}
 	const existingStorageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/storage.json', GITHUB_CONFIG.BRANCH)
@@ -81,19 +89,23 @@ export async function pushShares(params: PushSharesParams): Promise<Share[]> {
 		})
 	}
 
-	// Create tree
 	toast.info('正在创建文件树...')
 	const treeData = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, treeItems, latestCommitSha)
 
-	// Create commit
 	toast.info('正在创建提交...')
 	const commitData = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, commitMessage, treeData.sha, [latestCommitSha])
 
-	// Update branch reference
 	toast.info('正在更新分支...')
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
-	toast.success('发布成功！')
-	return updatedShares
-}
+	const listPayload = payloads.find(payload => payload.path === 'public/share/list.json')
+	const categoriesPayload = payloads.find(payload => payload.path === 'public/share/categories.json')
+	const foldersPayload = payloads.find(payload => payload.path === 'public/share/folders.json')
 
+	toast.success('发布成功！')
+	return {
+		list: listPayload ? (JSON.parse(listPayload.content) as Share[]) : updatedShares,
+		categories: categoriesPayload ? (JSON.parse(categoriesPayload.content) as ShareCategoriesArtifact) : { categories: [] },
+		folders: foldersPayload ? (JSON.parse(foldersPayload.content) as ShareFolderNode[]) : []
+	}
+}

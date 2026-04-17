@@ -1,59 +1,68 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
-import LogoUploadDialog, { type LogoItem } from './logo-upload-dialog'
-import type { Share } from './share-card'
+import { toast } from 'sonner'
+
 import { DialogModal } from '@/components/dialog-modal'
+import LogoUploadDialog, { type LogoItem } from './logo-upload-dialog'
+import ShareFolderSelect from './share-folder-select'
+import type { Share } from './share-card'
+import {
+	buildShareEditSubmitPayload,
+	normalizeShareCategoryInput,
+	normalizeShareFolderPathInput,
+	normalizeShareUrlInput,
+	type ShareEditSubmitPayload
+} from './share-folder-select-view-model'
 
 interface CreateDialogProps {
 	share: Share | null
 	onClose: () => void
-	onSave: (share: Share) => void
+	onSave: (payload: ShareEditSubmitPayload<Share, LogoItem>) => void
+}
+
+const EMPTY_SHARE: Share = {
+	name: '',
+	logo: '',
+	url: '',
+	description: '',
+	tags: [],
+	stars: 3,
+	category: undefined,
+	folderPath: undefined
 }
 
 export default function CreateDialog({ share, onClose, onSave }: CreateDialogProps) {
-	const [formData, setFormData] = useState<Share>({
-		name: '',
-		logo: '',
-		url: '',
-		description: '',
-		tags: [],
-		stars: 3
-	})
+	const [formData, setFormData] = useState<Share>(EMPTY_SHARE)
 	const [showLogoDialog, setShowLogoDialog] = useState(false)
 	const [tagsInput, setTagsInput] = useState('')
+	const [logoItem, setLogoItem] = useState<LogoItem | null>(null)
 
 	useEffect(() => {
 		if (share) {
 			setFormData(share)
 			setTagsInput(share.tags.join(', '))
 		} else {
-			setFormData({
-				name: '',
-				logo: '',
-				url: '',
-				description: '',
-				tags: [],
-				stars: 3
-			})
+			setFormData(EMPTY_SHARE)
 			setTagsInput('')
 		}
+		setLogoItem(null)
 	}, [share])
 
 	const handleLogoSubmit = (logo: LogoItem) => {
+		setLogoItem(logo)
 		const logoUrl = logo.type === 'url' ? logo.url : logo.previewUrl
-		setFormData({ ...formData, logo: logoUrl })
+		setFormData(current => ({ ...current, logo: logoUrl }))
 	}
 
 	const handleTagsChange = (value: string) => {
 		setTagsInput(value)
 		const tags = value
 			.split(',')
-			.map(t => t.trim())
-			.filter(t => t)
-		setFormData({ ...formData, tags })
+			.map(tag => tag.trim())
+			.filter(Boolean)
+		setFormData(current => ({ ...current, tags }))
 	}
 
 	const handleSubmit = () => {
@@ -67,14 +76,25 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 			return
 		}
 
-		onSave(formData)
+		const currentUrl = normalizeShareUrlInput(formData.url)
+		const nextShare: Share = {
+			...formData,
+			url: currentUrl,
+			category: normalizeShareCategoryInput(formData.category ?? ''),
+			folderPath: normalizeShareFolderPathInput(formData.folderPath ?? '')
+		}
+		const payload = buildShareEditSubmitPayload({
+			share: nextShare,
+			oldUrl: share?.url,
+			logoItem: logoItem ?? undefined
+		})
+		onSave(payload)
 		onClose()
 		toast.success(share ? '更新成功' : '添加成功')
 	}
 
 	return (
 		<DialogModal open onClose={onClose} className='card max-h-[90vh] w-sm overflow-y-auto'>
-			{/* 卡片样式的内容 */}
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative cursor-pointer' onClick={() => setShowLogoDialog(true)}>
@@ -109,7 +129,6 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 					</div>
 				</div>
 
-				{/* 星级评分 */}
 				<div className='flex items-center gap-0.5'>
 					{[1, 2, 3, 4, 5].map(index => (
 						<div key={index} onClick={() => setFormData({ ...formData, stars: index })} className='cursor-pointer'>
@@ -120,7 +139,6 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 					))}
 				</div>
 
-				{/* 标签输入 */}
 				<div className='mt-3'>
 					<input
 						type='text'
@@ -138,6 +156,20 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 					</div>
 				</div>
 
+				<div className='mt-3 space-y-2'>
+					<input
+						type='text'
+						value={formData.category ?? ''}
+						onChange={e => setFormData({ ...formData, category: e.target.value })}
+						placeholder='分类（可选）'
+						className='w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none'
+					/>
+					<ShareFolderSelect
+						value={formData.folderPath}
+						onChange={value => setFormData(current => ({ ...current, folderPath: value }))}
+					/>
+				</div>
+
 				<textarea
 					value={formData.description}
 					onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -147,7 +179,6 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 				/>
 			</div>
 
-			{/* 操作按钮 */}
 			<div className='mt-6 flex gap-3'>
 				<button onClick={onClose} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
 					取消
