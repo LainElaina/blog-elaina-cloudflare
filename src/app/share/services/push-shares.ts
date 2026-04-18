@@ -23,6 +23,7 @@ export type PushSharesParams = {
 	shares: Share[]
 	logoItems?: Map<string, LogoItem>
 	urlMappings?: ShareUrlMapping[]
+	deletedPublishedUrls?: Set<string>
 }
 
 export function buildRemoteShareArtifactContents(params: {
@@ -49,7 +50,7 @@ export function buildRemoteShareArtifactContents(params: {
 }
 
 export async function pushShares(params: PushSharesParams): Promise<PushSharesResult> {
-	const { shares, logoItems, urlMappings } = params
+	const { shares, logoItems, urlMappings, deletedPublishedUrls } = params
 
 	const token = await getAuthToken()
 
@@ -97,7 +98,8 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	const artifactContents = buildRemoteShareArtifactContents({
 		shares: updatedShares,
 		existingStorageRaw,
-		urlMappings
+		urlMappings,
+		deletedPublishedUrls
 	})
 	const payloads = [
 		{ path: 'public/share/list.json', content: artifactContents.list },

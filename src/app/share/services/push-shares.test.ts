@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildLocalShareSaveFilePayloads } from './share-artifacts.ts'
@@ -151,5 +152,13 @@ describe('buildRemoteShareArtifactContents', () => {
 				}),
 			/URL 已存在/
 		)
+	})
+
+	it('pushShares 入口会把 deletedPublishedUrls 继续传给远端产物 builder', async () => {
+		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
+
+		assert.match(source, /deletedPublishedUrls\?: Set<string>/)
+		assert.match(source, /const \{ shares, logoItems, urlMappings, deletedPublishedUrls \} = params/)
+		assert.match(source, /buildRemoteShareArtifactContents\(\{[\s\S]*deletedPublishedUrls[\s\S]*\}\)/)
 	})
 })
