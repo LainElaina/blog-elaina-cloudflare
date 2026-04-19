@@ -274,6 +274,74 @@ describe('share migration contracts', () => {
 		assert.equal(Object.prototype.hasOwnProperty.call(listItem, 'folderPath'), false)
 	})
 
+	it('sync 遇到 runtime list 重复 URL 会直接失败', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: JSON.stringify([
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://shared.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4
+						},
+						{
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://shared.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 3
+						}
+					]),
+					storage: createStorageRaw({})
+				}),
+			/重复 URL.*https:\/\/shared\.dev/
+		)
+	})
+
+	it('verify 在 folder path 相同但 name 漂移时也会要求重建 folders artifact', () => {
+		const storageRaw = createStorageRaw({
+			alpha: {
+				slug: 'alpha',
+				name: 'Alpha',
+				logo: '/alpha.png',
+				url: 'https://alpha.dev',
+				description: 'alpha',
+				tags: ['tool'],
+				stars: 4,
+				folderPath: '/alpha/tools',
+				status: 'published'
+			}
+		})
+		const rebuilt = rebuildShareRuntimeArtifactsFromStorage(storageRaw)
+		const folders = JSON.parse(rebuilt.artifacts.folders) as Array<{
+			name: string
+			path: string
+			children: Array<{ name: string; path: string; children: unknown[] }>
+		}>
+		folders[0] = {
+			...folders[0],
+			name: 'wrong-root',
+			children: folders[0].children.map(child => ({
+				...child,
+				name: child.path === '/alpha/tools' ? 'wrong-leaf' : child.name
+			}))
+		}
+
+		const result = verifyShareLedgerAgainstRuntime({
+			storage: storageRaw,
+			runtimeArtifacts: {
+				...rebuilt.artifacts,
+				folders: JSON.stringify(folders, null, 2)
+			}
+		})
+
+		assert.deepEqual(result.artifactsToRebuild, ['public/share/folders.json'])
+	})
+
 	it('canonical compare 会报告真实 drift，但不会改写 runtime 写出顺序契约', () => {
 		const storageRaw = createStorageRaw({
 			beta: {

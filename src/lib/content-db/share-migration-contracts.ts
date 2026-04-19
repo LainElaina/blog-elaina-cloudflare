@@ -83,6 +83,10 @@ function createInvalidShapeError(label: string, reason: string): Error {
 	return new Error(`${label}: 非法 shape - ${reason}`)
 }
 
+function createDuplicateUrlError(label: string, url: string): Error {
+	return new Error(`${label}: 重复 URL - ${url}`)
+}
+
 function parseJsonValue<T>(value: T | string, label: string): unknown {
 	if (typeof value !== 'string') {
 		return value
@@ -173,49 +177,39 @@ function parseCategories(value: { categories?: unknown } | string, label: string
 	}
 }
 
-function validateFolderNodeShape(value: unknown, label: string) {
+function parseFolderNode(value: unknown, label: string): BlogFolderNode {
 	const raw = expectRecord(value, label)
-	if (raw.path !== undefined && typeof raw.path !== 'string') {
+	if (typeof raw.name !== 'string') {
+		throw createInvalidShapeError(`${label}.name`, '期望字符串')
+	}
+	if (typeof raw.path !== 'string') {
 		throw createInvalidShapeError(`${label}.path`, '期望字符串')
 	}
-	if (raw.children !== undefined && !Array.isArray(raw.children)) {
-		throw createInvalidShapeError(`${label}.children`, '期望数组')
+	const path = normalizeFolderPath(raw.path)
+	if (!path) {
+		throw createInvalidShapeError(`${label}.path`, '期望非空文件夹路径')
 	}
-	if (Array.isArray(raw.children)) {
-		for (const [index, child] of raw.children.entries()) {
-			validateFolderNodeShape(child, `${label}.children[${index}]`)
-		}
+	const children = expectArray(raw.children, `${label}.children`)
+	return {
+		name: raw.name,
+		path,
+		children: children.map((child, index) => parseFolderNode(child, `${label}.children[${index}]`))
 	}
 }
 
-function collectFolderPaths(nodes: unknown[]): string[] {
-	const paths: string[] = []
-	const visit = (value: unknown) => {
-		if (!isRecord(value)) {
-			return
-		}
-		const path = normalizeFolderPath(value.path)
-		if (path) {
-			paths.push(path)
-		}
-		if (Array.isArray(value.children)) {
-			for (const child of value.children) {
-				visit(child)
-			}
-		}
-	}
-	for (const node of nodes) {
-		visit(node)
-	}
-	return paths
+function sortFolderNodes(nodes: BlogFolderNode[]): BlogFolderNode[] {
+	return [...nodes]
+		.map(node => ({
+			name: node.name,
+			path: node.path,
+			children: sortFolderNodes(node.children)
+		}))
+		.sort((left, right) => left.path.localeCompare(right.path) || left.name.localeCompare(right.name))
 }
 
 function parseFolders(value: BlogFolderNode[] | string, label: string): BlogFolderNode[] {
 	const parsed = expectArray(parseJsonValue(value, label), label)
-	for (const [index, node] of parsed.entries()) {
-		validateFolderNodeShape(node, `${label}[${index}]`)
-	}
-	return buildBlogFolderTree(collectFolderPaths(parsed))
+	return sortFolderNodes(parsed.map((node, index) => parseFolderNode(node, `${label}[${index}]`)))
 }
 
 function stringifyStable(value: unknown): string {
@@ -236,6 +230,16 @@ function stringifyStable(value: unknown): string {
 
 function compareListItems(left: ShareMigrationListItem, right: ShareMigrationListItem): number {
 	return left.url.localeCompare(right.url) || left.name.localeCompare(right.name)
+}
+
+function assertUniqueListUrls(items: ShareMigrationListItem[], label: string) {
+	const seenUrls = new Set<string>()
+	for (const item of items) {
+		if (seenUrls.has(item.url)) {
+			throw createDuplicateUrlError(label, item.url)
+		}
+		seenUrls.add(item.url)
+	}
 }
 
 function createUniqueSlug(shares: Record<string, ShareMigrationStorageRecord>, name: string): string {
@@ -342,6 +346,7 @@ function normalizeArtifactsForCompare(params: {
 	storage: ShareMigrationStorage | string
 }) {
 	const list = parseListItems(params.list, 'runtimeArtifacts.list').sort(compareListItems)
+	assertUniqueListUrls(list, 'runtimeArtifacts.list')
 	const categories = parseCategories(params.categories, 'runtimeArtifacts.categories')
 	const folders = parseFolders(params.folders, 'runtimeArtifacts.folders')
 	const storage = normalizeStorageForCompare(parseStorage(params.storage, 'runtimeArtifacts.storage'))
@@ -353,6 +358,7 @@ export function syncShareRuntimeArtifactsToLedger(params: {
 	storage: ShareMigrationStorage | string
 }) {
 	const runtimeList = parseListItems(params.list, 'list')
+	assertUniqueListUrls(runtimeList, 'list')
 	const existingStorage = parseStorage(params.storage, 'storage')
 	const nextShares = Object.fromEntries(
 		Object.entries(existingStorage.shares).filter(([, record]) => record.status !== 'published')
