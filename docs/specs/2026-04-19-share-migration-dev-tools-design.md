@@ -72,6 +72,7 @@
   - 任何依赖页面 React state、组件本地状态、或开发态 UI 交互的逻辑
   - 任何仅为当前保存链路宽松兼容而存在的 merge / fallback 语义
 - 本阶段目标是“补工具链”，不是顺手重构现有 `/share` 保存/发布实现；若现有 helper 与本阶段 contract 不完全吻合，应在新 contract 层中显式包裹或收紧，而不是直接照搬。
+- 尤其是 share migration contract 不能直接依赖现有 `upsert` 的宽松 merge 语义来实现“清空字段不残留旧值”；如有需要，应在 contract 层先做更严格的 canonical patch / normalize，再调用底层 helper。
 
 ## 纯函数合同层
 
