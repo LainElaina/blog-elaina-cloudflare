@@ -373,4 +373,52 @@ describe('share migration contracts', () => {
 		)
 		assert.deepEqual(result.artifactsToRebuild, ['public/share/list.json', 'public/share/storage.json'])
 	})
+
+	it('verify 遇到非法 JSON 会抛明确错误，而不是透出裸解析异常', () => {
+		const storageRaw = createStorageRaw({})
+
+		assert.throws(
+			() =>
+				verifyShareLedgerAgainstRuntime({
+					storage: storageRaw,
+					runtimeArtifacts: {
+						list: '{',
+						categories: '{"categories":[]}',
+						folders: '[]',
+						storage: storageRaw
+					}
+				}),
+			(error: unknown) => {
+				assert.equal(error instanceof Error, true)
+				assert.match((error as Error).message, /runtimeArtifacts\.list/)
+				assert.match((error as Error).message, /非法 JSON/)
+				return true
+			}
+		)
+	})
+
+	it('verify 遇到非法 shape 会抛明确错误，而不是静默降级为空结构', () => {
+		assert.throws(
+			() =>
+				verifyShareLedgerAgainstRuntime({
+					storage: {
+						version: 1,
+						shares: []
+					} as unknown as Parameters<typeof verifyShareLedgerAgainstRuntime>[0]['storage'],
+					runtimeArtifacts: {
+						list: '[]',
+						categories: '{"categories":[]}',
+						folders: '[]',
+						storage: createStorageRaw({})
+					}
+				}),
+			(error: unknown) => {
+				assert.equal(error instanceof Error, true)
+				assert.match((error as Error).message, /storage/)
+				assert.match((error as Error).message, /shares/)
+				assert.match((error as Error).message, /shape/)
+				return true
+			}
+		)
+	})
 })
