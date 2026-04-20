@@ -9,10 +9,15 @@ import {
 } from '../src/lib/content-db/share-migration-contracts.ts'
 
 type VerifyArgs = {
-  baseDir?: string
+  baseDir: string
 }
 
-type VerifyFailureCode = 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE' | 'RUNTIME_FAILURE'
+type VerifyFailureCode =
+  | 'ARGUMENT_INVALID'
+  | 'ARTIFACT_MISSING'
+  | 'ARTIFACT_INVALID_JSON'
+  | 'ARTIFACT_INVALID_SHAPE'
+  | 'RUNTIME_FAILURE'
 
 type VerifySuccessSummary = {
   ok: true
@@ -38,9 +43,18 @@ type VerifyFailureSummary = {
   details?: unknown
 }
 
+class VerifyArgumentError extends Error {
+  readonly failureCode = 'ARGUMENT_INVALID' as const
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'VerifyArgumentError'
+  }
+}
+
 class ShareArtifactError extends Error {
   constructor(
-    readonly failureCode: Exclude<VerifyFailureCode, 'RUNTIME_FAILURE'>,
+    readonly failureCode: Exclude<VerifyFailureCode, 'ARGUMENT_INVALID' | 'RUNTIME_FAILURE'>,
     readonly artifactPath: string,
     message: string
   ) {
@@ -50,23 +64,36 @@ class ShareArtifactError extends Error {
 }
 
 function parseArgs(argv: string[]): VerifyArgs {
-  const args: VerifyArgs = {}
+  let baseDir: string | undefined
 
   for (let index = 0; index < argv.length; index += 1) {
     const entry = argv[index]
 
     if (entry.startsWith('--base-dir=')) {
-      args.baseDir = entry.slice('--base-dir='.length)
+      const value = entry.slice('--base-dir='.length)
+      if (!value) {
+        throw new VerifyArgumentError('--base-dir 需要提供路径值')
+      }
+      baseDir = value
       continue
     }
 
     if (entry === '--base-dir') {
-      args.baseDir = argv[index + 1]
+      const value = argv[index + 1]
+      if (!value || value.startsWith('--')) {
+        throw new VerifyArgumentError('--base-dir 需要提供路径值')
+      }
+      baseDir = value
       index += 1
+      continue
     }
+
+    throw new VerifyArgumentError(`未知参数：${entry}`)
   }
 
-  return args
+  return {
+    baseDir: baseDir ?? process.cwd()
+  }
 }
 
 function isNodeErrorWithCode(error: unknown, code: string): error is NodeJS.ErrnoException {
@@ -93,6 +120,15 @@ function readStrictArtifact(baseDir: string, artifactPath: string): string {
   }
 
   return raw
+}
+
+function readStrictShareArtifacts(baseDir: string): ShareRuntimeArtifactsText {
+  return {
+    list: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.list),
+    categories: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.categories),
+    folders: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.folders),
+    storage: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.storage)
+  }
 }
 
 function mapContractErrorToArtifactPath(message: string): string | null {
@@ -126,35 +162,6 @@ function createArtifactShapeError(error: unknown): ShareArtifactError | null {
   return new ShareArtifactError(failureCode, artifactPath, failureMessage)
 }
 
-function readStrictShareArtifacts(baseDir: string): ShareRuntimeArtifactsText {
-  const runtimeArtifacts = {
-    list: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.list),
-    categories: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.categories),
-    folders: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.folders),
-    storage: readStrictArtifact(baseDir, LOCAL_SHARE_SAVE_PATHS.storage)
-  }
-
-  try {
-    const synced = syncShareRuntimeArtifactsToLedger({
-      list: runtimeArtifacts.list,
-      storage: runtimeArtifacts.storage
-    })
-
-    verifyShareLedgerAgainstRuntime({
-      storage: synced.storage,
-      runtimeArtifacts
-    })
-  } catch (error) {
-    const artifactError = createArtifactShapeError(error)
-    if (artifactError) {
-      throw artifactError
-    }
-    throw error
-  }
-
-  return runtimeArtifacts
-}
-
 function buildSummary(artifactsToRebuild: string[]): string {
   if (artifactsToRebuild.length === 0) {
     return '当前 share 正式产物与账本一致，无需重建。'
@@ -163,7 +170,49 @@ function buildSummary(artifactsToRebuild: string[]): string {
   return `待重建 share 正式产物：${artifactsToRebuild.join('、')}`
 }
 
+function runVerification(baseDir: string): VerifySuccessSummary {
+  const runtimeArtifacts = readStrictShareArtifacts(baseDir)
+
+  try {
+    const synced = syncShareRuntimeArtifactsToLedger({
+      list: runtimeArtifacts.list,
+      storage: runtimeArtifacts.storage
+    })
+    const verification = verifyShareLedgerAgainstRuntime({
+      storage: synced.storage,
+      runtimeArtifacts
+    })
+
+    return {
+      ok: true,
+      operation: 'verify',
+      summary: buildSummary(verification.artifactsToRebuild),
+      artifactsToRebuild: verification.artifactsToRebuild,
+      ledger: {
+        shareEntriesCount: Object.keys(synced.storage.shares).length
+      },
+      verify: {
+        artifactsToRebuild: verification.artifactsToRebuild,
+        touchesMarkdown: verification.touchesMarkdown,
+        touchesImages: verification.touchesImages,
+        atomic: verification.atomic
+      }
+    }
+  } catch (error) {
+    throw createArtifactShapeError(error) ?? error
+  }
+}
+
 function buildFailureSummary(error: unknown): VerifyFailureSummary {
+  if (error instanceof VerifyArgumentError) {
+    return {
+      ok: false,
+      operation: 'verify',
+      code: error.failureCode,
+      message: error.message
+    }
+  }
+
   if (error instanceof ShareArtifactError) {
     return {
       ok: false,
@@ -185,46 +234,24 @@ function buildFailureSummary(error: unknown): VerifyFailureSummary {
   }
 }
 
-function buildSuccessSummary(baseDir: string): VerifySuccessSummary {
-  const runtimeArtifacts = readStrictShareArtifacts(baseDir)
-  const synced = syncShareRuntimeArtifactsToLedger({
-    list: runtimeArtifacts.list,
-    storage: runtimeArtifacts.storage
-  })
-  const verification = verifyShareLedgerAgainstRuntime({
-    storage: synced.storage,
-    runtimeArtifacts
-  })
+function writeJsonToStdout(value: VerifySuccessSummary | VerifyFailureSummary) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`)
+}
 
-  return {
-    ok: true,
-    operation: 'verify',
-    summary: buildSummary(verification.artifactsToRebuild),
-    artifactsToRebuild: verification.artifactsToRebuild,
-    ledger: {
-      shareEntriesCount: Object.keys(synced.storage.shares).length
-    },
-    verify: {
-      artifactsToRebuild: verification.artifactsToRebuild,
-      touchesMarkdown: verification.touchesMarkdown,
-      touchesImages: verification.touchesImages,
-      atomic: verification.atomic
-    }
-  }
+function writeHumanErrorToStderr(message: string) {
+  process.stderr.write(`${message}\n`)
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2))
-  const baseDir = args.baseDir ?? process.cwd()
-
   try {
-    const summary = buildSuccessSummary(baseDir)
-    console.log(JSON.stringify(summary, null, 2))
+    const args = parseArgs(process.argv.slice(2))
+    const summary = runVerification(args.baseDir)
+    writeJsonToStdout(summary)
     process.exitCode = summary.artifactsToRebuild.length > 0 ? 1 : 0
   } catch (error) {
     const failure = buildFailureSummary(error)
-    console.log(JSON.stringify(failure, null, 2))
-    console.error(failure.message)
+    writeJsonToStdout(failure)
+    writeHumanErrorToStderr(failure.message)
     process.exitCode = 2
   }
 }
