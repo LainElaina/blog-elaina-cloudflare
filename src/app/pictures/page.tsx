@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { toast } from 'sonner'
 import initialList from './list.json'
-import { MasonryLayout } from './components/masonry-layout'
+import { RandomLayout } from './components/random-layout'
 import UploadDialog from './components/upload-dialog'
 import { pushPictures } from './services/push-pictures'
 import { useAuthStore } from '@/hooks/use-auth'
@@ -280,7 +280,7 @@ export default function Page() {
 				}}
 			/>
 
-			<MasonryLayout pictures={pictures} isEditMode={isEditMode} onDeleteSingle={handleDeleteSingleImage} onDeleteGroup={handleDeleteGroup} />
+			<RandomLayout pictures={pictures} isEditMode={isEditMode} onDeleteSingle={handleDeleteSingleImage} onDeleteGroup={handleDeleteGroup} />
 
 			{pictures.length === 0 && (
 				<div className='text-secondary flex min-h-screen items-center justify-center text-center text-sm'>
