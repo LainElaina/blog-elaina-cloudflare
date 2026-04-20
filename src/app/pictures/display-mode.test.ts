@@ -23,6 +23,14 @@ describe('pictures display mode state machine', () => {
 	it('desktop browse mode resolves to preferredDisplayMode', () => {
 		assert.equal(
 			resolvePicturesEffectiveDisplayMode({
+				preferredDisplayMode: 'random',
+				isEditMode: false,
+				isMobile: false
+			}),
+			'random'
+		)
+		assert.equal(
+			resolvePicturesEffectiveDisplayMode({
 				preferredDisplayMode: 'masonry',
 				isEditMode: false,
 				isMobile: false
@@ -73,5 +81,23 @@ describe('pictures display mode state machine', () => {
 			['getItem', 'pictures-display-mode'],
 			['setItem', 'pictures-display-mode', 'random']
 		])
+	})
+
+	it('falls back to random when sessionStorage is unavailable or throws', () => {
+		assert.equal(readPicturesDisplayModeFromSessionStorage(), 'random')
+
+		const throwingStorage = {
+			getItem() {
+				throw new Error('blocked')
+			},
+			setItem() {
+				throw new Error('blocked')
+			}
+		}
+
+		assert.equal(readPicturesDisplayModeFromSessionStorage(throwingStorage), 'random')
+		assert.doesNotThrow(() => {
+			writePicturesDisplayModeToSessionStorage('masonry', throwingStorage)
+		})
 	})
 })
