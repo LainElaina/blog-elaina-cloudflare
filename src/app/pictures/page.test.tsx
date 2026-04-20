@@ -90,10 +90,14 @@ function renderView(overrides = {}) {
 	}
 }
 
+function findElementByData(node, key, value) {
+	const match = findElement(node, element => element.props[key] === value)
+	assert.ok(match, `expected element with ${key}=${value}`)
+	return match
+}
+
 function findDisplayModeToggle(node) {
-	const toggle = findElement(node, element => element.props['data-display-mode-toggle'] === 'pictures-display-mode-toggle')
-	assert.ok(toggle, 'expected pictures display mode toggle')
-	return toggle
+	return findElementByData(node, 'data-display-mode-toggle', 'pictures-display-mode-toggle')
 }
 
 describe('pictures page view', () => {
@@ -135,10 +139,15 @@ describe('pictures page view', () => {
 		assert.equal(toggle.props['aria-label'], '编辑态固定使用相纸模式')
 	})
 
-	it('keeps the desktop-only visibility contract on the top-right controls', () => {
-		const { markup } = renderView()
+	it('keeps the icon visible on mobile while edit actions stay desktop-only', () => {
+		const { tree } = renderView()
+		const topActions = findElementByData(tree, 'data-pictures-top-actions', 'pictures-top-actions')
+		const editActions = findElementByData(tree, 'data-pictures-edit-actions', 'pictures-edit-actions')
+		const toggleWrapper = findElementByData(tree, 'data-display-mode-toggle-wrapper', 'pictures-display-mode-toggle-wrapper')
 
-		assert.match(markup, /max-sm:hidden/)
+		assert.doesNotMatch(topActions.props.className, /max-sm:hidden/)
+		assert.match(editActions.props.className, /max-sm:hidden/)
+		assert.equal(toggleWrapper.props['data-display-mode-toggle-wrapper'], 'pictures-display-mode-toggle-wrapper')
 	})
 
 	it('renders the correct layout branch for random and masonry modes', () => {

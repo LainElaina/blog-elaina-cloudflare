@@ -221,6 +221,7 @@ export function PicturesPageView(props: PicturesPageViewProps) {
 			props.hideEditButton && !props.isEditMode ? '还没有上传图片。' : '还没有上传图片，点击右上角「编辑」后即可开始上传。'
 		)
 		: null
+	const editActions = createEditActions(props)
 
 	return createElement(
 		Fragment,
@@ -229,9 +230,19 @@ export function PicturesPageView(props: PicturesPageViewProps) {
 		emptyState,
 		createElement(
 			'div',
-			{ className: 'absolute top-4 right-6 flex items-start gap-3 max-sm:hidden' },
-			createDisplayModeToggleButton(props, handleDisplayModeToggle),
-			createEditActions(props)
+			{ className: 'absolute top-4 right-6 flex items-start gap-3', 'data-pictures-top-actions': 'pictures-top-actions' },
+			createElement(
+				'div',
+				{ 'data-display-mode-toggle-wrapper': 'pictures-display-mode-toggle-wrapper' },
+				createDisplayModeToggleButton(props, handleDisplayModeToggle)
+			),
+			editActions
+				? createElement(
+					'div',
+					{ className: 'max-sm:hidden', 'data-pictures-edit-actions': 'pictures-edit-actions' },
+					editActions
+				)
+				: null
 		)
 	)
 }
