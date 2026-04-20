@@ -1,8 +1,7 @@
 import { LOCAL_SHARE_SAVE_PATHS, serializeShareCategories } from '../../app/share/services/share-artifacts.ts'
-import { buildBlogFolderTree, type BlogFolderNode } from './blog-folders.ts'
+import type { BlogFolderNode } from './blog-folders.ts'
 import {
 	exportStaticShareArtifacts,
-	parseShareStorageDB,
 	type ShareListItem as BaseShareListItem,
 	type ShareStatus as BaseShareStatus,
 	type ShareStorageDB,
@@ -55,23 +54,12 @@ function normalizeFolderPath(value: unknown): string | undefined {
 	return parts.length > 0 ? `/${parts.join('/')}` : undefined
 }
 
-function normalizeTags(value: unknown): string[] {
-	if (!Array.isArray(value) || !value.every(tag => typeof tag === 'string')) {
-		return []
-	}
-	return value.map(tag => tag.trim()).filter(Boolean)
-}
-
-function normalizeStars(value: unknown): number {
-	return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function getCanonicalFolderPath(value: { folder?: unknown; folderPath?: unknown }): string | undefined {
-	return normalizeFolderPath(value.folderPath) ?? normalizeFolderPath(value.folder)
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+	return Object.prototype.hasOwnProperty.call(value, key)
 }
 
 function createInvalidJsonError(label: string, error: unknown): Error {
@@ -112,23 +100,107 @@ function expectArray(value: unknown, label: string): unknown[] {
 	return value
 }
 
-function sanitizeListItem(value: Record<string, unknown>): ShareMigrationListItem {
-	const folderPath = getCanonicalFolderPath(value)
+function expectString(value: unknown, label: string): string {
+	if (typeof value !== 'string') {
+		throw createInvalidShapeError(label, '期望字符串')
+	}
+	return value
+}
+
+function parseOptionalText(value: unknown, label: string): string | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+	return normalizeText(expectString(value, label))
+}
+
+function parseTags(value: unknown, label: string): string[] {
+	const tags = expectArray(value, label)
+	return tags.map((tag, index) => expectString(tag, `${label}[${index}]`).trim()).filter(Boolean)
+}
+
+function parseStars(value: unknown, label: string): number {
+	if (typeof value !== 'number' || !Number.isFinite(value)) {
+		throw createInvalidShapeError(label, '期望有限数字')
+	}
+	return value
+}
+
+function parseStatus(value: unknown, label: string): ShareStatus {
+	if (value !== 'published' && value !== 'draft' && value !== 'archived') {
+		throw createInvalidShapeError(label, '期望 published | draft | archived')
+	}
+	return value
+}
+
+function parseSlug(value: unknown, label: string): string {
+	const slug = normalizeText(expectString(value, label))
+	if (!slug) {
+		throw createInvalidShapeError(label, '期望非空字符串')
+	}
+	return slug
+}
+
+function parseCanonicalFolderPath(raw: Record<string, unknown>, label: string): string | undefined {
+	if (hasOwn(raw, 'folderPath')) {
+		return normalizeFolderPath(expectString(raw.folderPath, `${label}.folderPath`))
+	}
+	if (hasOwn(raw, 'folder')) {
+		return normalizeFolderPath(expectString(raw.folder, `${label}.folder`))
+	}
+	return undefined
+}
+
+function parseListItem(value: unknown, label: string): ShareMigrationListItem {
+	const raw = expectRecord(value, label)
+	const category = parseOptionalText(raw.category, `${label}.category`)
+	const folderPath = parseCanonicalFolderPath(raw, label)
 	return {
-		name: typeof value.name === 'string' ? value.name : '',
-		logo: typeof value.logo === 'string' ? value.logo : '',
-		url: typeof value.url === 'string' ? value.url : '',
-		description: typeof value.description === 'string' ? value.description : '',
-		tags: normalizeTags(value.tags),
-		stars: normalizeStars(value.stars),
-		...(normalizeText(value.category) ? { category: normalizeText(value.category) } : {}),
+		name: expectString(raw.name, `${label}.name`),
+		logo: expectString(raw.logo, `${label}.logo`),
+		url: expectString(raw.url, `${label}.url`),
+		description: expectString(raw.description, `${label}.description`),
+		tags: parseTags(raw.tags, `${label}.tags`),
+		stars: parseStars(raw.stars, `${label}.stars`),
+		...(category ? { category } : {}),
 		...(folderPath ? { folderPath } : {})
 	}
 }
 
 function parseListItems(value: ShareMigrationListItem[] | string, label: string): ShareMigrationListItem[] {
 	const parsed = expectArray(parseJsonValue(value, label), label)
-	return parsed.map((item, index) => sanitizeListItem(expectRecord(item, `${label}[${index}]`)))
+	return parsed.map((item, index) => parseListItem(item, `${label}[${index}]`))
+}
+
+function parseStorageRecord(value: unknown, label: string): ShareMigrationStorageRecord {
+	const raw = expectRecord(value, label)
+	const category = parseOptionalText(raw.category, `${label}.category`)
+	const folderPath = parseCanonicalFolderPath(raw, label)
+	return {
+		name: expectString(raw.name, `${label}.name`),
+		logo: expectString(raw.logo, `${label}.logo`),
+		url: expectString(raw.url, `${label}.url`),
+		description: expectString(raw.description, `${label}.description`),
+		tags: parseTags(raw.tags, `${label}.tags`),
+		stars: parseStars(raw.stars, `${label}.stars`),
+		...(category ? { category } : {}),
+		...(folderPath ? { folderPath } : {}),
+		slug: parseSlug(raw.slug, `${label}.slug`),
+		status: parseStatus(raw.status, `${label}.status`)
+	}
+}
+
+function assertUniquePublishedStorageUrls(shares: Record<string, ShareMigrationStorageRecord>, label: string) {
+	const seenUrls = new Set<string>()
+	for (const record of Object.values(shares)) {
+		if (record.status !== 'published') {
+			continue
+		}
+		if (seenUrls.has(record.url)) {
+			throw createDuplicateUrlError(label, record.url)
+		}
+		seenUrls.add(record.url)
+	}
 }
 
 function parseStorage(value: ShareMigrationStorage | string, label: string): ShareMigrationStorage {
@@ -136,44 +208,41 @@ function parseStorage(value: ShareMigrationStorage | string, label: string): Sha
 	if (parsed.version !== 1) {
 		throw createInvalidShapeError(`${label}.version`, '期望值 1')
 	}
+	if (hasOwn(parsed, 'updatedAt') && parsed.updatedAt !== undefined && typeof parsed.updatedAt !== 'string') {
+		throw createInvalidShapeError(`${label}.updatedAt`, '期望字符串')
+	}
 	const shares = parsed.shares
 	if (!isRecord(shares)) {
 		throw createInvalidShapeError(`${label}.shares`, '期望对象')
 	}
-	for (const [key, record] of Object.entries(shares)) {
-		expectRecord(record, `${label}.shares.${key}`)
-	}
-	const sanitized = parseShareStorageDB(
-		JSON.stringify({
-			version: 1,
-			updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : RUNTIME_HELPER_UPDATED_AT,
-			shares
-		})
-	)
+	const parsedShares = Object.fromEntries(
+		Object.entries(shares).map(([key, record]) => [key, parseStorageRecord(record, `${label}.shares.${key}`)])
+	) as Record<string, ShareMigrationStorageRecord>
+	assertUniquePublishedStorageUrls(parsedShares, label)
 	return {
 		version: 1,
 		...(typeof parsed.updatedAt === 'string' ? { updatedAt: parsed.updatedAt } : {}),
-		shares: sanitized.shares
+		shares: parsedShares
 	}
 }
 
-function normalizeCategoryList(values: unknown[]): string[] {
-	return Array.from(new Set(values.map(normalizeText).filter((item): item is string => Boolean(item)))).sort((a, b) =>
-		a.localeCompare(b)
-	)
+function parseCategoryList(values: unknown[], label: string): string[] {
+	return Array.from(
+		new Set(values.map((value, index) => parseOptionalText(value, `${label}[${index}]`)).filter((item): item is string => Boolean(item)))
+	).sort((left, right) => left.localeCompare(right))
 }
 
 function parseCategories(value: { categories?: unknown } | string, label: string): { categories: string[] } {
 	const parsed = parseJsonValue(value, label)
 	if (Array.isArray(parsed)) {
-		return { categories: normalizeCategoryList(parsed) }
+		return { categories: parseCategoryList(parsed, label) }
 	}
 	const raw = expectRecord(parsed, label)
 	if (!Array.isArray(raw.categories)) {
 		throw createInvalidShapeError(`${label}.categories`, '期望数组')
 	}
 	return {
-		categories: normalizeCategoryList(raw.categories)
+		categories: parseCategoryList(raw.categories, `${label}.categories`)
 	}
 }
 
@@ -278,24 +347,21 @@ function toRuntimeArtifactsStorage(storage: ShareMigrationStorage): ShareStorage
 		version: 1,
 		updatedAt: storage.updatedAt ?? RUNTIME_HELPER_UPDATED_AT,
 		shares: Object.fromEntries(
-			Object.entries(storage.shares).map(([key, record]) => {
-				const folderPath = getCanonicalFolderPath(record)
-				return [
-					key,
-					{
-						name: record.name,
-						logo: record.logo,
-						url: record.url,
-						description: record.description,
-						tags: record.tags,
-						stars: record.stars,
-						...(record.category ? { category: record.category } : {}),
-						...(folderPath ? { folderPath } : {}),
-						slug: record.slug,
-						status: record.status
-					}
-				]
-			})
+			Object.entries(storage.shares).map(([key, record]) => [
+				key,
+				{
+					name: record.name,
+					logo: record.logo,
+					url: record.url,
+					description: record.description,
+					tags: record.tags,
+					stars: record.stars,
+					...(record.category ? { category: record.category } : {}),
+					...(record.folderPath ? { folderPath: record.folderPath } : {}),
+					slug: record.slug,
+					status: record.status
+				}
+			])
 		)
 	}
 }
@@ -317,24 +383,21 @@ function normalizeStorageForCompare(storage: ShareMigrationStorage) {
 		shares: Object.fromEntries(
 			Object.entries(storage.shares)
 				.sort(([left], [right]) => left.localeCompare(right))
-				.map(([key, record]) => {
-					const folderPath = getCanonicalFolderPath(record)
-					return [
-						key,
-						{
-							name: record.name,
-							logo: record.logo,
-							url: record.url,
-							description: record.description,
-							tags: record.tags,
-							stars: record.stars,
-							...(record.category ? { category: record.category } : {}),
-							...(folderPath ? { folderPath } : {}),
-							slug: record.slug,
-							status: record.status
-						}
-					]
-				})
+				.map(([key, record]) => [
+					key,
+					{
+						name: record.name,
+						logo: record.logo,
+						url: record.url,
+						description: record.description,
+						tags: record.tags,
+						stars: record.stars,
+						...(record.category ? { category: record.category } : {}),
+						...(record.folderPath ? { folderPath: record.folderPath } : {}),
+						slug: record.slug,
+						status: record.status
+					}
+				])
 		)
 	}
 }

@@ -274,6 +274,118 @@ describe('share migration contracts', () => {
 		assert.equal(Object.prototype.hasOwnProperty.call(listItem, 'folderPath'), false)
 	})
 
+	it('显式空白 folderPath 会清空 canonical folderPath，且不会复活 legacy folder', () => {
+		const synced = syncShareRuntimeArtifactsToLedger({
+			list: JSON.stringify([
+				{
+					name: 'Alpha',
+					logo: '/alpha-next.png',
+					url: 'https://alpha.dev',
+					description: 'alpha next',
+					tags: ['tool'],
+					stars: 5,
+					folderPath: '   ',
+					folder: '/legacy/path'
+				}
+			]),
+			storage: createStorageRaw({})
+		})
+		const rebuilt = rebuildShareRuntimeArtifactsFromStorage(synced.storage)
+		const verified = verifyShareLedgerAgainstRuntime({
+			storage: synced.storage,
+			runtimeArtifacts: rebuilt.artifacts
+		})
+		const storageRecord = synced.storage.shares.alpha as Record<string, unknown>
+		const listItem = JSON.parse(rebuilt.artifacts.list)[0] as Record<string, unknown>
+		const normalizedStorageRecord = verified.normalized.storage.shares.alpha as Record<string, unknown>
+		const normalizedListItem = verified.normalized.list[0] as Record<string, unknown>
+
+		assert.equal(Object.prototype.hasOwnProperty.call(storageRecord, 'folderPath'), false)
+		assert.equal(Object.prototype.hasOwnProperty.call(listItem, 'folderPath'), false)
+		assert.equal(Object.prototype.hasOwnProperty.call(normalizedStorageRecord, 'folderPath'), false)
+		assert.equal(Object.prototype.hasOwnProperty.call(normalizedListItem, 'folderPath'), false)
+		assert.deepEqual(verified.artifactsToRebuild, [])
+	})
+
+	it('sync 遇到非法 tags shape 会抛明确错误', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: JSON.stringify([
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool', 1],
+							stars: 4
+						}
+					]),
+					storage: createStorageRaw({})
+				}),
+			/list\[0\]\.tags\[1\]/
+		)
+	})
+
+	it('sync 遇到非法 stars shape 会抛明确错误', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: JSON.stringify([
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: '4'
+						}
+					]),
+					storage: createStorageRaw({})
+				}),
+			/list\[0\]\.stars/
+		)
+	})
+
+	it('rebuild 遇到非法 status shape 会抛明确错误', () => {
+		assert.throws(
+			() =>
+				rebuildShareRuntimeArtifactsFromStorage(
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'invalid-status'
+						}
+					})
+				),
+			/storage\.shares\.alpha\.status/
+		)
+	})
+
+	it('verify 遇到非法 categories item shape 会抛明确错误', () => {
+		const storageRaw = createStorageRaw({})
+
+		assert.throws(
+			() =>
+				verifyShareLedgerAgainstRuntime({
+					storage: storageRaw,
+					runtimeArtifacts: {
+						list: '[]',
+						categories: '{"categories":["tool",1]}',
+						folders: '[]',
+						storage: storageRaw
+					}
+				}),
+			/runtimeArtifacts\.categories\.categories\[1\]/
+		)
+	})
+
 	it('sync 遇到 runtime list 重复 URL 会直接失败', () => {
 		assert.throws(
 			() =>
@@ -298,9 +410,122 @@ describe('share migration contracts', () => {
 					]),
 					storage: createStorageRaw({})
 				}),
-			/重复 URL.*https:\/\/shared\.dev/
+			/list: 重复 URL - https:\/\/shared\.dev/
 		)
 	})
+
+	it('sync 遇到 storage published duplicate URL 会直接失败', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: '[]',
+					storage: createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://shared.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						},
+						beta: {
+							slug: 'beta',
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://shared.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 3,
+							status: 'published'
+						}
+					})
+				}),
+			/storage: 重复 URL - https:\/\/shared\.dev/
+		)
+	})
+
+	it('rebuild 遇到 storage published duplicate URL 会直接失败', () => {
+		assert.throws(
+			() =>
+				rebuildShareRuntimeArtifactsFromStorage(
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://shared.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						},
+						beta: {
+							slug: 'beta',
+							name: 'Beta',
+							logo: '/beta.png',
+							url: 'https://shared.dev',
+							description: 'beta',
+							tags: ['design'],
+							stars: 3,
+							status: 'published'
+						}
+					})
+				),
+			/storage: 重复 URL - https:\/\/shared\.dev/
+		)
+	})
+
+	it('verify 遇到 runtimeArtifacts.storage published duplicate URL 会直接失败', () => {
+		const storageRaw = createStorageRaw({
+			alpha: {
+				slug: 'alpha',
+				name: 'Alpha',
+				logo: '/alpha.png',
+				url: 'https://alpha.dev',
+				description: 'alpha',
+				tags: ['tool'],
+				stars: 4,
+				status: 'published'
+			}
+		})
+		const rebuilt = rebuildShareRuntimeArtifactsFromStorage(storageRaw)
+
+		assert.throws(
+			() =>
+				verifyShareLedgerAgainstRuntime({
+					storage: storageRaw,
+					runtimeArtifacts: {
+						...rebuilt.artifacts,
+						storage: createStorageRaw({
+							alpha: {
+								slug: 'alpha',
+								name: 'Alpha',
+								logo: '/alpha.png',
+								url: 'https://shared.dev',
+								description: 'alpha',
+								tags: ['tool'],
+								stars: 4,
+								status: 'published'
+							},
+							beta: {
+								slug: 'beta',
+								name: 'Beta',
+								logo: '/beta.png',
+								url: 'https://shared.dev',
+								description: 'beta',
+								tags: ['design'],
+								stars: 3,
+								status: 'published'
+							}
+						})
+					}
+				}),
+			/runtimeArtifacts\.storage: 重复 URL - https:\/\/shared\.dev/
+		)
+	})
+
 
 	it('verify 在 folder path 相同但 name 漂移时也会要求重建 folders artifact', () => {
 		const storageRaw = createStorageRaw({
