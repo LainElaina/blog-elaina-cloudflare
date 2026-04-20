@@ -133,6 +133,32 @@ describe('share migration next routes', () => {
     }
   })
 
+  it('execute route body=null 时走既有未确认分支而不是崩溃', async () => {
+    const previousNodeEnv = process.env.NODE_ENV
+
+    try {
+      process.env.NODE_ENV = 'development'
+
+      const request = new Request('http://localhost/api/share-migration/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'null'
+      })
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 400)
+      assert.deepEqual(payload, {
+        ok: false,
+        operation: 'execute',
+        code: 'UNCONFIRMED',
+        message: '执行前需要明确确认'
+      })
+    } finally {
+      restoreNodeEnv(previousNodeEnv)
+    }
+  })
+
   it('execute route confirmed=true 时返回 200 并写入重建结果', async () => {
     const context = await setupShareArtifactsRepo()
     const previousNodeEnv = process.env.NODE_ENV

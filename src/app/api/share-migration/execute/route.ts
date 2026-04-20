@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server'
 import { executeRoute } from '../route-handlers.ts'
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { confirmed?: unknown }
+  const parsedBody = await request.json().catch(() => undefined)
+  const body = parsedBody !== null && typeof parsedBody === 'object' ? parsedBody : {}
   const result = await executeRoute({
     nodeEnv: process.env.NODE_ENV ?? 'production',
     confirmed: body.confirmed,
