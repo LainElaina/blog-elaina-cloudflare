@@ -8,6 +8,7 @@ import {
 	ShareMigrationPanelView,
 	buildShareMigrationPreviewFallbackSummary,
 	getShareMigrationPanelControls,
+	normalizeShareMigrationResult,
 	resolveShareMigrationPanelMessage
 } from './share-migration-panel.tsx'
 
@@ -28,6 +29,7 @@ function createResult(overrides = {}) {
 		notice: undefined,
 		artifactsToRebuild: [],
 		writtenArtifacts: [],
+		writtenArtifactsPartial: [],
 		artifactsToRebuildBeforeExecute: [],
 		artifactsToRebuildAfterExecute: [],
 		shouldRepreview: false,
@@ -85,7 +87,25 @@ describe('share migration panel', () => {
 		assert.match(markup, /基于当前磁盘快照/)
 	})
 
-	it('任一 v1 dirty signal 存在时都禁用 execute', () => {
+	it('executeDisabled 只由六个 dirty signals 推导，不受 pending 状态影响', () => {
+		const pendingCases = [
+			{ isPreviewPending: false, isExecutePending: false },
+			{ isPreviewPending: true, isExecutePending: false },
+			{ isPreviewPending: false, isExecutePending: true }
+		]
+
+		for (const pendingState of pendingCases) {
+			const controls = getShareMigrationPanelControls({
+				dirtyState: CLEAN_DIRTY_STATE,
+				...pendingState
+			})
+
+			assert.equal(controls.executeDisabled, false)
+			assert.equal(controls.executePendingDisabled, pendingState.isPreviewPending || pendingState.isExecutePending)
+		}
+	})
+
+	it('任一 v1 dirty signal 存在时 preview 仍可用且 execute 保持 dirty disabled', () => {
 		const dirtyCases = [
 			{ ...CLEAN_DIRTY_STATE, isEditMode: true },
 			{ ...CLEAN_DIRTY_STATE, logoItemsCount: 1 },
@@ -102,11 +122,15 @@ describe('share migration panel', () => {
 				isExecutePending: false
 			})
 
+			assert.equal(controls.previewDisabled, false)
 			assert.equal(controls.executeDisabled, true)
+			assert.equal(controls.executePendingDisabled, false)
+			assert.equal(controls.showDirtyPreviewNotice, true)
+			assert.equal(controls.executeDisabledReason, SHARE_MIGRATION_PANEL_MODEL.executeDisabledText)
 		}
 	})
 
-	it('编辑或 dirty 状态下 preview 仍可用，即使 execute 已禁用', () => {
+	it('preview 在编辑或 dirty 状态下提示当前结果不包含未保存编辑', () => {
 		const controls = getShareMigrationPanelControls({
 			dirtyState: {
 				...CLEAN_DIRTY_STATE,
@@ -115,12 +139,6 @@ describe('share migration panel', () => {
 			isPreviewPending: false,
 			isExecutePending: false
 		})
-
-		assert.equal(controls.previewDisabled, false)
-		assert.equal(controls.executeDisabled, true)
-	})
-
-	it('preview 在编辑或 dirty 状态下提示当前结果不包含未保存编辑', () => {
 		const markup = renderPanel({
 			dirtyState: {
 				...CLEAN_DIRTY_STATE,
@@ -131,9 +149,31 @@ describe('share migration panel', () => {
 			})
 		})
 
+		assert.equal(controls.previewDisabled, false)
+		assert.equal(controls.executeDisabled, true)
 		assert.match(markup, /当前结果不包含未保存编辑/)
 		assert.match(markup, /请先保存或取消当前编辑，再执行 share 正式产物重建/)
-		assert.match(markup, /<button[^>]*>预检查<\/button>/)
-		assert.match(markup, /<button[^>]*disabled=""[^>]*>执行重建<\/button>/)
+	})
+
+	it('失败响应包含 partial write 时会展示已部分写回产物', () => {
+		const result = normalizeShareMigrationResult({
+			operation: 'execute',
+			responseOk: false,
+			payload: {
+				message: '写回 share 正式产物时发生错误',
+				writtenArtifactsPartial: ['public/share/list.json', 'public/share/categories.json'],
+				shouldRepreview: true
+			}
+		})
+		const markup = renderPanel({
+			dirtyState: CLEAN_DIRTY_STATE,
+			lastResult: result
+		})
+
+		assert.deepEqual(result.writtenArtifactsPartial, ['public/share/list.json', 'public/share/categories.json'])
+		assert.match(markup, /已部分写回产物/)
+		assert.match(markup, /public\/share\/list\.json/)
+		assert.match(markup, /public\/share\/categories\.json/)
+		assert.match(markup, /建议重新执行预检查后，再决定是否继续操作。/)
 	})
 })

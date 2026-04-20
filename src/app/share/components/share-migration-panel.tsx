@@ -13,6 +13,7 @@ type ShareMigrationResponsePayload = {
 	notice?: unknown
 	artifactsToRebuild?: unknown
 	writtenArtifacts?: unknown
+	writtenArtifactsPartial?: unknown
 	artifactsToRebuildBeforeExecute?: unknown
 	artifactsToRebuildAfterExecute?: unknown
 	shouldRepreview?: unknown
@@ -34,6 +35,7 @@ export type ShareMigrationPanelResult = {
 	notice?: string
 	artifactsToRebuild: string[]
 	writtenArtifacts: string[]
+	writtenArtifactsPartial: string[]
 	artifactsToRebuildBeforeExecute: string[]
 	artifactsToRebuildAfterExecute: string[]
 	shouldRepreview?: boolean
@@ -105,29 +107,32 @@ export function getShareMigrationPanelControls(params: {
 	isExecutePending: boolean
 }) {
 	const isDirty = hasShareMigrationDirtyState(params.dirtyState)
+	const hasPendingOperation = params.isPreviewPending || params.isExecutePending
 
 	return {
-		previewDisabled: params.isPreviewPending || params.isExecutePending,
-		executeDisabled: isDirty || params.isPreviewPending || params.isExecutePending,
+		previewDisabled: hasPendingOperation,
+		executeDisabled: isDirty,
+		executePendingDisabled: hasPendingOperation,
 		executeDisabledReason: isDirty ? SHARE_MIGRATION_PANEL_MODEL.executeDisabledText : undefined,
 		showDirtyPreviewNotice: isDirty
 	}
 }
 
-function normalizeShareMigrationResult(params: {
+export function normalizeShareMigrationResult(params: {
 	operation: ShareMigrationOperation
 	responseOk: boolean
 	payload: ShareMigrationResponsePayload
 }): ShareMigrationPanelResult {
 	const artifactsToRebuild = asStringArray(params.payload.artifactsToRebuild)
 	const writtenArtifacts = asStringArray(params.payload.writtenArtifacts)
+	const writtenArtifactsPartial = asStringArray(params.payload.writtenArtifactsPartial)
 	const artifactsToRebuildBeforeExecute = asStringArray(params.payload.artifactsToRebuildBeforeExecute)
 	const artifactsToRebuildAfterExecute = asStringArray(params.payload.artifactsToRebuildAfterExecute)
 	const fallbackMessage =
 		params.operation === 'preview'
 			? buildShareMigrationPreviewFallbackSummary(artifactsToRebuild)
 			: buildShareMigrationExecuteFallbackSummary({
-				writtenArtifacts,
+				writtenArtifacts: writtenArtifacts.length > 0 ? writtenArtifacts : writtenArtifactsPartial,
 				artifactsToRebuildAfterExecute
 			})
 	const message = params.responseOk
@@ -141,6 +146,7 @@ function normalizeShareMigrationResult(params: {
 		notice: asOptionalString(params.payload.notice),
 		artifactsToRebuild,
 		writtenArtifacts,
+		writtenArtifactsPartial,
 		artifactsToRebuildBeforeExecute,
 		artifactsToRebuildAfterExecute,
 		shouldRepreview: params.payload.shouldRepreview === true
@@ -232,7 +238,7 @@ export function ShareMigrationPanelView(props: {
 					onClick: () => {
 						void props.onExecute()
 					},
-					disabled: controls.executeDisabled,
+					disabled: controls.executeDisabled || controls.executePendingDisabled,
 					className: 'rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm text-amber-900 disabled:cursor-not-allowed disabled:opacity-60'
 				},
 				props.isExecutePending ? '重建中...' : SHARE_MIGRATION_PANEL_MODEL.executeButtonLabel
@@ -252,6 +258,7 @@ export function ShareMigrationPanelView(props: {
 						: null,
 					createElement(ResultList, { label: '待重建产物', items: props.lastResult.artifactsToRebuild }),
 					createElement(ResultList, { label: '已写回产物', items: props.lastResult.writtenArtifacts }),
+					createElement(ResultList, { label: '已部分写回产物', items: props.lastResult.writtenArtifactsPartial }),
 					createElement(ResultList, { label: '执行前待重建', items: props.lastResult.artifactsToRebuildBeforeExecute }),
 					createElement(ResultList, { label: '执行后待重建', items: props.lastResult.artifactsToRebuildAfterExecute })
 				)
@@ -300,6 +307,7 @@ export function ShareMigrationPanel(props: {
 				message: error instanceof Error ? error.message : '预检查失败',
 				artifactsToRebuild: [],
 				writtenArtifacts: [],
+				writtenArtifactsPartial: [],
 				artifactsToRebuildBeforeExecute: [],
 				artifactsToRebuildAfterExecute: []
 			})
@@ -309,7 +317,7 @@ export function ShareMigrationPanel(props: {
 	}
 
 	const handleExecute = async () => {
-		if (controls.executeDisabled) {
+		if (controls.executeDisabled || controls.executePendingDisabled) {
 			return
 		}
 
@@ -342,6 +350,7 @@ export function ShareMigrationPanel(props: {
 				message: error instanceof Error ? error.message : '执行重建失败',
 				artifactsToRebuild: [],
 				writtenArtifacts: [],
+				writtenArtifactsPartial: [],
 				artifactsToRebuildBeforeExecute: [],
 				artifactsToRebuildAfterExecute: []
 			})
