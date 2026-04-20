@@ -36,4 +36,40 @@ describe('pictures page display mode wiring', () => {
 
 		assert.equal(state.effectiveDisplayMode, 'random')
 	})
+
+	it('restores masonry after leaving edit mode', () => {
+		const editState = buildPicturesPageDisplayModeState({
+			preferredDisplayMode: 'masonry',
+			isEditMode: true,
+			isMobile: false,
+			onDisplayModeChange: () => undefined
+		})
+		const browseState = buildPicturesPageDisplayModeState({
+			preferredDisplayMode: 'masonry',
+			isEditMode: false,
+			isMobile: false,
+			onDisplayModeChange: () => undefined
+		})
+
+		assert.equal(editState.effectiveDisplayMode, 'random')
+		assert.equal(browseState.effectiveDisplayMode, 'masonry')
+	})
+
+	it('restores masonry after returning from mobile to desktop', () => {
+		const mobileState = buildPicturesPageDisplayModeState({
+			preferredDisplayMode: 'masonry',
+			isEditMode: false,
+			isMobile: true,
+			onDisplayModeChange: () => undefined
+		})
+		const desktopState = buildPicturesPageDisplayModeState({
+			preferredDisplayMode: 'masonry',
+			isEditMode: false,
+			isMobile: false,
+			onDisplayModeChange: () => undefined
+		})
+
+		assert.equal(mobileState.effectiveDisplayMode, 'random')
+		assert.equal(desktopState.effectiveDisplayMode, 'masonry')
+	})
 })

@@ -21,6 +21,18 @@ export function resolvePicturesEffectiveDisplayMode(params: {
 	return params.preferredDisplayMode
 }
 
+export function getPicturesDisplayModeSessionStorage(windowLike?: { sessionStorage: SessionStorageLike } | null): SessionStorageLike | null {
+	if (!windowLike) {
+		return null
+	}
+
+	try {
+		return windowLike.sessionStorage
+	} catch {
+		return null
+	}
+}
+
 export function readPicturesDisplayModeFromSessionStorage(storage?: SessionStorageLike | null): PicturesDisplayMode {
 	if (!storage) {
 		return 'random'

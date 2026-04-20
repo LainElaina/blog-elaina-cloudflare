@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import {
 	PICTURES_DISPLAY_MODE_PERSISTENCE,
 	PICTURES_DISPLAY_MODE_SESSION_STORAGE_KEY,
+	getPicturesDisplayModeSessionStorage,
 	readPicturesDisplayModeFromSessionStorage,
 	resolvePicturesEffectiveDisplayMode,
 	writePicturesDisplayModeToSessionStorage,
@@ -85,6 +86,7 @@ describe('pictures display mode state machine', () => {
 
 	it('falls back to random when sessionStorage is unavailable or throws', () => {
 		assert.equal(readPicturesDisplayModeFromSessionStorage(), 'random')
+		assert.equal(getPicturesDisplayModeSessionStorage(), null)
 
 		const throwingStorage = {
 			getItem() {
@@ -94,7 +96,13 @@ describe('pictures display mode state machine', () => {
 				throw new Error('blocked')
 			}
 		}
+		const throwingWindowLike = {
+			get sessionStorage() {
+				throw new Error('blocked')
+			}
+		}
 
+		assert.equal(getPicturesDisplayModeSessionStorage(throwingWindowLike), null)
 		assert.equal(readPicturesDisplayModeFromSessionStorage(throwingStorage), 'random')
 		assert.doesNotThrow(() => {
 			writePicturesDisplayModeToSessionStorage('masonry', throwingStorage)

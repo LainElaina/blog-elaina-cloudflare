@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import initialList from './list.json'
 import { RandomLayout } from './components/random-layout'
 import { MasonryLayout } from './components/masonry-layout'
-import type { PicturesDisplayMode } from './display-mode'
+import { getPicturesDisplayModeSessionStorage, readPicturesDisplayModeFromSessionStorage, writePicturesDisplayModeToSessionStorage, type PicturesDisplayMode } from './display-mode'
 import { buildPicturesPageDisplayModeState } from './page-view-model'
 import { PicturesPageView } from './page-view'
 import UploadDialog from './components/upload-dialog'
@@ -31,6 +31,7 @@ export default function Page() {
 	const [originalPictures, setOriginalPictures] = useState<Picture[]>(initialList as Picture[])
 	const [isEditMode, setIsEditMode] = useState(false)
 	const [preferredDisplayMode, setPreferredDisplayMode] = useState<PicturesDisplayMode>('random')
+	const [hasRestoredDisplayModePreference, setHasRestoredDisplayModePreference] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 	const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
 	const [imageItems, setImageItems] = useState<Map<string, ImageItem>>(new Map())
@@ -264,6 +265,26 @@ export default function Page() {
 		isMobile,
 		onDisplayModeChange: setPreferredDisplayMode
 	})
+
+	useEffect(() => {
+		setPreferredDisplayMode(
+			readPicturesDisplayModeFromSessionStorage(
+				getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window)
+			)
+		)
+		setHasRestoredDisplayModePreference(true)
+	}, [])
+
+	useEffect(() => {
+		if (!hasRestoredDisplayModePreference) {
+			return
+		}
+
+		writePicturesDisplayModeToSessionStorage(
+			preferredDisplayMode,
+			getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window)
+		)
+	}, [hasRestoredDisplayModePreference, preferredDisplayMode])
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
