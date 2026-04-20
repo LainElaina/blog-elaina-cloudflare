@@ -517,7 +517,7 @@ export default function Page() {
 		resetEditingSessions()
 	}
 
-	const isDev = process.env.NODE_ENV === 'development'
+	const isDev = process.env.NODE_ENV !== 'production'
 	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
 
 	useEffect(() => {
@@ -630,7 +630,7 @@ export default function Page() {
 					</div>
 				</div>
 
-				<motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} className='absolute top-4 right-6 flex flex-col items-end gap-3 max-sm:hidden'>
+				<motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} className='fixed top-4 right-6 z-40 flex flex-col items-end gap-3'>
 					<div className='flex gap-3'>
 						{pageState.isEditMode ? (
 							<>

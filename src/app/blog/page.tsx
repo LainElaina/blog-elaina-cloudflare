@@ -14,7 +14,7 @@ import { useBlogIndex, type BlogIndexItem } from '@/hooks/use-blog-index'
 import { useCategories } from '@/hooks/use-categories'
 import { useBlogFolders } from '@/hooks/use-blog-folders'
 import { useReadArticles } from '@/hooks/use-read-articles'
-import JuejinSVG from '@/svgs/juejin.svg'
+import GitHubSVG from '@/svgs/github.svg'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { readFileAsText } from '@/lib/file-utils'
@@ -426,7 +426,7 @@ export default function BlogPage() {
 						<motion.div
 							initial={{ opacity: 0, scale: 0.6 }}
 							animate={{ opacity: 1, scale: 1 }}
-							className='card btn-rounded relative mx-auto flex items-center gap-1 p-1 max-sm:hidden'>
+							className='card btn-rounded relative mx-auto flex flex-wrap items-center justify-center gap-2 p-1 max-sm:hidden'>
 							{[
 								{ value: 'day', label: '日' },
 								{ value: 'week', label: '周' },
@@ -447,10 +447,8 @@ export default function BlogPage() {
 									{option.label}
 								</motion.button>
 							))}
-						</motion.div>
-
-						<div className='card flex w-full max-w-[840px] flex-wrap items-center gap-3 px-4 py-3 max-sm:hidden'>
-							<label className='text-secondary flex items-center gap-2 text-sm'>
+							<div className='mx-1 h-4 w-px bg-gray-200'></div>
+							<label className='text-secondary flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium'>
 								<input type='checkbox' checked={favoritesOnly} onChange={event => setFavoritesOnly(event.target.checked)} />
 								仅看精选
 							</label>
@@ -458,7 +456,7 @@ export default function BlogPage() {
 								<select
 									value={activeFolderPath}
 									onChange={event => setActiveFolderPath(event.target.value)}
-									className='rounded-lg border bg-white/80 px-3 py-1 text-sm'>
+									className='rounded-full border bg-white/80 px-3 py-1.5 text-xs'>
 									<option value={BLOG_FOLDER_ALL}>全部目录</option>
 									<option value={BLOG_FOLDER_UNFILED}>未归档</option>
 									{availableFolderPaths.map(path => (
@@ -468,7 +466,7 @@ export default function BlogPage() {
 									))}
 								</select>
 							)}
-						</div>
+						</motion.div>
 					</>
 				)}
 
@@ -562,10 +560,11 @@ export default function BlogPage() {
 							animate={{ opacity: 1, scale: 1 }}
 							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
-							href='https://juejin.cn/user/2427311675422382/posts'
+							href='https://github.com/LainElaina'
 							target='_blank'
+							rel='noreferrer'
 							className='card text-secondary static inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs'>
-							<JuejinSVG className='h-4 w-4' />
+							<GitHubSVG className='h-4 w-4' />
 							更多
 						</motion.a>
 					</div>

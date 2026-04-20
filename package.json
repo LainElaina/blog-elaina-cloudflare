@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 2025",
+    "dev": "next dev -H 0.0.0.0 -p 2025",
     "svg": "node scripts/gen-svgs-index.js",
     "build": "next build",
     "start": "next start",
