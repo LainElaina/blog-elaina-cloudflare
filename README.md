@@ -198,6 +198,22 @@
   - 不会修改 `public/blogs/<slug>/index.md` 或图片资源
 - 路由最小集成验证已覆盖 preview / execute 的 dev-only 边界与真实写回行为
 
+### 🧰 /share 开发环境迁移工具（仅 development）
+- 页内入口：`/share` 右上角的 share 正式产物工具面板
+  - 提供 `预检查` 与 `执行重建` 两个动作
+  - 面板始终只针对当前磁盘上的 `public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+- 预检查入口：`/api/share-migration/preview`
+  - 只读四份 `public/share/*.json` 正式产物
+  - 返回当前仍需重建的 share 正式产物列表，不写文件
+- 执行入口：`/api/share-migration/execute`
+  - 仅在明确确认后执行
+  - 会重建并写回 `public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`
+  - 不会修改 logo 图片，也不会把 `/share` 改成直接读取数据库
+- 运行时边界保持不变：`/share` 页面仍继续读取 `public/share/*` 正式产物，首页 share consumers 继续只读取 `public/share/list.json`；本阶段只是补 preview / execute / verify 工具链，不是 DB-first runtime 改造
+- CLI 校验入口：`scripts/verify-share-runtime-artifacts.ts`
+  - 用法：在仓库根目录运行 `node --require ./test-alias-register.cjs --import jiti/register ./scripts/verify-share-runtime-artifacts.ts`；如需指定目录，可追加 `--base-dir=<repo-root>`
+  - 只校验四份 share 正式产物与账本是否存在 drift，不写文件、不处理 logo 图片
+
 ### 🗂️ 博客目录交互补充说明
 - `/blog` 的“目录”是与 日 / 周 / 月 / 年 / 分类 同级的主视图，不再是独立漂浮筛选区。
 - “清空目录”不再混在目录下拉的默认项中，而是独立动作，并会在执行前明确说明不会删除文章内容或目录本身。

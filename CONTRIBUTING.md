@@ -98,6 +98,29 @@
   - `verifyBlogLedgerAgainstRuntime`
   - `rebuildBlogRuntimeArtifactsFromStorage`
 
+### share 正式产物开发工具补充（仅 development）
+- 关键文件：`src/app/api/share-migration/preview/route.ts`、`src/app/api/share-migration/execute/route.ts`、`src/app/api/share-migration/route-handlers.ts`、`src/app/api/share-migration/share-migration-route-helper.ts`、`src/app/api/share-migration/share-migration-api-contracts.ts`、`src/app/share/components/share-migration-panel.tsx`、`scripts/verify-share-runtime-artifacts.ts`
+- `preview` 责任：严格读取 `public/share/list.json`、`public/share/categories.json`、`public/share/folders.json`、`public/share/storage.json`，只返回当前 `artifactsToRebuild` 与摘要，不写文件
+- `execute` 责任：仅接受 `confirmed === true`；每次都基于当前磁盘快照重新读取并执行，不依赖上一次 preview；按 `list.json -> categories.json -> folders.json -> storage.json` 固定顺序写回四份正式产物；写后重新从磁盘读取并复检；失败时响应会带 `writtenArtifactsPartial`，应先重新 preview
+- 边界约束：工具链只处理 share 四份正式产物，不修改 logo 图片；`/share` 运行时仍继续读取 `public/share/*`，首页 share consumers 继续只读 `public/share/list.json`，本阶段不是 DB-first runtime 改造
+- `/share` 面板 dirty-state caveat：面板只在 development 的 `/share` 右上角显示；preview 在编辑态或脏状态下仍可用，但会提示“当前结果不包含未保存编辑”；只要 `pageState.isEditMode`、`logoItems.size`、`renamedUrls.size`、`draftOnlyUrls.size`、`deletedPublishedUrls.size`、`editingAnchorUrls.length` 任一存在，execute 就必须禁用
+- `verify` 责任：`scripts/verify-share-runtime-artifacts.ts` 只做严格读取与 drift 校验，不写文件；exit code 约定为无 drift 返回 `0`、发现 drift 返回 `1`、输入或运行时错误返回 `2`
+
+### share 开发工具测试命令
+```bash
+node --require ./test-alias-register.cjs --import jiti/register --test \
+  ./src/lib/content-db/share-migration-contracts.test.ts \
+  ./src/app/api/share-migration/share-migration-api-contracts.test.ts \
+  ./src/app/api/share-migration/share-migration-route-helper.test.ts \
+  ./src/app/api/share-migration/route-handlers.test.ts \
+  ./src/app/api/share-migration/route-files.test.ts \
+  ./src/app/share/components/share-migration-panel.test.tsx \
+  ./scripts/verify-share-runtime-artifacts.test.ts \
+  ./src/app/share/share-page-state.test.ts \
+  ./src/app/share/services/push-shares.test.ts
+node --require ./test-alias-register.cjs --import jiti/register ./scripts/verify-share-runtime-artifacts.ts --base-dir=<repo-root>
+```
+
 ### 目录交互验收补充
 - `/blog` 目录模式切换到其他模式后，不应继续隐式保留目录过滤。
 - `/blog` 编辑态默认“选择目录”状态下点击“分配目录”必须给出显式提示，不允许默默等价为清空目录。
