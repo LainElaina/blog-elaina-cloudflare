@@ -142,10 +142,10 @@ function parseSlug(value: unknown, label: string): string {
 }
 
 function parseCanonicalFolderPath(raw: Record<string, unknown>, label: string): string | undefined {
-	if (hasOwn(raw, 'folderPath')) {
+	if (hasOwn(raw, 'folderPath') && raw.folderPath !== undefined) {
 		return normalizeFolderPath(expectString(raw.folderPath, `${label}.folderPath`))
 	}
-	if (hasOwn(raw, 'folder')) {
+	if (hasOwn(raw, 'folder') && raw.folder !== undefined) {
 		return normalizeFolderPath(expectString(raw.folder, `${label}.folder`))
 	}
 	return undefined

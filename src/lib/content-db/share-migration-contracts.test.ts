@@ -307,6 +307,147 @@ describe('share migration contracts', () => {
 		assert.deepEqual(verified.artifactsToRebuild, [])
 	})
 
+	it('对象输入中的 undefined folder 字段按缺失处理，不会触发 shape 错', () => {
+		const synced = syncShareRuntimeArtifactsToLedger({
+			list: [
+				{
+					name: 'Alpha',
+					logo: '/alpha-next.png',
+					url: 'https://alpha.dev',
+					description: 'alpha next',
+					tags: ['tool'],
+					stars: 5,
+					folderPath: undefined,
+					folder: undefined
+				}
+			] as unknown as Parameters<typeof syncShareRuntimeArtifactsToLedger>[0]['list'],
+			storage: {
+				version: 1,
+				shares: {
+					'archive-only': {
+						slug: 'archive-only',
+						name: 'Archive Only',
+						logo: '/archive.png',
+						url: 'https://archive.dev',
+						description: 'archive',
+						tags: ['legacy'],
+						stars: 1,
+						status: 'archived',
+						folderPath: undefined,
+						folder: undefined
+					}
+				}
+			} as unknown as Parameters<typeof syncShareRuntimeArtifactsToLedger>[0]['storage']
+		})
+		const rebuilt = rebuildShareRuntimeArtifactsFromStorage(synced.storage)
+		const verified = verifyShareLedgerAgainstRuntime({
+			storage: synced.storage,
+			runtimeArtifacts: rebuilt.artifacts
+		})
+		const alphaRecord = synced.storage.shares.alpha as Record<string, unknown>
+		const archivedRecord = synced.storage.shares['archive-only'] as Record<string, unknown>
+		const listItem = JSON.parse(rebuilt.artifacts.list)[0] as Record<string, unknown>
+
+		assert.equal(Object.prototype.hasOwnProperty.call(alphaRecord, 'folderPath'), false)
+		assert.equal(Object.prototype.hasOwnProperty.call(archivedRecord, 'folderPath'), false)
+		assert.equal(Object.prototype.hasOwnProperty.call(listItem, 'folderPath'), false)
+		assert.deepEqual(verified.artifactsToRebuild, [])
+	})
+
+	it('对象输入中的 undefined folder 别名与缺失键语义一致', () => {
+		const cases = [
+			{
+				name: 'undefined folderPath falls back to legacy folder',
+				item: {
+					folderPath: undefined,
+					folder: ' /legacy//path '
+				},
+				expectedFolderPath: '/legacy/path'
+			},
+			{
+				name: 'undefined legacy folder does not override canonical folderPath',
+				item: {
+					folderPath: ' /canonical//path ',
+					folder: undefined
+				},
+				expectedFolderPath: '/canonical/path'
+			}
+		]
+
+		for (const testCase of cases) {
+			const synced = syncShareRuntimeArtifactsToLedger({
+				list: [
+					{
+						name: 'Alpha',
+						logo: '/alpha-next.png',
+						url: 'https://alpha.dev',
+						description: 'alpha next',
+						tags: ['tool'],
+						stars: 5,
+						...testCase.item
+					}
+				] as unknown as Parameters<typeof syncShareRuntimeArtifactsToLedger>[0]['list'],
+				storage: {
+					version: 1,
+					shares: {}
+				} as Parameters<typeof syncShareRuntimeArtifactsToLedger>[0]['storage']
+			})
+			const rebuilt = rebuildShareRuntimeArtifactsFromStorage(synced.storage)
+			const listItem = JSON.parse(rebuilt.artifacts.list)[0] as Record<string, unknown>
+
+			assert.equal(synced.storage.shares.alpha?.folderPath, testCase.expectedFolderPath, testCase.name)
+			assert.equal(listItem.folderPath, testCase.expectedFolderPath, testCase.name)
+		}
+	})
+
+	it('对象输入中的 null folderPath 仍会抛明确错误', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: [
+						{
+							name: 'Alpha',
+							logo: '/alpha-next.png',
+							url: 'https://alpha.dev',
+							description: 'alpha next',
+							tags: ['tool'],
+							stars: 5,
+							folderPath: null
+						}
+					] as unknown as Parameters<typeof syncShareRuntimeArtifactsToLedger>[0]['list'],
+					storage: {
+						version: 1,
+						shares: {}
+					} as Parameters<typeof syncShareRuntimeArtifactsToLedger>[0]['storage']
+				}),
+			/list\[0\]\.folderPath/
+		)
+	})
+
+	it('对象输入中的非字符串 legacy folder 仍会抛明确错误', () => {
+		assert.throws(
+			() =>
+				rebuildShareRuntimeArtifactsFromStorage({
+					version: 1,
+					shares: {
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published',
+							folder: 1
+						}
+					}
+				} as unknown as Parameters<typeof rebuildShareRuntimeArtifactsFromStorage>[0]),
+			/storage\.shares\.alpha\.folder/
+		)
+	})
+
+
 	it('sync 遇到非法 tags shape 会抛明确错误', () => {
 		assert.throws(
 			() =>
