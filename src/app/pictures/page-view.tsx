@@ -39,31 +39,86 @@ export interface PicturesPageViewProps {
 	renderMasonryLayout: (props: PicturesLayoutProps) => React.ReactNode
 }
 
-function getDisplayModeButtonClass(isActive: boolean) {
-	return isActive
-		? 'rounded-xl border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white shadow-sm'
-		: 'rounded-xl border bg-white/80 px-3 py-1.5 text-sm text-slate-700 backdrop-blur-sm transition-colors hover:bg-white'
+function getDisplayModeToggleButtonClass(params: {
+	currentMode: PicturesPageDisplayMode
+	isEditMode: boolean
+}) {
+	if (params.isEditMode) {
+		return 'rounded-full border bg-white/70 p-3 text-slate-400 shadow-sm backdrop-blur-sm opacity-70'
+	}
+
+	return params.currentMode === 'masonry'
+		? 'rounded-full border border-slate-900 bg-slate-900 p-3 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-slate-800'
+		: 'rounded-full border bg-white/70 p-3 text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white'
 }
 
-function createDisplayModeButton(params: {
-	label: string
-	mode: PicturesPageDisplayMode
-	isActive: boolean
-	isEditMode: boolean
-	onClick: () => void
-}) {
+function createDisplayModeToggleIcon(mode: PicturesPageDisplayMode) {
+	if (mode === 'masonry') {
+		return createElement(
+			'svg',
+			{
+				viewBox: '0 0 24 24',
+				width: 18,
+				height: 18,
+				fill: 'none',
+				stroke: 'currentColor',
+				strokeWidth: 1.8,
+				strokeLinecap: 'round',
+				strokeLinejoin: 'round',
+				'aria-hidden': true
+			},
+			createElement('rect', { x: 4, y: 4, width: 6, height: 7, rx: 1.5 }),
+			createElement('rect', { x: 14, y: 4, width: 6, height: 4, rx: 1.5 }),
+			createElement('rect', { x: 14, y: 10, width: 6, height: 10, rx: 1.5 }),
+			createElement('rect', { x: 4, y: 13, width: 6, height: 7, rx: 1.5 })
+		)
+	}
+
+	return createElement(
+		'svg',
+		{
+			viewBox: '0 0 24 24',
+			width: 18,
+			height: 18,
+			fill: 'none',
+			stroke: 'currentColor',
+			strokeWidth: 1.8,
+			strokeLinecap: 'round',
+			strokeLinejoin: 'round',
+			'aria-hidden': true
+		},
+		createElement('rect', { x: 5, y: 9, width: 10, height: 10, rx: 2 }),
+		createElement('rect', { x: 9, y: 5, width: 10, height: 10, rx: 2 })
+	)
+}
+
+function createDisplayModeToggleButton(props: PicturesPageViewProps, onClick: () => void) {
+	const targetDisplayMode = props.effectiveDisplayMode === 'masonry' ? 'random' : 'masonry'
+	const title = props.isEditMode
+		? '编辑态固定使用相纸模式'
+		: targetDisplayMode === 'masonry'
+			? '切换到瀑布模式'
+			: '切换到相纸模式'
+
 	return createElement(
 		motion.button,
 		{
-			whileHover: params.isEditMode ? undefined : { scale: 1.03 },
-			whileTap: params.isEditMode ? undefined : { scale: 0.97 },
+			whileHover: props.isEditMode ? undefined : { scale: 1.05 },
+			whileTap: props.isEditMode ? undefined : { scale: 0.95 },
 			type: 'button',
-			onClick: params.onClick,
-			disabled: params.isEditMode,
-			'aria-pressed': params.isActive,
-			className: getDisplayModeButtonClass(params.isActive)
+			onClick,
+			disabled: props.isEditMode,
+			title,
+			'aria-label': title,
+			'data-display-mode-toggle': 'pictures-display-mode-toggle',
+			'data-current-display-mode': props.effectiveDisplayMode,
+			'data-target-display-mode': targetDisplayMode,
+			className: getDisplayModeToggleButtonClass({
+				currentMode: props.effectiveDisplayMode,
+				isEditMode: props.isEditMode
+			})
 		},
-		params.label
+		createDisplayModeToggleIcon(targetDisplayMode)
 	)
 }
 
@@ -86,7 +141,9 @@ function createEditActions(props: PicturesPageViewProps) {
 		)
 	}
 
-	return createElement(Fragment, null,
+	return createElement(
+		Fragment,
+		null,
 		createElement(
 			motion.button,
 			{
@@ -148,40 +205,14 @@ export function PicturesPageView(props: PicturesPageViewProps) {
 		? props.renderMasonryLayout(layoutProps)
 		: props.renderRandomLayout(layoutProps)
 
-	const handleDisplayModeChange = (mode: PicturesPageDisplayMode) => {
-		if (props.isEditMode || mode === props.effectiveDisplayMode) {
+	const handleDisplayModeToggle = () => {
+		const nextMode = props.effectiveDisplayMode === 'masonry' ? 'random' : 'masonry'
+		if (props.isEditMode) {
 			return
 		}
 
-		props.onDisplayModeChange(mode)
+		props.onDisplayModeChange(nextMode)
 	}
-
-	const visitorToggleCard = createElement(
-		'div',
-		{ className: 'rounded-2xl border bg-white/70 px-3 py-3 shadow-sm backdrop-blur-sm' },
-		createElement('p', { className: 'text-secondary mb-2 text-right text-[11px] tracking-[0.24em] uppercase' }, '浏览模式'),
-		createElement(
-			'div',
-			{ className: 'flex items-center gap-2' },
-			createDisplayModeButton({
-				label: '相纸',
-				mode: 'random',
-				isActive: props.effectiveDisplayMode === 'random',
-				isEditMode: props.isEditMode,
-				onClick: () => handleDisplayModeChange('random')
-			}),
-			createDisplayModeButton({
-				label: '瀑布',
-				mode: 'masonry',
-				isActive: props.effectiveDisplayMode === 'masonry',
-				isEditMode: props.isEditMode,
-				onClick: () => handleDisplayModeChange('masonry')
-			})
-		),
-		props.isEditMode
-			? createElement('p', { className: 'text-secondary mt-2 text-right text-xs' }, '编辑态固定使用相纸模式')
-			: null
-	)
 
 	const emptyState = props.pictures.length === 0
 		? createElement(
@@ -199,7 +230,7 @@ export function PicturesPageView(props: PicturesPageViewProps) {
 		createElement(
 			'div',
 			{ className: 'absolute top-4 right-6 flex items-start gap-3 max-sm:hidden' },
-			visitorToggleCard,
+			createDisplayModeToggleButton(props, handleDisplayModeToggle),
 			createEditActions(props)
 		)
 	)

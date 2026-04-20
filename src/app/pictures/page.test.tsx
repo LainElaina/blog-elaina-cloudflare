@@ -60,12 +60,6 @@ function findElement(node, predicate) {
 	return findElement(node.props.children, predicate)
 }
 
-function findElementByText(node, text) {
-	const match = findElement(node, element => getTextContent(element.props.children).trim() === text)
-	assert.ok(match, `expected element with text ${text}`)
-	return match
-}
-
 function createProps(overrides = {}) {
 	return {
 		pictures: SAMPLE_PICTURES,
@@ -96,23 +90,32 @@ function renderView(overrides = {}) {
 	}
 }
 
-describe('pictures page view', () => {
-	it('renders the visitor toggle group with 相纸 active by default', () => {
-		const { markup, tree } = renderView()
-		const randomButton = findElementByText(tree, '相纸')
-		const masonryButton = findElementByText(tree, '瀑布')
+function findDisplayModeToggle(node) {
+	const toggle = findElement(node, element => element.props['data-display-mode-toggle'] === 'pictures-display-mode-toggle')
+	assert.ok(toggle, 'expected pictures display mode toggle')
+	return toggle
+}
 
-		assert.match(markup, /相纸/)
-		assert.match(markup, /瀑布/)
-		assert.equal(randomButton.props['aria-pressed'], true)
-		assert.equal(masonryButton.props['aria-pressed'], false)
+describe('pictures page view', () => {
+	it('renders a single icon toggle in the top-right corner by default', () => {
+		const { markup, tree } = renderView()
+		const toggle = findDisplayModeToggle(tree)
+
+		assert.match(markup, /data-display-mode-toggle="pictures-display-mode-toggle"/)
+		assert.equal(toggle.props['data-current-display-mode'], 'random')
+		assert.equal(toggle.props['data-target-display-mode'], 'masonry')
+		assert.equal(toggle.props['aria-label'], '切换到瀑布模式')
+		assert.match(markup, /<svg/)
+		assert.doesNotMatch(markup, />相纸</)
+		assert.doesNotMatch(markup, />瀑布</)
 	})
 
-	it('keeps the visitor toggle visible when hideEditButton is true', () => {
-		const { markup } = renderView({ hideEditButton: true })
+	it('keeps the visitor icon toggle visible when hideEditButton is true', () => {
+		const { markup, tree } = renderView({ hideEditButton: true })
+		const toggle = findDisplayModeToggle(tree)
 
-		assert.match(markup, /相纸/)
-		assert.match(markup, /瀑布/)
+		assert.match(markup, /data-display-mode-toggle="pictures-display-mode-toggle"/)
+		assert.equal(toggle.props['data-current-display-mode'], 'random')
 		assert.doesNotMatch(markup, />编辑<\/button>/)
 	})
 
@@ -123,14 +126,13 @@ describe('pictures page view', () => {
 		assert.doesNotMatch(markup, /点击右上角「编辑」后即可开始上传/)
 	})
 
-	it('disables the toggle in edit mode and shows the lock copy', () => {
-		const { markup, tree } = renderView({ isEditMode: true })
-		const randomButton = findElementByText(tree, '相纸')
-		const masonryButton = findElementByText(tree, '瀑布')
+	it('disables the icon toggle in edit mode and shows the lock copy', () => {
+		const { markup, tree } = renderView({ isEditMode: true, effectiveDisplayMode: 'random' })
+		const toggle = findDisplayModeToggle(tree)
 
 		assert.match(markup, /编辑态固定使用相纸模式/)
-		assert.equal(randomButton.props.disabled, true)
-		assert.equal(masonryButton.props.disabled, true)
+		assert.equal(toggle.props.disabled, true)
+		assert.equal(toggle.props['aria-label'], '编辑态固定使用相纸模式')
 	})
 
 	it('keeps the desktop-only visibility contract on the top-right controls', () => {
@@ -142,14 +144,18 @@ describe('pictures page view', () => {
 	it('renders the correct layout branch for random and masonry modes', () => {
 		const randomView = renderView({ effectiveDisplayMode: 'random' })
 		const masonryView = renderView({ effectiveDisplayMode: 'masonry' })
+		const randomToggle = findDisplayModeToggle(randomView.tree)
+		const masonryToggle = findDisplayModeToggle(masonryView.tree)
 
 		assert.match(randomView.markup, /data-layout-kind="random"/)
 		assert.doesNotMatch(randomView.markup, /data-layout-kind="masonry"/)
+		assert.equal(randomToggle.props['data-target-display-mode'], 'masonry')
 		assert.match(masonryView.markup, /data-layout-kind="masonry"/)
 		assert.doesNotMatch(masonryView.markup, /data-layout-kind="random"/)
+		assert.equal(masonryToggle.props['data-target-display-mode'], 'random')
 	})
 
-	it('routes the 瀑布 toggle through the display-mode callback only', () => {
+	it('routes the icon toggle through the display-mode callback only', () => {
 		const displayModeCalls = []
 		let saveCalls = 0
 		let uploadCalls = 0
@@ -170,9 +176,9 @@ describe('pictures page view', () => {
 				deleteGroupCalls += 1
 			}
 		})
-		const masonryButton = findElementByText(tree, '瀑布')
+		const toggle = findDisplayModeToggle(tree)
 
-		masonryButton.props.onClick()
+		toggle.props.onClick()
 
 		assert.deepEqual(displayModeCalls, ['masonry'])
 		assert.equal(saveCalls, 0)
