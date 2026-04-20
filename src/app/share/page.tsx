@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import GridView from './grid-view'
 import CreateDialog from './components/create-dialog'
+import { ShareMigrationPanel } from './components/share-migration-panel'
 import { ShareFolderSelectFoldersContext } from './components/share-folder-select'
 import { ShareCardEditCallbacksContext, type Share } from './components/share-card'
 import type { LogoItem } from './components/logo-upload-dialog'
@@ -204,6 +205,17 @@ export default function Page() {
 	const categoryOptions = useMemo(
 		() => collectCategoryOptions(pageState.runtime.availableCategories, pageState.runtime.activeCategory),
 		[pageState.runtime.availableCategories, pageState.runtime.activeCategory]
+	)
+	const shareMigrationDirtyState = useMemo(
+		() => ({
+			isEditMode: pageState.isEditMode,
+			logoItemsCount: logoItems.size,
+			renamedUrlsCount: renamedUrls.size,
+			draftOnlyUrlsCount: draftOnlyUrls.size,
+			deletedPublishedUrlsCount: deletedPublishedUrls.size,
+			editingAnchorUrlsCount: editingAnchorUrls.length
+		}),
+		[pageState.isEditMode, logoItems.size, renamedUrls.size, draftOnlyUrls.size, deletedPublishedUrls.size, editingAnchorUrls.length]
 	)
 	const emptyMessage = getEmptyMessage(pageState.runtime.emptyState)
 
@@ -618,35 +630,38 @@ export default function Page() {
 					</div>
 				</div>
 
-				<motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} className='absolute top-4 right-6 flex gap-3 max-sm:hidden'>
-					{pageState.isEditMode ? (
-						<>
-							<motion.button
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-								onClick={handleCancel}
-								disabled={isSaving}
-								className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
-								取消
-							</motion.button>
-							<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAdd} className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
-								添加
-							</motion.button>
-							<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSaveClick} disabled={isSaving} className='brand-btn px-6'>
-								{isSaving ? '保存中...' : buttonText}
-							</motion.button>
-						</>
-					) : (
-						!hideEditButton && (
-							<motion.button
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-								onClick={() => setPageState(current => setSharePageEditMode(current, true))}
-								className='bg-card rounded-xl border px-6 py-2 text-sm backdrop-blur-sm transition-colors hover:bg-white/80'>
-								编辑
-							</motion.button>
-						)
-					)}
+				<motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} className='absolute top-4 right-6 flex flex-col items-end gap-3 max-sm:hidden'>
+					<div className='flex gap-3'>
+						{pageState.isEditMode ? (
+							<>
+								<motion.button
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={handleCancel}
+									disabled={isSaving}
+									className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
+									取消
+								</motion.button>
+								<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAdd} className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
+									添加
+								</motion.button>
+								<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSaveClick} disabled={isSaving} className='brand-btn px-6'>
+									{isSaving ? '保存中...' : buttonText}
+								</motion.button>
+							</>
+						) : (
+							!hideEditButton && (
+								<motion.button
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={() => setPageState(current => setSharePageEditMode(current, true))}
+									className='bg-card rounded-xl border px-6 py-2 text-sm backdrop-blur-sm transition-colors hover:bg-white/80'>
+									编辑
+								</motion.button>
+							)
+						)}
+					</div>
+					{isDev ? <ShareMigrationPanel dirtyState={shareMigrationDirtyState} /> : null}
 				</motion.div>
 
 				{isCreateDialogOpen && <CreateDialog share={editingShare} onClose={() => setIsCreateDialogOpen(false)} onSave={handleSaveShare} />}
