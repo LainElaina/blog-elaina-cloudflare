@@ -4,11 +4,11 @@ import path from 'node:path'
 import siteContent from '@/config/site-content.json'
 import blogIndex from '@/../public/blogs/index.json'
 import type { BlogIndexItem } from '@/app/blog/types'
+import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.yysuni.com'
+const SITE_ORIGIN = getSiteOrigin()
 const FEED_PATH = '/rss.xml'
-const SITE_ORIGIN = SITE_URL.replace(/\/$/, '')
-const FEED_URL = `${SITE_ORIGIN}${FEED_PATH}`
+const FEED_URL = toAbsoluteSiteUrl(FEED_PATH)
 const PUBLIC_DIR = path.join(process.cwd(), 'public')
 
 const blogs = blogIndex as BlogIndexItem[]
@@ -37,7 +37,7 @@ const getMimeTypeFromUrl = (url?: string): string | null => {
 
 const buildEnclosure = (cover?: string): string | null => {
 	if (!cover) return null
-	const absoluteUrl = /^https?:\/\//.test(cover) ? cover : `${SITE_ORIGIN}${cover}`
+	const absoluteUrl = /^https?:\/\//.test(cover) ? cover : toAbsoluteSiteUrl(cover)
 	const type = getMimeTypeFromUrl(absoluteUrl)
 	if (!type) return null
 
@@ -63,10 +63,11 @@ const buildEnclosure = (cover?: string): string | null => {
 }
 
 const serializeItem = (item: BlogIndexItem): string => {
-	const link = `${SITE_ORIGIN}/blog/${item.slug}`
+	const link = toAbsoluteSiteUrl(`/blog/${item.slug}`)
 	const title = escapeXml(item.title || item.slug)
 	const description = wrapCdata(item.summary || '')
-	const pubDate = new Date(item.date).toUTCString()
+	const parsedPubDate = item.date ? new Date(item.date) : null
+	const pubDate = parsedPubDate && !Number.isNaN(parsedPubDate.getTime()) ? `<pubDate>${parsedPubDate.toUTCString()}</pubDate>` : ''
 	const categories = (item.tags || [])
 		.filter(Boolean)
 		.map(tag => `<category>${escapeXml(tag)}</category>`)
@@ -80,7 +81,7 @@ const serializeItem = (item: BlogIndexItem): string => {
 			<link>${link}</link>
 			<guid isPermaLink="false">${escapeXml(link)}</guid>
 			<description>${description}</description>
-			<pubDate>${pubDate}</pubDate>
+			${pubDate}
 			${categories}
 			${enclosure ?? ''}
 		</item>`.trim()

@@ -5,26 +5,13 @@ import Layout from '@/layout'
 import Head from '@/layout/head'
 import siteContent from '@/config/site-content.json'
 import { normalizeCardStylePreset } from '@/lib/card-style-preset'
+import { siteMetadata } from './site-metadata'
 
-const {
-	meta: { title, description },
-	theme
-} = siteContent
+const { theme } = siteContent
 
 const cardStylePreset = normalizeCardStylePreset(theme.cardStylePreset)
 
-export const metadata: Metadata = {
-	title,
-	description,
-	openGraph: {
-		title,
-		description
-	},
-	twitter: {
-		title,
-		description
-	}
-}
+export const metadata: Metadata = siteMetadata
 
 const htmlStyle = {
 	cursor: 'url(/images/cursor.svg) 2 1, auto',
