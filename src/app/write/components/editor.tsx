@@ -6,7 +6,7 @@ import { useRef } from 'react'
 const defaultText = 'text'
 
 export function WriteEditor() {
-	const { form, updateForm, images, addFiles } = useWriteStore()
+	const { form, updateForm, images, addFiles, mode } = useWriteStore()
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 
 	const insertText = (text: string) => {
@@ -199,9 +199,10 @@ export function WriteEditor() {
 				/>
 				<input
 					type='text'
-					placeholder='slug（xx-xx）'
-					className='bg-card w-[200px] rounded-lg border px-3 py-2 text-sm'
+					placeholder={mode === 'edit' ? 'slug（编辑模式不可修改）' : 'slug（xx-xx）'}
+					className='bg-card w-[200px] rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60'
 					value={form.slug}
+					disabled={mode === 'edit'}
 					onChange={e => updateForm({ slug: e.target.value })}
 				/>
 			</div>
