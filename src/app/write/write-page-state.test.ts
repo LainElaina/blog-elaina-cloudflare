@@ -36,6 +36,10 @@ test('autosave stays disabled before hydration and enables after hydration', () 
 	assert.equal(getWritePageAutosaveKey({ mode: 'create', hasHydratedDraft: true }), 'write:draft:create')
 })
 
+test('autosave stays disabled while draft clear is in progress', () => {
+	assert.equal(getWritePageAutosaveKey({ mode: 'create', hasHydratedDraft: true, isClearingDraft: true }), null)
+})
+
 test('beforeunload protection activates only when hydrated and dirty', () => {
 	assert.equal(shouldProtectWritePageBeforeUnload({ hasHydratedDraft: false, isDirty: true }), false)
 	assert.equal(shouldProtectWritePageBeforeUnload({ hasHydratedDraft: true, isDirty: false }), false)

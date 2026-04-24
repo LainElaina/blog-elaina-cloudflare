@@ -7,6 +7,7 @@ import {
 	getWriteAutosaveState,
 	getWriteClearDraftState,
 	getWritePublishSafetyState,
+	isWriteSnapshotEquivalent,
 	isWriteStateDirty,
 	resolveWriteDraftRestore,
 	type WriteSafetySnapshot
@@ -82,10 +83,7 @@ test('createEditWriteBaseline mirrors loaded published snapshot', () => {
 	const snapshot = createSnapshot({
 		form: createForm({ title: 'Loaded title', summary: 'Loaded summary', folderPath: '/notes', favorite: true }),
 		cover: createUrlImage('/blogs/hello-world/loaded-cover.png', 'loaded-cover'),
-		images: [
-			createUrlImage('/blogs/hello-world/loaded-1.png', 'loaded-1'),
-			createUrlImage('/blogs/hello-world/loaded-2.png', 'loaded-2')
-		]
+		images: [createUrlImage('/blogs/hello-world/loaded-1.png', 'loaded-1'), createUrlImage('/blogs/hello-world/loaded-2.png', 'loaded-2')]
 	})
 
 	assert.deepEqual(createEditWriteBaseline(snapshot), snapshot)
@@ -216,14 +214,21 @@ test('autosave stays disabled until hydration completes and while clearing', () 
 	})
 })
 
-test('unresolved local-image placeholders block publish and show warning', () => {
-	assert.deepEqual(getWritePublishSafetyState({ markdown: '![local](local-image:abc123)' }), {
+test('unresolved local-image placeholders block publish and live file images are allowed', () => {
+	assert.deepEqual(getWritePublishSafetyState({ markdown: '![local](local-image:abc123)', images: [] }), {
 		shouldBlockPublishForUnresolvedLocalImages: true,
-		shouldShowUnresolvedLocalImageWarning: true
+		shouldShowUnresolvedLocalImageWarning: true,
+		unresolvedLocalImagePlaceholderIds: ['abc123']
 	})
-	assert.deepEqual(getWritePublishSafetyState({ markdown: '![remote](/blogs/hello-world/image.png)' }), {
+	assert.deepEqual(getWritePublishSafetyState({ markdown: '![local](local-image:live-image)', images: [createFileImage({ id: 'live-image' })] }), {
 		shouldBlockPublishForUnresolvedLocalImages: false,
-		shouldShowUnresolvedLocalImageWarning: false
+		shouldShowUnresolvedLocalImageWarning: false,
+		unresolvedLocalImagePlaceholderIds: []
+	})
+	assert.deepEqual(getWritePublishSafetyState({ markdown: '![remote](/blogs/hello-world/image.png)', images: [] }), {
+		shouldBlockPublishForUnresolvedLocalImages: false,
+		shouldShowUnresolvedLocalImageWarning: false,
+		unresolvedLocalImagePlaceholderIds: []
 	})
 })
 
@@ -237,6 +242,30 @@ test('clear-draft transaction blocks autosave rewrite', () => {
 	assert.deepEqual(getWriteClearDraftState({ hasHydratedDraft: true, isClearingDraft: false }), {
 		shouldBlockAutosaveRewrite: false
 	})
+})
+
+test('snapshot equivalence ignores unresolved placeholder dirtiness and detects real edits', () => {
+	const baseline = createSnapshot({
+		form: createForm({ md: '![local](local-image:pending)' })
+	})
+
+	assert.equal(isWriteSnapshotEquivalent({ baseline, current: createSnapshot({ form: createForm({ md: '![local](local-image:pending)' }) }) }), true)
+	assert.equal(isWriteSnapshotEquivalent({ baseline, current: createSnapshot({ form: createForm({ md: 'changed' }) }) }), false)
+})
+
+test('dirty state allows local-image placeholders backed by live file images', () => {
+	const snapshot = createSnapshot({
+		form: createForm({ md: '![local](local-image:live-file)' }),
+		images: [createFileImage({ id: 'live-file' })]
+	})
+
+	assert.equal(
+		isWriteStateDirty({
+			baseline: createEditWriteBaseline(snapshot),
+			current: snapshot
+		}),
+		false
+	)
 })
 
 test('dirty state treats unresolved local-image placeholders as dirty', () => {

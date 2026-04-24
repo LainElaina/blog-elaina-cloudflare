@@ -7,9 +7,9 @@ import { WriteActions } from './components/actions'
 import { WritePreview } from './components/preview'
 import { usePreviewStore } from './stores/preview-store'
 import { useWriteStore } from './stores/write-store'
-import { readWriteDraft, serializeWriteDraft, writeWriteDraft } from './draft-storage'
+import { clearWriteDraft, readWriteDraft, serializeWriteDraft, writeWriteDraft } from './draft-storage'
 import { getRestoredPlaceholderWarningState, getWritePageAutosaveKey, getWritePageDraftKey, shouldProtectWritePageBeforeUnload } from './write-page-state'
-import { createEmptyWriteBaseline, isWriteStateDirty, resolveWriteDraftRestore, type WriteSafetySnapshot } from './write-safety'
+import { createEmptyWriteBaseline, isWriteSnapshotEquivalent, isWriteStateDirty, resolveWriteDraftRestore, type WriteSafetySnapshot } from './write-safety'
 import type { ImageItem, PublishForm } from './types'
 
 const AUTOSAVE_DELAY_MS = 500
@@ -37,6 +37,7 @@ export default function WritePage() {
 	const [baseline, setBaseline] = useState<WriteSafetySnapshot | null>(null)
 	const [hasHydratedDraft, setHasHydratedDraft] = useState(false)
 	const [hasRestoredDraft, setHasRestoredDraft] = useState(false)
+	const [isClearingDraft, setIsClearingDraft] = useState(false)
 	const hasInitializedAutosaveRef = useRef(false)
 
 	const currentSnapshot = useMemo(
@@ -53,7 +54,7 @@ export default function WritePage() {
 
 	const isDirty = useMemo(() => (baseline ? isWriteStateDirty({ baseline, current: currentSnapshot }) : false), [baseline, currentSnapshot])
 	const draftKey = getWritePageDraftKey({ mode: 'create' })
-	const autosaveKey = getWritePageAutosaveKey({ mode: 'create', hasHydratedDraft })
+	const autosaveKey = getWritePageAutosaveKey({ mode: 'create', hasHydratedDraft, isClearingDraft })
 	const shouldProtectBeforeUnload = shouldProtectWritePageBeforeUnload({ hasHydratedDraft, isDirty })
 	const restoredPlaceholderWarning = getRestoredPlaceholderWarningState({
 		hasRestoredDraft,
@@ -66,7 +67,7 @@ export default function WritePage() {
 		setBaseline(emptyBaseline)
 
 		const restored = resolveWriteDraftRestore({
-			draft: readWriteDraft(draftKey),
+			draft: draftKey ? readWriteDraft(draftKey) : null,
 			mode: 'create'
 		})
 
@@ -126,11 +127,30 @@ export default function WritePage() {
 		}
 	}, [shouldProtectBeforeUnload])
 
+	useEffect(() => {
+		if (!isClearingDraft || !baseline) {
+			return
+		}
+
+		if (!isWriteSnapshotEquivalent({ baseline, current: currentSnapshot })) {
+			setIsClearingDraft(false)
+		}
+	}, [baseline, currentSnapshot, isClearingDraft])
+
 	if (!hasHydratedDraft) {
 		return <div className='text-secondary flex h-screen items-center justify-center text-sm'>正在恢复草稿...</div>
 	}
 
 	const coverPreviewUrl = cover ? (cover.type === 'url' ? cover.url : cover.previewUrl) : null
+
+	const handleClearDraft = () => {
+		if (!draftKey) {
+			return
+		}
+		setBaseline(currentSnapshot)
+		setIsClearingDraft(true)
+		clearWriteDraft(draftKey)
+	}
 
 	return isPreview ? (
 		<WritePreview form={form} coverPreviewUrl={coverPreviewUrl} onClose={closePreview} />
@@ -146,7 +166,7 @@ export default function WritePage() {
 				<WriteSidebar />
 			</div>
 
-			<WriteActions />
+			<WriteActions onClearDraft={handleClearDraft} />
 		</>
 	)
 }

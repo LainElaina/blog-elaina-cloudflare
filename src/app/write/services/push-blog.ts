@@ -7,6 +7,7 @@ import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
+import { getWritePublishSafetyState } from '../write-safety'
 import { formatDateTimeLocal } from '../stores/write-store'
 
 export type PushBlogParams = {
@@ -64,8 +65,17 @@ export async function buildRemoteArtifactContents(params: {
 	}
 }
 
+export function assertPublishableBlog(params: Pick<PushBlogParams, 'form' | 'images'>): void {
+	const publishSafety = getWritePublishSafetyState({ markdown: params.form.md, images: params.images ?? [] })
+	if (publishSafety.shouldBlockPublishForUnresolvedLocalImages) {
+		throw new Error(`本地文件图片引用已失效，请重新选择图片并重新插入后再发布。失效引用：${publishSafety.unresolvedLocalImagePlaceholderIds.join(', ')}`)
+	}
+}
+
 export async function pushBlog(params: PushBlogParams): Promise<void> {
 	const { form, cover, images, mode = 'create', originalSlug } = params
+
+	assertPublishableBlog({ form, images })
 
 	if (!form?.slug) throw new Error('需要 slug')
 

@@ -12,6 +12,7 @@ type WritePageKeyParams = {
 
 type WritePageAutosaveKeyParams = WritePageKeyParams & {
 	hasHydratedDraft: boolean
+	isClearingDraft?: boolean
 }
 
 type BeforeUnloadParams = {
@@ -65,7 +66,7 @@ export function getWritePageDraftKey(params: WritePageKeyParams): string | null 
 }
 
 export function getWritePageAutosaveKey(params: WritePageAutosaveKeyParams): string | null {
-	if (!params.hasHydratedDraft) {
+	if (!params.hasHydratedDraft || params.isClearingDraft) {
 		return null
 	}
 

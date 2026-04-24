@@ -9,9 +9,9 @@ import { WritePreview } from '../components/preview'
 import { useLoadBlog } from '../hooks/use-load-blog'
 import { usePreviewStore } from '../stores/preview-store'
 import { useWriteStore } from '../stores/write-store'
-import { readWriteDraft, serializeWriteDraft, writeWriteDraft } from '../draft-storage'
+import { clearWriteDraft, readWriteDraft, serializeWriteDraft, writeWriteDraft } from '../draft-storage'
 import { getRestoredPlaceholderWarningState, getWritePageAutosaveKey, getWritePageDraftKey, shouldProtectWritePageBeforeUnload } from '../write-page-state'
-import { createEditWriteBaseline, isWriteStateDirty, resolveWriteDraftRestore, type WriteSafetySnapshot } from '../write-safety'
+import { createEditWriteBaseline, isWriteSnapshotEquivalent, isWriteStateDirty, resolveWriteDraftRestore, type WriteSafetySnapshot } from '../write-safety'
 import type { ImageItem, PublishForm } from '../types'
 
 const AUTOSAVE_DELAY_MS = 500
@@ -42,6 +42,7 @@ export default function EditBlogPage() {
 	const [baseline, setBaseline] = useState<WriteSafetySnapshot | null>(null)
 	const [hasHydratedDraft, setHasHydratedDraft] = useState(false)
 	const [hasRestoredDraft, setHasRestoredDraft] = useState(false)
+	const [isClearingDraft, setIsClearingDraft] = useState(false)
 	const hasInitializedAutosaveRef = useRef(false)
 
 	const currentSnapshot = useMemo(
@@ -68,7 +69,8 @@ export default function EditBlogPage() {
 		routeSlug: slug,
 		loadedOriginalSlug: originalSlug,
 		hasLoadedBlog,
-		hasHydratedDraft
+		hasHydratedDraft,
+		isClearingDraft
 	})
 	const shouldProtectBeforeUnload = shouldProtectWritePageBeforeUnload({ hasHydratedDraft, isDirty })
 	const restoredPlaceholderWarning = getRestoredPlaceholderWarningState({
@@ -81,6 +83,7 @@ export default function EditBlogPage() {
 		setBaseline(null)
 		setHasHydratedDraft(false)
 		setHasRestoredDraft(false)
+		setIsClearingDraft(false)
 		hasInitializedAutosaveRef.current = false
 	}, [slug])
 
@@ -160,6 +163,16 @@ export default function EditBlogPage() {
 		}
 	}, [shouldProtectBeforeUnload])
 
+	useEffect(() => {
+		if (!isClearingDraft || !baseline) {
+			return
+		}
+
+		if (!isWriteSnapshotEquivalent({ baseline, current: currentSnapshot })) {
+			setIsClearingDraft(false)
+		}
+	}, [baseline, currentSnapshot, isClearingDraft])
+
 	if (!slug) {
 		return <div className='flex h-screen items-center justify-center text-sm text-red-500'>无效的博客 ID</div>
 	}
@@ -173,6 +186,16 @@ export default function EditBlogPage() {
 	}
 
 	const coverPreviewUrl = cover ? (cover.type === 'url' ? cover.url : cover.previewUrl) : null
+
+	const handleClearDraft = () => {
+		if (!draftKey) {
+			return
+		}
+		setBaseline(currentSnapshot)
+		setIsClearingDraft(true)
+		clearWriteDraft(draftKey)
+		closePreview()
+	}
 
 	return isPreview ? (
 		<WritePreview form={form} coverPreviewUrl={coverPreviewUrl} onClose={closePreview} slug={slug} />
@@ -188,7 +211,7 @@ export default function EditBlogPage() {
 				<WriteSidebar />
 			</div>
 
-			<WriteActions />
+			<WriteActions onClearDraft={handleClearDraft} />
 		</>
 	)
 }

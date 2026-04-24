@@ -1,6 +1,5 @@
 import type { PublishForm, ImageItem } from './types'
 import type { PersistedWriteDraft } from './draft-storage'
-import { hasUnresolvedLocalImagePlaceholders } from './draft-storage'
 
 export type WriteMode = 'create' | 'edit'
 
@@ -155,10 +154,29 @@ export function createEditWriteBaseline(snapshot: WriteSafetySnapshot): WriteBas
 	return cloneSnapshot(snapshot)
 }
 
-export function isWriteStateDirty(params: {
-	baseline: WriteBaseline
-	current: WriteSafetySnapshot
-}): boolean {
+export function isWriteSnapshotEquivalent(params: { baseline: WriteBaseline; current: WriteSafetySnapshot }): boolean {
+	const { baseline, current } = params
+
+	if (baseline.mode !== current.mode) {
+		return false
+	}
+
+	if ((baseline.originalSlug ?? null) !== (current.originalSlug ?? null)) {
+		return false
+	}
+
+	if (!areFormsEqual(baseline.form, current.form, baseline.mode)) {
+		return false
+	}
+
+	if (JSON.stringify(getImageSignature(baseline.cover)) !== JSON.stringify(getImageSignature(current.cover))) {
+		return false
+	}
+
+	return areImagesEqual(baseline.images, current.images)
+}
+
+export function isWriteStateDirty(params: { baseline: WriteBaseline; current: WriteSafetySnapshot }): boolean {
 	const { baseline, current } = params
 
 	if (baseline.mode !== current.mode) {
@@ -181,7 +199,7 @@ export function isWriteStateDirty(params: {
 		return true
 	}
 
-	if (hasUnresolvedLocalImagePlaceholders(current.form.md)) {
+	if (getUnresolvedLocalImagePlaceholderIds(current.form.md, current.images).length > 0) {
 		return true
 	}
 
@@ -193,9 +211,7 @@ export function resolveWriteDraftRestore(params: {
 	mode: WriteMode
 	routeSlug?: string
 	originalSlug?: string | null
-}):
-	| { shouldRestore: false; reason: RestoreFailureReason }
-	| { shouldRestore: true; restored: WriteSafetySnapshot } {
+}): { shouldRestore: false; reason: RestoreFailureReason } | { shouldRestore: true; restored: WriteSafetySnapshot } {
 	const { draft, mode, routeSlug, originalSlug } = params
 
 	if (!draft) {
@@ -264,34 +280,52 @@ export function resolveWriteDraftRestore(params: {
 	}
 }
 
-export function getWriteAutosaveState(params: {
-	hasHydratedDraft: boolean
-	isClearingDraft: boolean
-}): { shouldEnableAutosave: boolean } {
+export function getWriteAutosaveState(params: { hasHydratedDraft: boolean; isClearingDraft: boolean }): { shouldEnableAutosave: boolean } {
 	const { hasHydratedDraft, isClearingDraft } = params
 	return {
 		shouldEnableAutosave: hasHydratedDraft && !isClearingDraft
 	}
 }
 
-export function getWritePublishSafetyState(params: {
-	markdown: string
-}): {
+const LOCAL_IMAGE_MARKDOWN_PATTERN = /!?\[[^\]]*\]\(local-image:([^)]+)\)/g
+const FENCED_CODE_BLOCK_PATTERN = /```[\s\S]*?```/g
+const INLINE_CODE_PATTERN = /`[^`\n]*`/g
+
+const getLocalImagePlaceholderIds = (markdown: string): string[] => {
+	const sanitizedMarkdown = markdown.replace(FENCED_CODE_BLOCK_PATTERN, '').replace(INLINE_CODE_PATTERN, '')
+	const placeholderIds = new Set<string>()
+
+	for (const match of sanitizedMarkdown.matchAll(LOCAL_IMAGE_MARKDOWN_PATTERN)) {
+		const placeholderId = match[1]?.trim()
+		if (placeholderId) {
+			placeholderIds.add(placeholderId)
+		}
+	}
+
+	return [...placeholderIds]
+}
+
+const getUnresolvedLocalImagePlaceholderIds = (markdown: string, images: ImageItem[]): string[] => {
+	const liveFileIds = new Set(images.filter((image): image is Extract<ImageItem, { type: 'file' }> => image.type === 'file').map(image => image.id))
+	return getLocalImagePlaceholderIds(markdown).filter(placeholderId => !liveFileIds.has(placeholderId))
+}
+
+export function getWritePublishSafetyState(params: { markdown: string; images?: ImageItem[] }): {
 	shouldBlockPublishForUnresolvedLocalImages: boolean
 	shouldShowUnresolvedLocalImageWarning: boolean
+	unresolvedLocalImagePlaceholderIds: string[]
 } {
-	const hasUnresolvedLocalImages = hasUnresolvedLocalImagePlaceholders(params.markdown)
+	const unresolvedLocalImagePlaceholderIds = getUnresolvedLocalImagePlaceholderIds(params.markdown, params.images ?? [])
+	const hasUnresolvedLocalImages = unresolvedLocalImagePlaceholderIds.length > 0
 
 	return {
 		shouldBlockPublishForUnresolvedLocalImages: hasUnresolvedLocalImages,
-		shouldShowUnresolvedLocalImageWarning: hasUnresolvedLocalImages
+		shouldShowUnresolvedLocalImageWarning: hasUnresolvedLocalImages,
+		unresolvedLocalImagePlaceholderIds
 	}
 }
 
-export function getWriteClearDraftState(params: {
-	hasHydratedDraft: boolean
-	isClearingDraft: boolean
-}): { shouldBlockAutosaveRewrite: boolean } {
+export function getWriteClearDraftState(params: { hasHydratedDraft: boolean; isClearingDraft: boolean }): { shouldBlockAutosaveRewrite: boolean } {
 	const { hasHydratedDraft, isClearingDraft } = params
 	return {
 		shouldBlockAutosaveRewrite: !hasHydratedDraft || isClearingDraft

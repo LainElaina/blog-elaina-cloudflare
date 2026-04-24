@@ -6,7 +6,11 @@ import { useWriteStore } from '../stores/write-store'
 import { usePreviewStore } from '../stores/preview-store'
 import { usePublish } from '../hooks/use-publish'
 
-export function WriteActions() {
+type WriteActionsProps = {
+	onClearDraft?: () => void
+}
+
+export function WriteActions({ onClearDraft }: WriteActionsProps = {}) {
 	const { loading, mode, form, loadBlogForEdit, originalSlug, updateForm } = useWriteStore()
 	const { openPreview } = usePreviewStore()
 	const { isAuth, onChoosePrivateKey, onPublish, onDelete } = usePublish()
@@ -17,13 +21,15 @@ export function WriteActions() {
 
 	const isDev = process.env.NODE_ENV === 'development'
 
-	const handleImportOrPublish = () => {
-		if (isDev) {
-			onPublish()
-		} else if (!isAuth) {
+	const handleImportOrPublish = async () => {
+		if (!isDev && !isAuth) {
 			keyInputRef.current?.click()
-		} else {
-			onPublish()
+			return
+		}
+
+		const didPublish = await onPublish()
+		if (didPublish) {
+			onClearDraft?.()
 		}
 	}
 
@@ -31,6 +37,7 @@ export function WriteActions() {
 		if (!window.confirm('放弃本次修改吗？')) {
 			return
 		}
+		onClearDraft?.()
 		if (mode === 'edit' && originalSlug) {
 			router.push(`/blog/${originalSlug}`)
 		} else {
@@ -38,16 +45,22 @@ export function WriteActions() {
 		}
 	}
 
-	const buttonText = (isDev || isAuth) ? (mode === 'edit' ? '更新' : '发布') : '导入密钥'
+	const buttonText = isDev || isAuth ? (mode === 'edit' ? '更新' : '发布') : '导入密钥'
 
-	const handleDelete = () => {
+	const handleDelete = async () => {
 		if (!isDev && !isAuth) {
 			toast.info('请先导入密钥')
 			return
 		}
 		const confirmMsg = form?.title ? `确定删除《${form.title}》吗？该操作不可恢复。` : '确定删除当前文章吗？该操作不可恢复。'
-		if (window.confirm(confirmMsg)) {
-			onDelete()
+		if (!window.confirm(confirmMsg)) {
+			return
+		}
+
+		const didDelete = await onDelete()
+		if (didDelete) {
+			onClearDraft?.()
+			router.push('/blog')
 		}
 	}
 

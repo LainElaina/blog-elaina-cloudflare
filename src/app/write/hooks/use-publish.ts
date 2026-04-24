@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { readFileAsText, hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
-import { pushBlog, buildBlogUpsertItem, buildRemoteArtifactContents } from '../services/push-blog'
+import { pushBlog, assertPublishableBlog, buildRemoteArtifactContents } from '../services/push-blog'
 import { deleteBlog, buildDeleteArtifactContents } from '../services/delete-blog'
 import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
 import { useAuthStore } from '@/hooks/use-auth'
@@ -23,6 +23,7 @@ export function usePublish() {
 	const onPublish = useCallback(async () => {
 		try {
 			setLoading(true)
+			assertPublishableBlog({ form, images })
 			if (process.env.NODE_ENV === 'development') {
 				await pushBlogLocal()
 			} else {
@@ -30,9 +31,11 @@ export function usePublish() {
 			}
 			const successMsg = mode === 'edit' ? '更新成功' : '发布成功'
 			toast.success(successMsg)
+			return true
 		} catch (err: any) {
 			console.error(err)
 			toast.error(err?.message || '操作失败')
+			return false
 		} finally {
 			setLoading(false)
 		}
@@ -130,7 +133,7 @@ export function usePublish() {
 		const targetSlug = originalSlug || form.slug
 		if (!targetSlug) {
 			toast.error('缺少 slug，无法删除')
-			return
+			return false
 		}
 		try {
 			setLoading(true)
@@ -165,9 +168,11 @@ export function usePublish() {
 			} else {
 				await deleteBlog(targetSlug)
 			}
+			return true
 		} catch (err: any) {
 			console.error(err)
 			toast.error(err?.message || '删除失败')
+			return false
 		} finally {
 			setLoading(false)
 		}
