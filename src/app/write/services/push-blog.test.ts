@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, type PushBlogParams } from './push-blog.ts'
+import { assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, type PushBlogParams } from './push-blog'
 
 describe('assertPublishableBlog', () => {
 	it('阻止失效本地图片占位符进入正式发布链路', () => {

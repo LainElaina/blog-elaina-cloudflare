@@ -1,4 +1,4 @@
-import { createFolderOptionList, normalizeCreatedFolderPath } from '../../../blog/folder-interactions.ts'
+import { createFolderOptionList, normalizeCreatedFolderPath } from '../../../blog/folder-interactions'
 
 export type FolderSelectViewModel = {
 	options: Array<{ value: string; label: string }>
@@ -7,11 +7,7 @@ export type FolderSelectViewModel = {
 	nextValueAfterCreate?: string
 }
 
-export function buildFolderSelectViewModel(params: {
-	folders: string[]
-	value: string
-	createdFolderInput?: string
-}): FolderSelectViewModel {
+export function buildFolderSelectViewModel(params: { folders: string[]; value: string; createdFolderInput?: string }): FolderSelectViewModel {
 	const createdFolderPath = params.createdFolderInput ? normalizeCreatedFolderPath(params.createdFolderInput) : undefined
 	const representableValue = createdFolderPath ?? (params.value || undefined)
 	const folders = createFolderOptionList(params.folders, representableValue)
