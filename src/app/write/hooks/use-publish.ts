@@ -2,11 +2,27 @@ import { useCallback } from 'react'
 import { readFileAsText, hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
-import { pushBlog, assertPublishableBlog, buildRemoteArtifactContents } from '../services/push-blog'
+import {
+	pushBlog,
+	assertPublishableBlog,
+	assertEditableSlug,
+	assertPublishableOutput,
+	buildRemoteArtifactContents,
+	replacePublishLocalImagePlaceholders
+} from '../services/push-blog'
 import { deleteBlog, buildDeleteArtifactContents } from '../services/delete-blog'
 import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { buildLocalSaveFilePayloadsFromContents } from '@/app/blog/services/save-blog-edits-utils'
+
+const assertOk = async (response: Response, actionName: string): Promise<void> => {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
 
 export function usePublish() {
 	const { loading, setLoading, form, cover, images, mode, originalSlug } = useWriteStore()
@@ -24,6 +40,7 @@ export function usePublish() {
 		try {
 			setLoading(true)
 			assertPublishableBlog({ form, images })
+			assertEditableSlug({ form, mode, originalSlug })
 			if (process.env.NODE_ENV === 'development') {
 				await pushBlogLocal()
 			} else {
@@ -58,6 +75,7 @@ export function usePublish() {
 			allLocalImages.push({ file: cover.file, id: cover.id, hash: cover.hash })
 		}
 
+		const placeholderReplacements = new Map<string, string>()
 		for (const img of allLocalImages) {
 			const hash = img.hash || (await hashFileSHA256(img.file))
 			const ext = getFileExt(img.file.name)
@@ -67,25 +85,31 @@ export function usePublish() {
 			const formData = new FormData()
 			formData.append('file', img.file)
 			formData.append('path', `${basePath}/${filename}`)
-			await fetch('/api/upload-image', { method: 'POST', body: formData })
+			await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传图片')
 
-			const placeholder = `local-image:${img.id}`
-			mdToUpload = mdToUpload.split(`(${placeholder})`).join(`(${publicPath})`)
+			placeholderReplacements.set(img.id, publicPath)
 
 			if (cover?.type === 'file' && cover.id === img.id) {
 				coverPath = publicPath
 			}
 		}
 
+		mdToUpload = replacePublishLocalImagePlaceholders(mdToUpload, placeholderReplacements)
+
 		if (cover?.type === 'url') {
 			coverPath = cover.url
 		}
 
-		await fetch('/api/save-file', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path: `${basePath}/index.md`, content: mdToUpload })
-		})
+		assertPublishableOutput({ form: { ...form, md: mdToUpload }, images: [] })
+
+		await assertOk(
+			await fetch('/api/save-file', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: `${basePath}/index.md`, content: mdToUpload })
+			}),
+			'保存 Markdown'
+		)
 
 		const dateStr = form.date || formatDateTimeLocal()
 		const config = {
@@ -99,11 +123,14 @@ export function usePublish() {
 			folderPath: form.folderPath,
 			favorite: form.favorite
 		}
-		await fetch('/api/save-file', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path: `${basePath}/config.json`, content: JSON.stringify(config, null, 2) })
-		})
+		await assertOk(
+			await fetch('/api/save-file', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: `${basePath}/config.json`, content: JSON.stringify(config, null, 2) })
+			}),
+			'保存配置'
+		)
 
 		const artifactContents = await buildRemoteArtifactContents({
 			form,
@@ -121,11 +148,14 @@ export function usePublish() {
 
 		const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
 		for (const payload of payloads) {
-			await fetch('/api/save-file', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload)
-			})
+			await assertOk(
+				await fetch('/api/save-file', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload)
+				}),
+				'保存索引产物'
+			)
 		}
 	}, [form, cover, images])
 
@@ -138,11 +168,14 @@ export function usePublish() {
 		try {
 			setLoading(true)
 			if (process.env.NODE_ENV === 'development') {
-				await fetch('/api/delete-dir', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
-				})
+				await assertOk(
+					await fetch('/api/delete-dir', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
+					}),
+					'删除文章目录'
+				)
 
 				const artifactContents = await buildDeleteArtifactContents({
 					slug: targetSlug,
@@ -158,11 +191,14 @@ export function usePublish() {
 
 				const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
 				for (const payload of payloads) {
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(payload)
-					})
+					await assertOk(
+						await fetch('/api/save-file', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						}),
+						'保存删除索引产物'
+					)
 				}
 				toast.success('删除成功！')
 			} else {

@@ -39,6 +39,7 @@ export default function WritePage() {
 	const [hasRestoredDraft, setHasRestoredDraft] = useState(false)
 	const [isClearingDraft, setIsClearingDraft] = useState(false)
 	const hasInitializedAutosaveRef = useRef(false)
+	const autosaveTimerRef = useRef<number | null>(null)
 
 	const currentSnapshot = useMemo(
 		() =>
@@ -94,6 +95,7 @@ export default function WritePage() {
 		}
 
 		const timer = window.setTimeout(() => {
+			autosaveTimerRef.current = null
 			writeWriteDraft(
 				autosaveKey,
 				serializeWriteDraft({
@@ -105,9 +107,13 @@ export default function WritePage() {
 				})
 			)
 		}, AUTOSAVE_DELAY_MS)
+		autosaveTimerRef.current = timer
 
 		return () => {
 			window.clearTimeout(timer)
+			if (autosaveTimerRef.current === timer) {
+				autosaveTimerRef.current = null
+			}
 		}
 	}, [autosaveKey, currentSnapshot])
 
@@ -146,6 +152,10 @@ export default function WritePage() {
 	const handleClearDraft = () => {
 		if (!draftKey) {
 			return
+		}
+		if (autosaveTimerRef.current !== null) {
+			window.clearTimeout(autosaveTimerRef.current)
+			autosaveTimerRef.current = null
 		}
 		setBaseline(currentSnapshot)
 		setIsClearingDraft(true)

@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { useWriteStore } from '../stores/write-store'
@@ -14,7 +14,6 @@ export function WriteActions({ onClearDraft }: WriteActionsProps = {}) {
 	const { loading, mode, form, loadBlogForEdit, originalSlug, updateForm } = useWriteStore()
 	const { openPreview } = usePreviewStore()
 	const { isAuth, onChoosePrivateKey, onPublish, onDelete } = usePublish()
-	const [saving, setSaving] = useState(false)
 	const keyInputRef = useRef<HTMLInputElement>(null)
 	const mdInputRef = useRef<HTMLInputElement>(null)
 	const router = useRouter()
@@ -34,6 +33,10 @@ export function WriteActions({ onClearDraft }: WriteActionsProps = {}) {
 	}
 
 	const handleCancel = () => {
+		if (loading) {
+			return
+		}
+
 		if (!window.confirm('放弃本次修改吗？')) {
 			return
 		}
@@ -120,7 +123,7 @@ export function WriteActions({ onClearDraft }: WriteActionsProps = {}) {
 							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
 							onClick={handleCancel}
-							disabled={saving}
+							disabled={loading}
 							className='bg-card rounded-xl border px-4 py-2 text-sm'>
 							取消
 						</motion.button>

@@ -287,28 +287,57 @@ export function getWriteAutosaveState(params: { hasHydratedDraft: boolean; isCle
 	}
 }
 
-const LOCAL_IMAGE_MARKDOWN_PATTERN = /!?\[[^\]]*\]\(local-image:([^)]+)\)/g
-const FENCED_CODE_BLOCK_PATTERN = /```[\s\S]*?```/g
-const INLINE_CODE_PATTERN = /`[^`\n]*`/g
+const LOCAL_IMAGE_MARKDOWN_PATTERN = /(!?\[[^\]\n]*\]\()\s*local-image:([^)]+?)\s*(\))/g
+const FENCED_CODE_BLOCK_PATTERN = /(^|\n)(```|~~~)[^\n]*\n[\s\S]*?\n\2[ \t]*(?=\n|$)/g
+const INLINE_CODE_PATTERN = /`+[^`\n]*?`+/g
 
-const getLocalImagePlaceholderIds = (markdown: string): string[] => {
-	const sanitizedMarkdown = markdown.replace(FENCED_CODE_BLOCK_PATTERN, '').replace(INLINE_CODE_PATTERN, '')
+const transformOutsideMatches = (value: string, pattern: RegExp, transform: (segment: string) => string): string => {
+	let result = ''
+	let cursor = 0
+
+	for (const match of value.matchAll(new RegExp(pattern))) {
+		const matchIndex = match.index ?? 0
+		result += transform(value.slice(cursor, matchIndex))
+		result += match[0]
+		cursor = matchIndex + match[0].length
+	}
+
+	result += transform(value.slice(cursor))
+	return result
+}
+
+const transformMarkdownOutsideCode = (markdown: string, transform: (segment: string) => string): string =>
+	transformOutsideMatches(markdown, FENCED_CODE_BLOCK_PATTERN, segment => transformOutsideMatches(segment, INLINE_CODE_PATTERN, transform))
+
+export const getLocalImagePlaceholderIds = (markdown: string): string[] => {
 	const placeholderIds = new Set<string>()
 
-	for (const match of sanitizedMarkdown.matchAll(LOCAL_IMAGE_MARKDOWN_PATTERN)) {
-		const placeholderId = match[1]?.trim()
-		if (placeholderId) {
-			placeholderIds.add(placeholderId)
+	transformMarkdownOutsideCode(markdown, segment => {
+		for (const match of segment.matchAll(new RegExp(LOCAL_IMAGE_MARKDOWN_PATTERN))) {
+			const placeholderId = match[2]?.trim()
+			if (placeholderId) {
+				placeholderIds.add(placeholderId)
+			}
 		}
-	}
+
+		return segment
+	})
 
 	return [...placeholderIds]
 }
 
-const getUnresolvedLocalImagePlaceholderIds = (markdown: string, images: ImageItem[]): string[] => {
+export const getUnresolvedLocalImagePlaceholderIds = (markdown: string, images: ImageItem[]): string[] => {
 	const liveFileIds = new Set(images.filter((image): image is Extract<ImageItem, { type: 'file' }> => image.type === 'file').map(image => image.id))
 	return getLocalImagePlaceholderIds(markdown).filter(placeholderId => !liveFileIds.has(placeholderId))
 }
+
+export const replaceLocalImagePlaceholders = (markdown: string, replacements: ReadonlyMap<string, string>): string =>
+	transformMarkdownOutsideCode(markdown, segment =>
+		segment.replace(new RegExp(LOCAL_IMAGE_MARKDOWN_PATTERN), (match, prefix: string, placeholderId: string, suffix: string) => {
+			const replacement = replacements.get(placeholderId.trim())
+			return replacement ? `${prefix}${replacement}${suffix}` : match
+		})
+	)
 
 export function getWritePublishSafetyState(params: { markdown: string; images?: ImageItem[] }): {
 	shouldBlockPublishForUnresolvedLocalImages: boolean

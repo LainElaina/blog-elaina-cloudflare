@@ -7,6 +7,7 @@ import {
 	getWriteAutosaveState,
 	getWriteClearDraftState,
 	getWritePublishSafetyState,
+	replaceLocalImagePlaceholders,
 	isWriteSnapshotEquivalent,
 	isWriteStateDirty,
 	resolveWriteDraftRestore,
@@ -230,6 +231,26 @@ test('unresolved local-image placeholders block publish and live file images are
 		shouldShowUnresolvedLocalImageWarning: false,
 		unresolvedLocalImagePlaceholderIds: []
 	})
+})
+
+test('local-image detection tolerates markdown destination whitespace and ignores code fences', () => {
+	assert.deepEqual(getWritePublishSafetyState({ markdown: '![lost]( local-image:missing-file )', images: [] }), {
+		shouldBlockPublishForUnresolvedLocalImages: true,
+		shouldShowUnresolvedLocalImageWarning: true,
+		unresolvedLocalImagePlaceholderIds: ['missing-file']
+	})
+
+	assert.deepEqual(getWritePublishSafetyState({ markdown: '~~~md\n![example](local-image:missing-file)\n~~~', images: [] }), {
+		shouldBlockPublishForUnresolvedLocalImages: false,
+		shouldShowUnresolvedLocalImageWarning: false,
+		unresolvedLocalImagePlaceholderIds: []
+	})
+})
+
+test('local-image replacement uses the same markdown normalization as publish safety', () => {
+	const replacements = new Map([['live-file', '/blogs/post/live.png']])
+	assert.equal(replaceLocalImagePlaceholders('![live]( local-image:live-file )', replacements), '![live](/blogs/post/live.png)')
+	assert.equal(replaceLocalImagePlaceholders('```md\n![live]( local-image:live-file )\n```', replacements), '```md\n![live]( local-image:live-file )\n```')
 })
 
 test('clear-draft transaction blocks autosave rewrite', () => {
