@@ -1,8 +1,47 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildBlogUpsertItem, buildRemoteArtifactContents, type PushBlogParams } from './push-blog.ts'
+import { assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, type PushBlogParams } from './push-blog'
 
+describe('assertPublishableBlog', () => {
+	it('阻止失效本地图片占位符进入正式发布链路', () => {
+		assert.throws(
+			() =>
+				assertPublishableBlog({
+					form: {
+						slug: 'post-1',
+						title: '标题',
+						md: '![lost](local-image:missing-file)',
+						tags: []
+					},
+					images: []
+				}),
+			/本地文件图片引用已失效/
+		)
+	})
+
+	it('允许仍有对应文件对象的本地图片占位符发布', () => {
+		assert.doesNotThrow(() =>
+			assertPublishableBlog({
+				form: {
+					slug: 'post-1',
+					title: '标题',
+					md: '![live](local-image:live-file)',
+					tags: []
+				},
+				images: [
+					{
+						id: 'live-file',
+						type: 'file',
+						file: { name: 'live.png' } as File,
+						previewUrl: 'blob:live-file',
+						filename: 'live.png'
+					}
+				]
+			})
+		)
+	})
+})
 describe('buildBlogUpsertItem', () => {
 	it('将 folderPath 与 favorite 透传到 upsertItem', () => {
 		const form: PushBlogParams['form'] = {

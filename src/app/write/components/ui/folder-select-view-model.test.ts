@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildFolderSelectViewModel } from './folder-select-view-model.ts'
+import { buildFolderSelectViewModel } from './folder-select-view-model'
 
 describe('folder-select view model', () => {
 	it('没有目录时显示空提示与新建按钮文案', () => {
@@ -13,7 +13,10 @@ describe('folder-select view model', () => {
 
 	it('新建目录后会把目录加入选项并自动选中', () => {
 		const view = buildFolderSelectViewModel({ folders: ['/生活'], value: '', createdFolderInput: '写作/技术' })
-		assert.deepEqual(view.options.map(item => item.value), ['', '/写作/技术', '/生活'])
+		assert.deepEqual(
+			view.options.map(item => item.value),
+			['', '/写作/技术', '/生活']
+		)
 		assert.equal(view.nextValueAfterCreate, '/写作/技术')
 	})
 
@@ -22,6 +25,9 @@ describe('folder-select view model', () => {
 		const selectedValue = creatingView.nextValueAfterCreate ?? ''
 
 		const createdView = buildFolderSelectViewModel({ folders: ['/生活'], value: selectedValue })
-		assert.deepEqual(createdView.options.map(item => item.value), ['', '/写作/技术', '/生活'])
+		assert.deepEqual(
+			createdView.options.map(item => item.value),
+			['', '/写作/技术', '/生活']
+		)
 	})
 })

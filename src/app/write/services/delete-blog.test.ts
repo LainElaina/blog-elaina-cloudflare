@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildDeleteArtifactContents } from './delete-blog.ts'
+import { buildDeleteArtifactContents } from './delete-blog'
 
 describe('buildDeleteArtifactContents', () => {
 	it('远端删除应同时生成 index/categories/folders/storage 四个正式产物内容', async () => {

@@ -1,18 +1,41 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useWriteStore } from '../stores/write-store'
-import { toast } from 'sonner'
 
 export function useLoadBlog(slug?: string) {
-	const { loadBlogForEdit, loading } = useWriteStore()
+	const { loadBlogForEdit, invalidateBlogLoad, loading } = useWriteStore()
+	const [hasLoadedBlog, setHasLoadedBlog] = useState(false)
+	const [loadFailed, setLoadFailed] = useState(false)
 
 	useEffect(() => {
-		if (slug) {
-			loadBlogForEdit(slug).catch(err => {
-				console.error('Failed to load blog:', err)
-				toast.error('加载博客失败')
-			})
-		}
-	}, [slug, loadBlogForEdit])
+		let cancelled = false
 
-	return { loading }
+		if (!slug) {
+			invalidateBlogLoad()
+			setHasLoadedBlog(false)
+			setLoadFailed(false)
+			return
+		}
+
+		setHasLoadedBlog(false)
+		setLoadFailed(false)
+
+		loadBlogForEdit(slug)
+			.then(didLoad => {
+				if (!cancelled && didLoad) {
+					setHasLoadedBlog(true)
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setLoadFailed(true)
+				}
+			})
+
+		return () => {
+			cancelled = true
+			invalidateBlogLoad()
+		}
+	}, [invalidateBlogLoad, loadBlogForEdit, slug])
+
+	return { loading, hasLoadedBlog, loadFailed }
 }

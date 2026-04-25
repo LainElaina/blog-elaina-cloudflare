@@ -7,6 +7,7 @@ import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
+import { getWritePublishSafetyState, replaceLocalImagePlaceholders } from '../write-safety'
 import { formatDateTimeLocal } from '../stores/write-store'
 
 export type PushBlogParams = {
@@ -64,14 +65,34 @@ export async function buildRemoteArtifactContents(params: {
 	}
 }
 
+export function assertPublishableBlog(params: Pick<PushBlogParams, 'form' | 'images'>): void {
+	const publishSafety = getWritePublishSafetyState({ markdown: params.form.md, images: params.images ?? [] })
+	if (publishSafety.shouldBlockPublishForUnresolvedLocalImages) {
+		throw new Error(`本地文件图片引用已失效，请重新选择图片并重新插入后再发布。失效引用：${publishSafety.unresolvedLocalImagePlaceholderIds.join(', ')}`)
+	}
+}
+
+export function assertEditableSlug(params: Pick<PushBlogParams, 'form' | 'mode' | 'originalSlug'>): void {
+	if (params.mode === 'edit' && params.originalSlug && params.originalSlug !== params.form.slug) {
+		throw new Error('编辑模式下不支持修改 slug，请保持原 slug 不变')
+	}
+}
+
+export function assertPublishableOutput(params: Pick<PushBlogParams, 'form' | 'images'>): void {
+	assertPublishableBlog(params)
+}
+
+export function replacePublishLocalImagePlaceholders(markdown: string, replacements: ReadonlyMap<string, string>): string {
+	return replaceLocalImagePlaceholders(markdown, replacements)
+}
+
 export async function pushBlog(params: PushBlogParams): Promise<void> {
 	const { form, cover, images, mode = 'create', originalSlug } = params
 
-	if (!form?.slug) throw new Error('需要 slug')
+	assertPublishableBlog({ form, images })
 
-	if (mode === 'edit' && originalSlug && originalSlug !== form.slug) {
-		throw new Error('编辑模式下不支持修改 slug，请保持原 slug 不变')
-	}
+	if (!form?.slug) throw new Error('需要 slug')
+	assertEditableSlug({ form, mode, originalSlug })
 
 	const token = await getAuthToken()
 
@@ -101,6 +122,7 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 
 	if (allLocalImages.length > 0) {
 		toast.info('正在上传图片...')
+		const placeholderReplacements = new Map<string, string>()
 		for (const { img, id } of allLocalImages) {
 			const hash = img.hash || (await hashFileSHA256(img.file))
 			const ext = getFileExt(img.file.name)
@@ -120,13 +142,13 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 				uploadedHashes.add(hash)
 			}
 
-			const placeholder = `local-image:${id}`
-			mdToUpload = mdToUpload.split(`(${placeholder})`).join(`(${publicPath})`)
+			placeholderReplacements.set(id, publicPath)
 
 			if (cover?.type === 'file' && cover.id === id) {
 				coverPath = publicPath
 			}
 		}
+		mdToUpload = replacePublishLocalImagePlaceholders(mdToUpload, placeholderReplacements)
 	}
 
 	if (cover?.type === 'url') {
@@ -134,6 +156,8 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 	}
 
 	toast.info('正在创建文件...')
+
+	assertPublishableOutput({ form: { ...form, md: mdToUpload }, images: [] })
 
 	const mdBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(mdToUpload), 'base64')
 	treeItems.push({

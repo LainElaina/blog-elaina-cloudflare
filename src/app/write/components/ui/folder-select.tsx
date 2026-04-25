@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Select } from '@/components/select'
 import { useBlogFolders } from '@/hooks/use-blog-folders'
-import { buildFolderSelectViewModel } from './folder-select-view-model.ts'
+import { buildFolderSelectViewModel } from './folder-select-view-model'
 
 type FolderSelectProps = {
 	value?: string

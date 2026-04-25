@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { loadBlog } from '@/lib/load-blog'
 import type { PublishForm, ImageItem } from '../types'
+import type { WriteSafetySnapshot } from '../write-safety'
 
 export const formatDateTimeLocal = (date: Date = new Date()): string => {
 	const pad = (n: number) => String(n).padStart(2, '0')
@@ -15,34 +16,23 @@ export const formatDateTimeLocal = (date: Date = new Date()): string => {
 }
 
 type WriteStore = {
-	// Mode state
 	mode: 'create' | 'edit'
 	originalSlug: string | null
 	setMode: (mode: 'create' | 'edit', originalSlug?: string) => void
-
-	// Form state
+	replaceWithSnapshot: (snapshot: WriteSafetySnapshot) => void
 	form: PublishForm
 	updateForm: (updates: Partial<PublishForm>) => void
 	setForm: (form: PublishForm) => void
-
-	// Image state
 	images: ImageItem[]
 	addUrlImage: (url: string) => void
 	addFiles: (files: FileList | File[]) => Promise<ImageItem[]>
 	deleteImage: (id: string) => void
-
-	// Cover state
 	cover: ImageItem | null
 	setCover: (cover: ImageItem | null) => void
-
-	// Publish state
 	loading: boolean
 	setLoading: (loading: boolean) => void
-
-	// Load blog for editing
-	loadBlogForEdit: (slug: string) => Promise<void>
-
-	// Reset to create mode
+	invalidateBlogLoad: () => void
+	loadBlogForEdit: (slug: string) => Promise<boolean>
 	reset: () => void
 }
 
@@ -59,18 +49,60 @@ const initialForm: PublishForm = {
 	favorite: false
 }
 
+const cloneForm = (form: PublishForm): PublishForm => ({
+	...form,
+	tags: [...form.tags]
+})
+
+const cloneImage = (image: ImageItem): ImageItem => ({ ...image })
+
+const cloneSnapshot = (snapshot: WriteSafetySnapshot): WriteSafetySnapshot => ({
+	...snapshot,
+	form: cloneForm(snapshot.form),
+	cover: snapshot.cover ? cloneImage(snapshot.cover) : null,
+	images: snapshot.images.map(cloneImage)
+})
+
+const revokePreviewUrls = (images: ImageItem[], cover: ImageItem | null) => {
+	const previewUrls = new Set<string>()
+
+	for (const image of images) {
+		if (image.type === 'file') {
+			previewUrls.add(image.previewUrl)
+		}
+	}
+
+	if (cover?.type === 'file') {
+		previewUrls.add(cover.previewUrl)
+	}
+
+	for (const previewUrl of previewUrls) {
+		URL.revokeObjectURL(previewUrl)
+	}
+}
+
+let latestLoadRequestToken = 0
+
 export const useWriteStore = create<WriteStore>((set, get) => ({
-	// Mode state
 	mode: 'create',
 	originalSlug: null,
 	setMode: (mode, originalSlug) => set({ mode, originalSlug: originalSlug || null }),
+	replaceWithSnapshot: snapshot => {
+		const { images, cover } = get()
+		revokePreviewUrls(images, cover)
 
-	// Form state
+		const nextSnapshot = cloneSnapshot(snapshot)
+		set({
+			mode: nextSnapshot.mode,
+			originalSlug: nextSnapshot.originalSlug,
+			form: nextSnapshot.form,
+			images: nextSnapshot.images,
+			cover: nextSnapshot.cover
+		})
+	},
 	form: { ...initialForm },
 	updateForm: updates => set(state => ({ form: { ...state.form, ...updates } })),
 	setForm: form => set({ form }),
-
-	// Image state
 	images: [],
 	addUrlImage: url => {
 		const { images } = get()
@@ -110,14 +142,12 @@ export const useWriteStore = create<WriteStore>((set, get) => ({
 
 		const resultImages: ImageItem[] = []
 
-		// 处理已存在的图片
 		for (const { hash } of computed) {
 			if (existingHashes.has(hash)) {
 				resultImages.push(existingHashes.get(hash)!)
 			}
 		}
 
-		// 处理新图片
 		if (unique.length > 0) {
 			const newItems: ImageItem[] = unique.map(({ file, hash }) => {
 				const id = Math.random().toString(36).slice(2, 10)
@@ -136,57 +166,61 @@ export const useWriteStore = create<WriteStore>((set, get) => ({
 	},
 	deleteImage: id =>
 		set(state => {
-			for (const it of state.images) {
-				if (it.type === 'file' && it.id === id) {
-					URL.revokeObjectURL(it.previewUrl)
+			let nextCover = state.cover
 
-					if (it.id === state.cover?.id) {
-						set({ cover: null })
-					}
+			for (const image of state.images) {
+				if (image.type === 'file' && image.id === id) {
+					URL.revokeObjectURL(image.previewUrl)
 				}
 			}
-			return { images: state.images.filter(it => it.id !== id) }
-		}),
 
-	// Cover state
+			if (state.cover?.id === id) {
+				nextCover = null
+			}
+
+			return {
+				images: state.images.filter(image => image.id !== id),
+				cover: nextCover
+			}
+		}),
 	cover: null,
 	setCover: cover => set({ cover }),
-
-	// Publish state
 	loading: false,
 	setLoading: loading => set({ loading }),
-
-	// Load blog for editing
+	invalidateBlogLoad: () => {
+		latestLoadRequestToken += 1
+		set({ loading: false })
+	},
 	loadBlogForEdit: async (slug: string) => {
+		const requestToken = ++latestLoadRequestToken
+
 		try {
 			set({ loading: true })
 			const blog = await loadBlog(slug)
+			if (requestToken !== latestLoadRequestToken) {
+				return false
+			}
 
-			// Parse images from markdown
 			const images: ImageItem[] = []
 			const imageRegex = /!\[.*?\]\((.*?)\)/g
 			let match
 			while ((match = imageRegex.exec(blog.markdown)) !== null) {
 				const url = match[1]
-				// Skip cover image and only collect content images
 				if (url && url !== blog.cover && !url.startsWith('local-image:')) {
-					// Check if already added
-					if (!images.some(img => img.type === 'url' && img.url === url)) {
+					if (!images.some(image => image.type === 'url' && image.url === url)) {
 						const id = Math.random().toString(36).slice(2, 10)
 						images.push({ id, type: 'url', url })
 					}
 				}
 			}
 
-			// Set cover
 			let cover: ImageItem | null = null
 			if (blog.cover) {
 				const coverId = Math.random().toString(36).slice(2, 10)
 				cover = { id: coverId, type: 'url', url: blog.cover }
 			}
 
-			// Set form
-			set({
+			get().replaceWithSnapshot({
 				mode: 'edit',
 				originalSlug: slug,
 				form: {
@@ -202,33 +236,24 @@ export const useWriteStore = create<WriteStore>((set, get) => ({
 					favorite: blog.config.favorite || false
 				},
 				images,
-				cover,
-				loading: false
+				cover
 			})
-
+			set({ loading: false })
 			toast.success('博客加载成功')
+			return true
 		} catch (err: any) {
+			if (requestToken !== latestLoadRequestToken) {
+				return false
+			}
+
 			console.error('Failed to load blog:', err)
 			toast.error(err?.message || '加载博客失败')
 			set({ loading: false })
 			throw err
 		}
 	},
-
-	// Reset to create mode
 	reset: () => {
-		// Revoke object URLs
-		const { images, cover } = get()
-		for (const img of images) {
-			if (img.type === 'file') {
-				URL.revokeObjectURL(img.previewUrl)
-			}
-		}
-		if (cover?.type === 'file') {
-			URL.revokeObjectURL(cover.previewUrl)
-		}
-
-		set({
+		get().replaceWithSnapshot({
 			mode: 'create',
 			originalSlug: null,
 			form: { ...initialForm, date: formatDateTimeLocal() },
