@@ -31,8 +31,14 @@ describe('site canonical URL generation', () => {
 	it('uses the canonical site origin in sitemap output', async () => {
 		const entries = await sitemap()
 		assert.ok(entries.length > 0)
-		assert.equal(entries.every(entry => entry.url?.startsWith('https://blog.lainelaina.top')), true)
-		assert.equal(entries.some(entry => entry.url?.includes('localhost')), false)
+		assert.equal(
+			entries.every(entry => entry.url?.startsWith('https://blog.lainelaina.top')),
+			true
+		)
+		assert.equal(
+			entries.some(entry => entry.url?.includes('localhost')),
+			false
+		)
 	})
 
 	it('does not fabricate current timestamps for invalid sitemap dates', async () => {

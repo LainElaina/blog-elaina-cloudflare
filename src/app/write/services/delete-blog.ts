@@ -1,7 +1,17 @@
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
-import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, TreeItem, updateRef } from '@/lib/github-client'
+import {
+	createBlob,
+	createCommit,
+	createTree,
+	getRef,
+	listRepoFilesRecursive,
+	readTextFileFromRepo,
+	toBase64Utf8,
+	TreeItem,
+	updateRef
+} from '@/lib/github-client'
 import { prepareBlogStaticArtifacts } from '@/lib/blog-index'
 
 export async function buildDeleteArtifactContents(params: {

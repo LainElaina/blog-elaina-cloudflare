@@ -74,7 +74,13 @@ const isPersistedWriteDraft = (value: unknown): value is PersistedWriteDraft => 
 		return false
 	}
 
-	if (typeof form.title !== 'string' || typeof form.md !== 'string' || !isStringArray(form.tags) || typeof form.date !== 'string' || typeof form.summary !== 'string') {
+	if (
+		typeof form.title !== 'string' ||
+		typeof form.md !== 'string' ||
+		!isStringArray(form.tags) ||
+		typeof form.date !== 'string' ||
+		typeof form.summary !== 'string'
+	) {
 		return false
 	}
 
