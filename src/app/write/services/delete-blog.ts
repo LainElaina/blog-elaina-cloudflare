@@ -12,7 +12,7 @@ import {
 	TreeItem,
 	updateRef
 } from '@/lib/github-client'
-import { prepareBlogStaticArtifacts } from '@/lib/blog-index'
+import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
 
 export async function buildDeleteArtifactContents(params: {
 	slug: string
@@ -27,7 +27,7 @@ export async function buildDeleteArtifactContents(params: {
 
 	return {
 		index: JSON.stringify(artifacts.index, null, 2),
-		categories: JSON.stringify({ categories: artifacts.categories }, null, 2),
+		categories: serializeCategoriesConfig(artifacts.categories),
 		folders: JSON.stringify(artifacts.folders, null, 2),
 		storage: JSON.stringify(artifacts.db, null, 2)
 	}
