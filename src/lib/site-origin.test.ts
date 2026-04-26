@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import path from 'node:path'
 import { describe, it } from 'node:test'
 
 import blogIndex from '@/../public/blogs/index.json'
@@ -8,8 +6,6 @@ import { siteMetadata } from '@/app/site-metadata'
 import { GET as getRss } from '@/app/rss.xml/route'
 import sitemap from '@/app/sitemap'
 import { CANONICAL_SITE_ORIGIN, getSiteOrigin, toAbsoluteSiteUrl } from './site-origin'
-
-const PUBLIC_DIR = path.join(process.cwd(), 'public')
 
 describe('site origin helper', () => {
 	it('fixes the canonical site origin to blog.lainelaina.top', () => {
@@ -64,19 +60,13 @@ describe('site canonical URL generation', () => {
 		const response = getRss()
 		const xml = await response.text()
 		const hasAnyPost = (blogIndex as Array<{ slug?: string }>).some(item => Boolean(item.slug))
-		const hasRelativeCoverWithFile = (blogIndex as Array<{ cover?: string }>).some(item => {
-			if (!item.cover?.startsWith('/')) return false
-			return fs.existsSync(path.join(PUBLIC_DIR, item.cover.replace(/^\/+/, '')))
-		})
 
 		assert.equal(hasAnyPost, true)
 		assert.match(xml, /https:\/\/blog\.lainelaina\.top\/rss\.xml/)
 		assert.match(xml, /https:\/\/blog\.lainelaina\.top<\/link>/)
 		assert.doesNotMatch(xml, /<pubDate><pubDate>/)
 		assert.match(xml, /https:\/\/blog\.lainelaina\.top\/blog\//)
-		if (hasRelativeCoverWithFile) {
-			assert.match(xml, /<enclosure url="https:\/\/blog\.lainelaina\.top\//)
-		}
+		assert.doesNotMatch(xml, /<enclosure\b/)
 		assert.doesNotMatch(xml, /www\.yysuni\.com/)
 	})
 })
