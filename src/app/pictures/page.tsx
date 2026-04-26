@@ -190,6 +190,8 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
+			let savedPictures = pictures
+
 			if (process.env.NODE_ENV === 'development') {
 				let updatedPictures = [...pictures]
 				// Upload new images
@@ -234,12 +236,13 @@ export default function Page() {
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
 				})
-				setPictures(updatedPictures)
+				savedPictures = updatedPictures
 			} else {
-				await pushPictures({ pictures, imageItems })
+				savedPictures = await pushPictures({ pictures, imageItems })
 			}
 
-			setOriginalPictures(pictures)
+			setPictures(savedPictures)
+			setOriginalPictures(savedPictures)
 			setImageItems(new Map())
 			setIsEditMode(false)
 			toast.success('保存成功！')

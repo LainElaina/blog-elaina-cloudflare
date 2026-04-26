@@ -5,14 +5,14 @@ import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../../projects/components/image-upload-dialog'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Picture } from '../page'
+import type { Picture } from '../page'
 
 export type PushPicturesParams = {
 	pictures: Picture[]
 	imageItems?: Map<string, ImageItem>
 }
 
-export async function pushPictures(params: PushPicturesParams): Promise<void> {
+export async function pushPictures(params: PushPicturesParams): Promise<Picture[]> {
 	const { pictures, imageItems } = params
 
 	const token = await getAuthToken()
@@ -144,4 +144,5 @@ export async function pushPictures(params: PushPicturesParams): Promise<void> {
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 	toast.success('发布成功！')
+	return updatedPictures
 }
