@@ -344,6 +344,10 @@ Cloudflare Workers 免费版会校验压缩后的 Worker 脚本体积，当前�
 
 正常新增博客文章通常主要增加 `public/blogs/<slug>/`、`public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json` 和图片等静态资源体积，不应把文章正文或本地管理工具重依赖打进 Worker。若新增功能需要 API route，请特别注意生产入口的顶层 import：只在本地开发使用的文件系统、迁移脚本、一次性管理工具必须放到 development guard 之后动态加载。
 
+第二轮轻量化后，OpenNext server handler gzip 约 `1374.65 KiB`（以重新执行 `build:cf` 后的本地产物为准），主要通过 development-only route 懒加载、RSS 去运行时文件系统依赖、Markdown renderer 延迟加载与 curated Shiki 完成。后续新增依赖后，优先检查 `.open-next/server-functions/default/handler.mjs` 与 `.open-next/worker.js` 的 gzip 体积；如果 `handler.mjs.meta.json` 中重新出现 `shiki/dist/bundle-full`、全量 `@shikijs/langs`、全量 `@shikijs/themes` 或 `@shikijs/engine-oniguruma`，说明代码高亮又把大包带回了 Worker。
+
+Markdown 代码高亮只加载常用语言和 `one-light` 主题；新增语言、主题或 RSS enclosure 长度支持时，不要在 route 顶层引入 `node:fs` / `node:path` 或运行时扫描 `public/`，确实需要文件大小时应改为构建期 manifest。
+
 线上 `/write` 与网站设置保存仍保留 GitHub App PEM/private key 浏览器端直写 GitHub 的能力：浏览器签发 GitHub App JWT、获取 installation token，并通过 GitHub API commit 到仓库。不要为了“瘦身”把这条链路迁移成重型 Worker 服务端代理，除非以后单独设计鉴权、密钥托管与 Worker 体积方案。
 
 部署配置也要避免重复构建：Cloudflare Dashboard 的 build command、`pnpm run deploy`、`wrangler.toml` 的 `[build] command` 都可能触发 OpenNext 构建。调整部署方式时保持单一可信构建入口，避免一次部署里重复运行 Next/OpenNext 构建。

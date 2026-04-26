@@ -821,6 +821,14 @@ import DraggerSVG from '@/svgs/dragger.svg'
 3. 构建命令：`pnpm run build:cf`（执行 `opennextjs-cloudflare build`）
 4. 部署到 Cloudflare Workers 边缘节点
 
+### Worker 体积维护规则
+
+- Cloudflare 免费版按压缩后的 Worker 脚本体积校验，重点关注 `.open-next/worker.js` 和 `.open-next/server-functions/default/handler.mjs`，不是静态文章与图片总量。
+- 当前第二轮轻量化后的 OpenNext server handler gzip 约 `1374.65 KiB`；新增依赖、API route、Markdown 高亮语言或部署工具后，都要重新检查 gzip。
+- 生产 route 顶层不要导入本地文件系统、迁移脚本、一次性开发工具或全量语法高亮包；仅 development 可用的逻辑必须先返回生产 403，再动态 `import()` heavy handler。
+- Markdown 高亮使用 curated Shiki 语言集和 `one-light` 主题，避免 `shiki/dist/bundle-full`、全量 `@shikijs/langs`、全量 `@shikijs/themes`、`@shikijs/engine-oniguruma` 回到 server handler。
+- RSS route 不应运行时 `stat` 本地封面文件；若未来必须输出 enclosure length，请用构建期 manifest，而不是在 route 顶层引入 `node:fs` / `node:path`。
+
 ### 部署后内容未更新？
 
 按顺序排查：
@@ -905,6 +913,7 @@ git pull origin main   # 拉取网页端推送的 commit
    }
    ```
 3. 如涉及文件操作，必须做路径安全校验（`resolve()` + `startsWith()`）
+4. 如果该路由只服务本地开发或迁移工具，环境检查必须发生在任何 heavy handler 动态导入之前；不要在 route 顶层静态导入 `node:fs`、`node:path`、迁移 contract 或大依赖。
 
 ### 添加新的配置文件
 
