@@ -1,47 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs/promises'
-import path from 'path'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
 	if (process.env.NODE_ENV !== 'development') {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	try {
-		const { siteContent, cardStyles, customComponents, colorPresets } = await request.json()
-
-		const configDir = path.join(process.cwd(), 'src/config')
-
-		if (siteContent) {
-			await fs.writeFile(
-				path.join(configDir, 'site-content.json'),
-				JSON.stringify(siteContent, null, '\t')
-			)
-		}
-
-		if (cardStyles) {
-			await fs.writeFile(
-				path.join(configDir, 'card-styles.json'),
-				JSON.stringify(cardStyles, null, '\t')
-			)
-		}
-
-		if (customComponents) {
-			await fs.writeFile(
-				path.join(configDir, 'custom-components.json'),
-				JSON.stringify(customComponents, null, '\t')
-			)
-		}
-
-		if (colorPresets) {
-			await fs.writeFile(
-				path.join(configDir, 'color-presets.json'),
-				JSON.stringify(colorPresets, null, '\t')
-			)
-		}
-
-		return NextResponse.json({ success: true })
-	} catch (error: any) {
-		return NextResponse.json({ error: error.message }, { status: 500 })
-	}
+	const { handleConfigPost } = await import('./route-local')
+	return handleConfigPost(request)
 }

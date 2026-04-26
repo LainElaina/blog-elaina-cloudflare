@@ -1,16 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import {
-	buildSiteConfigDraftItems,
-	clearSiteConfigDraft,
-	readSiteConfigDraft,
-	writeSiteConfigDraft
-} from '@/app/api/site-config-local-shared'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export async function GET() {
 	if (process.env.NODE_ENV !== 'development') {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
+	const { buildSiteConfigDraftItems, readSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
 	const draft = await readSiteConfigDraft(process.cwd())
 	if (!draft) {
 		return NextResponse.json({ hasDraft: false, items: [] })
@@ -23,6 +19,8 @@ export async function POST(request: NextRequest) {
 	if (process.env.NODE_ENV !== 'development') {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
+
+	const { buildSiteConfigDraftItems, writeSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
 
 	try {
 		const payload = await request.json()
@@ -37,6 +35,8 @@ export async function DELETE() {
 	if (process.env.NODE_ENV !== 'development') {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
+
+	const { clearSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
 
 	try {
 		await clearSiteConfigDraft(process.cwd())

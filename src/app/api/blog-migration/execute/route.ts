@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
 
-import { executeRoute } from '../route-handlers.ts'
-
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { confirmed?: boolean }
-  const result = await executeRoute({
-    nodeEnv: process.env.NODE_ENV ?? 'production',
-    confirmed: body.confirmed === true,
-    baseDir: process.cwd()
-  })
+	if (process.env.NODE_ENV !== 'development') {
+		return NextResponse.json({ message: '仅开发环境可用' }, { status: 403 })
+	}
 
-  return NextResponse.json(result.body, { status: result.status })
+	const body = (await request.json().catch(() => ({}))) as { confirmed?: boolean }
+	const { executeRoute } = await import('../route-handlers.ts')
+	const result = await executeRoute({
+		nodeEnv: 'development',
+		confirmed: body.confirmed === true,
+		baseDir: process.cwd()
+	})
+
+	return NextResponse.json(result.body, { status: result.status })
 }
