@@ -235,6 +235,10 @@
 - `/api/config` — 写入配置文件（`site-content.json`、`card-styles.json`、`custom-components.json`、`color-presets.json`）
 - `/api/drafts/site-config` — 保存/读取/清理首页配置草稿
 - `/api/publish/site-config` — 将首页配置草稿正式写入仓库文件
+- `/api/layout`、`/api/layout/undo` — 本地布局读取、保存与撤销
+- `/api/blog-migration/preview`、`/api/blog-migration/execute` — 本地博客账本同步 / 正式产物重建工具
+
+这些 route 的入口文件必须保持轻量：生产环境先返回 403，再在 development 分支内动态加载本地实现。不要在 `route.ts` 顶层 import `fs`、`path`、`node:*`、大迁移工具或其它只服务本地开发的重依赖，否则它们会进入 Cloudflare Worker 的生产 bundle。
 
 ### 📝 草稿保存 vs 正式保存 vs git push
 - **保存本地草稿**：仅在开发环境下把首页配置写入 `data/site-config.draft.json`，不会触碰正式源。
@@ -312,6 +316,16 @@ pnpm run dev
 * **线上更新**：在网页端保存文章，或本地执行 `git push` 后，Cloudflare 将在几分钟内自动完成构建并刷新全站缓存。
 * **本地同步**：如果通过网页端发布了新文章，本地修改代码前请务必先执行 `git pull origin main` 以防代码冲突。
 * **部署后内容未更新？** Cloudflare 可能使用了构建缓存。前往 Cloudflare Dashboard → Workers & Pages → 项目 → Settings → Builds → Purge build cache，然后 Retry deployment。部署完成后再到 Caching → Purge Everything 清除 CDN 缓存，最后浏览器 Ctrl+Shift+R 硬刷新。
+
+### Cloudflare Worker 体积边界
+
+Cloudflare Workers 免费版会校验压缩后的 Worker 脚本体积，当前上限是 3 MiB。OpenNext 构建后，真正受这个限制影响的是 `.open-next/worker.js` 与 server function bundle，而不是单纯的静态资源总量；Cloudflare 已按压缩后体积判断，手动把仓库或 Worker 再 gzip 一次不能绕过这个限制。
+
+正常新增博客文章通常主要增加 `public/blogs/<slug>/`、`public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json` 和图片等静态资源体积，不应把文章正文或本地管理工具重依赖打进 Worker。若新增功能需要 API route，请特别注意生产入口的顶层 import：只在本地开发使用的文件系统、迁移脚本、一次性管理工具必须放到 development guard 之后动态加载。
+
+线上 `/write` 与网站设置保存仍保留 GitHub App PEM/private key 浏览器端直写 GitHub 的能力：浏览器签发 GitHub App JWT、获取 installation token，并通过 GitHub API commit 到仓库。不要为了“瘦身”把这条链路迁移成重型 Worker 服务端代理，除非以后单独设计鉴权、密钥托管与 Worker 体积方案。
+
+部署配置也要避免重复构建：Cloudflare Dashboard 的 build command、`pnpm run deploy`、`wrangler.toml` 的 `[build] command` 都可能触发 OpenNext 构建。调整部署方式时保持单一可信构建入口，避免一次部署里重复运行 Next/OpenNext 构建。
 
 ---
 

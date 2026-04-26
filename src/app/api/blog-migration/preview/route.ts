@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 
-import { previewRoute } from '../route-handlers.ts'
-
 export async function GET() {
-  const result = await previewRoute({
-    nodeEnv: process.env.NODE_ENV ?? 'production',
-    baseDir: process.cwd()
-  })
+	if (process.env.NODE_ENV !== 'development') {
+		return NextResponse.json({ message: '仅开发环境可用' }, { status: 403 })
+	}
 
-  return NextResponse.json(result.body, { status: result.status })
+	const { previewRoute } = await import('../route-handlers.ts')
+	const result = await previewRoute({
+		nodeEnv: 'development',
+		baseDir: process.cwd()
+	})
+
+	return NextResponse.json(result.body, { status: result.status })
 }
