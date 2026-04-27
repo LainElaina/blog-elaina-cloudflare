@@ -9,6 +9,7 @@ const {
 	requestLocalEndpoint,
 	getLocalSiteConfigEndpoint,
 	shouldSyncFormalAssets,
+	shouldRequestLocalConfigEndpoint,
 	resolveLocalSocialButtonImageUploadPath,
 	shouldClearLocalPendingAssetUploads
 } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
@@ -17,7 +18,8 @@ const {
 	readSiteConfigDraft,
 	clearSiteConfigDraft,
 	publishSiteConfigDraft,
-	canPublishSiteConfigDraft
+	canPublishSiteConfigDraft,
+	resolveSiteConfigPublishPayload
 } = await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
 
 test('buildLocalConfigPayload only includes changed site content', () => {
@@ -50,6 +52,13 @@ test('getLocalSiteConfigEndpoint splits draft and publish endpoints', () => {
 test('shouldSyncFormalAssets only allows publish action', () => {
 	assert.equal(shouldSyncFormalAssets('draft'), false)
 	assert.equal(shouldSyncFormalAssets('publish'), true)
+})
+
+test('shouldRequestLocalConfigEndpoint includes explicit draft publishes', () => {
+	assert.equal(shouldRequestLocalConfigEndpoint('draft', {}, false), false)
+	assert.equal(shouldRequestLocalConfigEndpoint('publish', {}, false), false)
+	assert.equal(shouldRequestLocalConfigEndpoint('publish', {}, true), true)
+	assert.equal(shouldRequestLocalConfigEndpoint('draft', { siteContent: {} }, false), true)
 })
 
 test('resolveLocalSocialButtonImageUploadPath uses the configured social button URL', () => {
@@ -143,3 +152,27 @@ test('正式保存前必须先存在草稿', async () => {
 	assert.equal(JSON.parse(formalRaw).meta.title, 'formal')
 	await fs.rm(tmpDir, { recursive: true, force: true })
 })
+
+test('正式保存优先使用当前请求 payload 而不是旧草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-payload-'))
+	await writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'old draft' } } })
+
+	const payload = await resolveSiteConfigPublishPayload(tmpDir, { siteContent: { meta: { title: 'current publish' } } })
+
+	assert.deepEqual(payload, { siteContent: { meta: { title: 'current publish' } } })
+	await clearSiteConfigDraft(tmpDir)
+	await fs.rm(tmpDir, { recursive: true, force: true })
+})
+
+test('正式保存请求为空时回退发布已有草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-draft-'))
+	const draft = { siteContent: { meta: { title: 'saved draft' } } }
+	await writeSiteConfigDraft(tmpDir, draft)
+
+	const payload = await resolveSiteConfigPublishPayload(tmpDir, {})
+
+	assert.deepEqual(payload, draft)
+	await clearSiteConfigDraft(tmpDir)
+	await fs.rm(tmpDir, { recursive: true, force: true })
+})
+

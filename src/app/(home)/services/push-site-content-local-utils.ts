@@ -25,6 +25,11 @@ export function shouldSyncFormalAssets(action: 'draft' | 'publish') {
 	return action === 'publish'
 }
 
+
+export function shouldRequestLocalConfigEndpoint(action: 'draft' | 'publish', payload: object, publishExistingDraft: boolean) {
+	return Object.keys(payload).length > 0 || (action === 'publish' && publishExistingDraft)
+}
+
 export function shouldClearLocalPendingAssetUploads(action: 'draft' | 'publish') {
 	return action === 'publish'
 }

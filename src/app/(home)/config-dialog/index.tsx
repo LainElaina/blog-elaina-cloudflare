@@ -231,7 +231,15 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 				formData,
 				originalData,
 				cardStylesData,
-				originalCardStyles
+				originalCardStyles,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				true
 			)
 			await syncDraftState()
 		} catch (error: any) {

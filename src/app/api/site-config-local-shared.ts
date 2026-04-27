@@ -64,6 +64,19 @@ export async function canPublishSiteConfigDraft(baseDir: string) {
 	return draft !== null
 }
 
+
+export async function resolveSiteConfigPublishPayload(baseDir: string, payload: SiteConfigDraftPayload) {
+	if (Object.keys(payload).length > 0) {
+		return payload
+	}
+
+	const draft = await readSiteConfigDraft(baseDir)
+	if (!draft) {
+		throw new Error('没有可发布的草稿')
+	}
+	return draft
+}
+
 export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
 	if (!draft || Object.keys(draft).length === 0) {
 		throw new Error('没有可发布的草稿')

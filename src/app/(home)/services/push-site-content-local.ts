@@ -6,6 +6,7 @@ import {
 	requestLocalEndpoint,
 	getLocalSiteConfigEndpoint,
 	shouldSyncFormalAssets,
+	shouldRequestLocalConfigEndpoint,
 	resolveLocalSocialButtonImageUploadPath
 } from './push-site-content-local-utils'
 
@@ -24,7 +25,8 @@ export async function pushSiteContentLocal(
 	removedArtImages?: ArtImageConfig[],
 	backgroundImageUploads?: BackgroundImageUploads,
 	removedBackgroundImages?: BackgroundImageConfig[],
-	socialButtonImageUploads?: SocialButtonImageUploads
+	socialButtonImageUploads?: SocialButtonImageUploads,
+	publishExistingDraft = false
 ): Promise<void> {
 	toast.info(action === 'draft' ? '正在保存本地草稿...' : '正在正式保存到本地...')
 
@@ -91,7 +93,7 @@ export async function pushSiteContentLocal(
 	await Promise.all(uploadPromises)
 
 	const configPayload = buildLocalConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
-	if (Object.keys(configPayload).length > 0) {
+	if (shouldRequestLocalConfigEndpoint(action, configPayload, publishExistingDraft)) {
 		await requestLocalEndpoint(
 			fetch,
 			getLocalSiteConfigEndpoint(action),
