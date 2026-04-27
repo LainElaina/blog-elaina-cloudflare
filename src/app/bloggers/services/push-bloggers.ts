@@ -12,7 +12,7 @@ export type PushBloggersParams = {
 	avatarItems?: Map<string, AvatarItem>
 }
 
-export async function pushBloggers(params: PushBloggersParams): Promise<void> {
+export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[]> {
 	const { bloggers, avatarItems } = params
 
 	// 获取认证 token（自动从全局认证状态获取）
@@ -82,4 +82,5 @@ export async function pushBloggers(params: PushBloggersParams): Promise<void> {
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 	toast.success('发布成功！')
+	return updatedBloggers
 }

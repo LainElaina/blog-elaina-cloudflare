@@ -12,7 +12,7 @@ export type PushProjectsParams = {
 	imageItems?: Map<string, ImageItem>
 }
 
-export async function pushProjects(params: PushProjectsParams): Promise<void> {
+export async function pushProjects(params: PushProjectsParams): Promise<Project[]> {
 	const { projects, imageItems } = params
 
 	const token = await getAuthToken()
@@ -75,5 +75,6 @@ export async function pushProjects(params: PushProjectsParams): Promise<void> {
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 	toast.success('发布成功！')
+	return updatedProjects
 }
 

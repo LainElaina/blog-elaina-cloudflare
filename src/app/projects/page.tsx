@@ -83,6 +83,8 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
+			let savedProjects = projects
+
 			if (process.env.NODE_ENV === 'development') {
 				let updatedProjects = [...projects]
 				for (const [url, imageItem] of imageItems.entries()) {
@@ -95,7 +97,7 @@ export default function Page() {
 						formData.append('file', imageItem.file)
 						formData.append('path', `public${publicPath}`)
 						await fetch('/api/upload-image', { method: 'POST', body: formData })
-						updatedProjects = updatedProjects.map(p => p.image === url ? { ...p, image: publicPath } : p)
+						updatedProjects = updatedProjects.map(p => p.url === url ? { ...p, image: publicPath } : p)
 					}
 				}
 				await fetch('/api/save-file', {
@@ -103,12 +105,13 @@ export default function Page() {
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ path: 'src/app/projects/list.json', content: JSON.stringify(updatedProjects, null, '\t') })
 				})
-				setProjects(updatedProjects)
+				savedProjects = updatedProjects
 			} else {
-				await pushProjects({ projects, imageItems })
+				savedProjects = await pushProjects({ projects, imageItems })
 			}
 
-			setOriginalProjects(projects)
+			setProjects(savedProjects)
+			setOriginalProjects(savedProjects)
 			setImageItems(new Map())
 			setIsEditMode(false)
 			toast.success('保存成功！')

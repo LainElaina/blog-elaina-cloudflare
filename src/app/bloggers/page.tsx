@@ -84,6 +84,8 @@ export default function Page() {
 		setIsSaving(true)
 
 		try {
+			let savedBloggers = bloggers
+
 			if (process.env.NODE_ENV === 'development') {
 				let updatedBloggers = [...bloggers]
 				// Upload avatar files locally
@@ -97,7 +99,7 @@ export default function Page() {
 						formData.append('file', avatarItem.file)
 						formData.append('path', `public${publicPath}`)
 						await fetch('/api/upload-image', { method: 'POST', body: formData })
-						updatedBloggers = updatedBloggers.map(b => b.avatar === url ? { ...b, avatar: publicPath } : b)
+						updatedBloggers = updatedBloggers.map(b => b.url === url ? { ...b, avatar: publicPath } : b)
 					}
 				}
 				await fetch('/api/save-file', {
@@ -105,12 +107,13 @@ export default function Page() {
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ path: 'src/app/bloggers/list.json', content: JSON.stringify(updatedBloggers, null, '\t') })
 				})
-				setBloggers(updatedBloggers)
+				savedBloggers = updatedBloggers
 			} else {
-				await pushBloggers({ bloggers, avatarItems })
+				savedBloggers = await pushBloggers({ bloggers, avatarItems })
 			}
 
-			setOriginalBloggers(bloggers)
+			setBloggers(savedBloggers)
+			setOriginalBloggers(savedBloggers)
 			setAvatarItems(new Map())
 			setIsEditMode(false)
 			toast.success('保存成功！')
