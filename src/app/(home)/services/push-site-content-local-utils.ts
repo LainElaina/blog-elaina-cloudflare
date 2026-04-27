@@ -25,6 +25,22 @@ export function shouldSyncFormalAssets(action: 'draft' | 'publish') {
 	return action === 'publish'
 }
 
+export function shouldClearLocalPendingAssetUploads(action: 'draft' | 'publish') {
+	return action === 'publish'
+}
+
+type SiteContentWithSocialButtons = {
+	socialButtons?: Array<{ id: string; value: string }> | null
+}
+
+export function resolveLocalSocialButtonImageUploadPath(siteContent: SiteContentWithSocialButtons, buttonId: string) {
+	const value = siteContent.socialButtons?.find(button => button.id === buttonId)?.value
+	if (!value?.startsWith('/images/social-buttons/')) {
+		return null
+	}
+	return `public${value}`
+}
+
 export async function requestLocalEndpoint(
 	fetchImpl: typeof fetch,
 	input: string,

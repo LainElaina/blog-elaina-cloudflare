@@ -1,7 +1,13 @@
 import { toast } from 'sonner'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
-import { buildLocalConfigPayload, requestLocalEndpoint, getLocalSiteConfigEndpoint, shouldSyncFormalAssets } from './push-site-content-local-utils'
+import {
+	buildLocalConfigPayload,
+	requestLocalEndpoint,
+	getLocalSiteConfigEndpoint,
+	shouldSyncFormalAssets,
+	resolveLocalSocialButtonImageUploadPath
+} from './push-site-content-local-utils'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
@@ -75,10 +81,10 @@ export async function pushSiteContentLocal(
 	// Upload social button images
 	if (syncFormalAssets && socialButtonImageUploads) {
 		for (const [id, item] of Object.entries(socialButtonImageUploads)) {
-			if (item.type === 'file') {
-				const ext = item.file.name.split('.').pop() || 'png'
-				uploadPromises.push(uploadFile(item.file, `public/images/misc/${id}.${ext}`))
-			}
+			if (item.type !== 'file') continue
+			const uploadPath = resolveLocalSocialButtonImageUploadPath(siteContent, id)
+			if (!uploadPath) continue
+			uploadPromises.push(uploadFile(item.file, uploadPath))
 		}
 	}
 

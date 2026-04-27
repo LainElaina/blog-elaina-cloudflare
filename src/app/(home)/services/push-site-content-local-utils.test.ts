@@ -4,7 +4,14 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-const { buildLocalConfigPayload, requestLocalEndpoint, getLocalSiteConfigEndpoint, shouldSyncFormalAssets } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
+const {
+	buildLocalConfigPayload,
+	requestLocalEndpoint,
+	getLocalSiteConfigEndpoint,
+	shouldSyncFormalAssets,
+	resolveLocalSocialButtonImageUploadPath,
+	shouldClearLocalPendingAssetUploads
+} = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
 const {
 	writeSiteConfigDraft,
 	readSiteConfigDraft,
@@ -43,6 +50,24 @@ test('getLocalSiteConfigEndpoint splits draft and publish endpoints', () => {
 test('shouldSyncFormalAssets only allows publish action', () => {
 	assert.equal(shouldSyncFormalAssets('draft'), false)
 	assert.equal(shouldSyncFormalAssets('publish'), true)
+})
+
+test('resolveLocalSocialButtonImageUploadPath uses the configured social button URL', () => {
+	const siteContent = {
+		socialButtons: [
+			{ id: 'github', value: '/images/social-buttons/hash.png' },
+			{ id: 'mail', value: 'mailto:hello@example.com' }
+		]
+	}
+
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'github'), 'public/images/social-buttons/hash.png')
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'mail'), null)
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'missing'), null)
+})
+
+test('shouldClearLocalPendingAssetUploads only clears after local publish', () => {
+	assert.equal(shouldClearLocalPendingAssetUploads('draft'), false)
+	assert.equal(shouldClearLocalPendingAssetUploads('publish'), true)
 })
 
 test('requestLocalEndpoint throws server error message for non-ok response', async () => {

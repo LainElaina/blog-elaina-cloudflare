@@ -8,6 +8,7 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '../stores/config-store'
 import { pushSiteContent } from '../services/push-site-content'
 import { pushSiteContentLocal } from '../services/push-site-content-local'
+import { shouldClearLocalPendingAssetUploads } from '../services/push-site-content-local-utils'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
 import { ColorConfig } from './color-config'
@@ -204,11 +205,13 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			setSiteContent(formData)
 			setCardStyles(cardStylesData)
 			updateThemeVariables(formData.theme)
-			setFaviconItem(null)
-			setAvatarItem(null)
-			setArtImageUploads({})
-			setBackgroundImageUploads({})
-			setSocialButtonImageUploads({})
+			if (shouldClearLocalPendingAssetUploads(action)) {
+				setFaviconItem(null)
+				setAvatarItem(null)
+				setArtImageUploads({})
+				setBackgroundImageUploads({})
+				setSocialButtonImageUploads({})
+			}
 			await syncDraftState()
 			if (action === 'publish') {
 				onClose()
