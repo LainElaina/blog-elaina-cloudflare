@@ -19,12 +19,7 @@ import {
 	type ShareEditSubmitPayload
 } from './components/share-folder-select-view-model'
 import { pushShares } from './services/push-shares'
-import {
-	LOCAL_SHARE_SAVE_PATHS,
-	applyShareLogoPathUpdates,
-	buildLocalShareSaveFilePayloads,
-	type ShareSaveFilePayload
-} from './services/share-artifacts'
+import { LOCAL_SHARE_SAVE_PATHS, applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, type ShareSaveFilePayload } from './services/share-artifacts'
 import {
 	createSharePageState,
 	finishShareEditSession,
@@ -39,11 +34,7 @@ import {
 	startShareEditSession,
 	type ShareCategoriesArtifact
 } from './share-page-state'
-import {
-	SHARE_CATEGORY_ALL,
-	SHARE_DIRECTORY_ALL,
-	type ShareFolderNode
-} from './share-runtime'
+import { SHARE_CATEGORY_ALL, SHARE_DIRECTORY_ALL, type ShareFolderNode } from './share-runtime'
 import initialList from '@/../public/share/list.json'
 import initialCategories from '@/../public/share/categories.json'
 import initialFolders from '@/../public/share/folders.json'
@@ -51,6 +42,15 @@ import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
+
+const assertOk = async (response: Response, actionName: string) => {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
 
 type SharePageArtifacts = {
 	list: Share[]
@@ -287,9 +287,7 @@ export default function Page() {
 			draftOnlyUrls
 		})
 		setPageState(current => {
-			const nextList = payload.oldUrl
-				? replaceShareByUrl(current.artifacts.list, payload.oldUrl, payload.share)
-				: [...current.artifacts.list, payload.share]
+			const nextList = payload.oldUrl ? replaceShareByUrl(current.artifacts.list, payload.oldUrl, payload.share) : [...current.artifacts.list, payload.share]
 
 			return replaceArtifactsInState(current, buildArtifactsFromList(nextList), { preserveFilters: true })
 		})
@@ -340,12 +338,7 @@ export default function Page() {
 		setEditingAnchorUrls([])
 	}
 
-	const handleCancelShareEdit = (params: {
-		originalShare: Share
-		draftShare: Share
-		logoItem?: LogoItem
-		initialLogoItem?: LogoItem
-	}) => {
+	const handleCancelShareEdit = (params: { originalShare: Share; draftShare: Share; logoItem?: LogoItem; initialLogoItem?: LogoItem }) => {
 		setPageState(current => {
 			const nextList = replaceShareByUrl(current.artifacts.list, params.draftShare.url, params.originalShare)
 			return replaceArtifactsInState(current, buildArtifactsFromList(nextList))
@@ -461,7 +454,7 @@ export default function Page() {
 						const formData = new FormData()
 						formData.append('file', logoItem.file)
 						formData.append('path', `public${publicPath}`)
-						await fetch('/api/upload-image', { method: 'POST', body: formData })
+						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传分享图标')
 						nextLogoPaths.set(url, publicPath)
 					}
 				}
@@ -471,11 +464,14 @@ export default function Page() {
 				const updatedShares = applyShareLogoPathUpdates(currentShares, nextLogoPaths)
 				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls)
 				for (const payload of payloads) {
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: payload.path, content: payload.content })
-					})
+					await assertOk(
+						await fetch('/api/save-file', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: payload.path, content: payload.content })
+						}),
+						'保存分享产物'
+					)
 				}
 
 				nextArtifacts = parseSavedArtifacts(payloads, buildArtifactsFromList(updatedShares))
@@ -585,9 +581,7 @@ export default function Page() {
 										type='button'
 										onClick={() => setPageState(current => setSharePageDirectory(current, SHARE_DIRECTORY_ALL))}
 										className={`block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-											pageState.filters.activeDirectory === SHARE_DIRECTORY_ALL
-												? 'bg-brand/10 text-brand font-medium'
-												: 'text-gray-700 hover:bg-gray-100'
+											pageState.filters.activeDirectory === SHARE_DIRECTORY_ALL ? 'bg-brand/10 text-brand font-medium' : 'text-gray-700 hover:bg-gray-100'
 										}`}>
 										全部目录
 									</button>
@@ -604,9 +598,7 @@ export default function Page() {
 										type='button'
 										onClick={() => setPageState(current => setSharePageCategory(current, category))}
 										className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-											pageState.runtime.activeCategory === category
-												? 'bg-brand text-white'
-												: 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+											pageState.runtime.activeCategory === category ? 'bg-brand text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
 										}`}>
 										{category === SHARE_CATEGORY_ALL ? '全部' : category}
 									</button>
@@ -642,7 +634,11 @@ export default function Page() {
 									className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
 									取消
 								</motion.button>
-								<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAdd} className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
+								<motion.button
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={handleAdd}
+									className='rounded-xl border bg-white/60 px-6 py-2 text-sm'>
 									添加
 								</motion.button>
 								<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSaveClick} disabled={isSaving} className='brand-btn px-6'>
