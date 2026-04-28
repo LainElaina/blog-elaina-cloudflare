@@ -234,11 +234,14 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 		setIsSaving(true)
 		try {
 			if (process.env.NODE_ENV === 'development') {
-				await fetch('/api/config', {
+				const response = await fetch('/api/config', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ colorPresets: customPresets })
 				})
+				if (!response.ok) {
+					throw new Error('保存色彩预设失败')
+				}
 				toast.success('色彩预设已保存到项目')
 			} else if (isAuth) {
 				const { getAuthToken } = await import('@/lib/auth')

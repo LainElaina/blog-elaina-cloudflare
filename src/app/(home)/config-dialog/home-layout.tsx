@@ -84,11 +84,14 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 	// 持久化保存 cardStyles 和 customComponents 到项目草稿
 	const persistToProject = async (newCardStyles: CardStyles, newComponents: any[]) => {
 		if (process.env.NODE_ENV === 'development') {
-			await fetch('/api/drafts/site-config', {
+			const response = await fetch('/api/drafts/site-config', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ cardStyles: newCardStyles, customComponents: newComponents })
 			})
+			if (!response.ok) {
+				throw new Error('保存布局草稿失败')
+			}
 			addLog('success', 'layout', '重置已保存到本地草稿')
 		} else if (isAuth) {
 			const { getAuthToken } = await import('@/lib/auth')
