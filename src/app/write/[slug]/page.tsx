@@ -207,6 +207,20 @@ export default function EditBlogPage() {
 		closePreview()
 	}
 
+	const handlePublishSuccess = (snapshot: WriteSafetySnapshot) => {
+		if (autosaveTimerRef.current !== null) {
+			window.clearTimeout(autosaveTimerRef.current)
+			autosaveTimerRef.current = null
+		}
+		replaceWithSnapshot(snapshot)
+		setBaseline(snapshot)
+		if (draftKey) {
+			setIsClearingDraft(true)
+			clearWriteDraft(draftKey)
+		}
+		closePreview()
+	}
+
 	return isPreview ? (
 		<WritePreview form={form} coverPreviewUrl={coverPreviewUrl} onClose={closePreview} slug={slug} />
 	) : (
@@ -221,7 +235,7 @@ export default function EditBlogPage() {
 				<WriteSidebar />
 			</div>
 
-			<WriteActions onClearDraft={handleClearDraft} />
+			<WriteActions onClearDraft={handleClearDraft} onPublishSuccess={handlePublishSuccess} />
 		</>
 	)
 }

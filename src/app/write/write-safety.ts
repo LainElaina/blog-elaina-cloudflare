@@ -129,6 +129,53 @@ const areImagesEqual = (left: ImageItem[], right: ImageItem[]) => {
 	})
 }
 
+
+export function buildPublishedWriteSnapshot(params: {
+	form: Omit<PublishForm, 'date' | 'summary'> & Partial<Pick<PublishForm, 'date' | 'summary'>>
+	cover?: ImageItem | null
+	images?: ImageItem[]
+	mode?: WriteMode
+	originalSlug?: string | null
+	markdown: string
+	dateStr: string
+	coverPath?: string
+	imagePaths: ReadonlyMap<string, string>
+}): WriteSafetySnapshot {
+	const { form, cover, images = [], mode = 'create', originalSlug = null, markdown, dateStr, coverPath, imagePaths } = params
+	const publishedImages = images.map(image => {
+		if (image.type === 'url') {
+			return cloneImage(image)
+		}
+
+		const url = imagePaths.get(image.id)
+		return url ? ({ id: image.id, type: 'url', url } satisfies ImageItem) : cloneImage(image)
+	})
+
+	let publishedCover: ImageItem | null = cover ? cloneImage(cover) : null
+	if (cover?.type === 'file' && coverPath) {
+		publishedCover = { id: cover.id, type: 'url', url: coverPath }
+	}
+
+	return cloneSnapshot({
+		mode,
+		originalSlug: mode === 'edit' ? originalSlug ?? form.slug : null,
+		form: {
+			slug: form.slug,
+			title: form.title,
+			md: markdown,
+			tags: [...(form.tags || [])],
+			date: dateStr,
+			summary: form.summary ?? '',
+			hidden: form.hidden ?? false,
+			category: form.category ?? '',
+			folderPath: form.folderPath ?? '',
+			favorite: form.favorite ?? false
+		},
+		cover: publishedCover,
+		images: publishedImages
+	})
+}
+
 export function createEmptyWriteBaseline(now: string = formatDateTimeLocal()): WriteBaseline {
 	return {
 		mode: 'create',

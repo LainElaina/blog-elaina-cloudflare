@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import { useWriteStore } from '../stores/write-store'
 import { usePreviewStore } from '../stores/preview-store'
 import { usePublish } from '../hooks/use-publish'
+import type { WriteSafetySnapshot } from '../write-safety'
 
 type WriteActionsProps = {
 	onClearDraft?: () => void
+	onPublishSuccess?: (snapshot: WriteSafetySnapshot) => void
 }
 
-export function WriteActions({ onClearDraft }: WriteActionsProps = {}) {
+export function WriteActions({ onClearDraft, onPublishSuccess }: WriteActionsProps = {}) {
 	const { loading, mode, form, loadBlogForEdit, originalSlug, updateForm } = useWriteStore()
 	const { openPreview } = usePreviewStore()
 	const { isAuth, onChoosePrivateKey, onPublish, onDelete } = usePublish()
@@ -26,9 +28,12 @@ export function WriteActions({ onClearDraft }: WriteActionsProps = {}) {
 			return
 		}
 
-		const didPublish = await onPublish()
-		if (didPublish) {
-			onClearDraft?.()
+		const publishedSnapshot = await onPublish()
+		if (publishedSnapshot) {
+			onPublishSuccess?.(publishedSnapshot)
+			if (!onPublishSuccess) {
+				onClearDraft?.()
+			}
 		}
 	}
 

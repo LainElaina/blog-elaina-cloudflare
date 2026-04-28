@@ -1,18 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { ImageItem, PublishForm } from './types'
-import {
+import type { WriteSafetySnapshot } from './write-safety'
+
+const {
 	createEditWriteBaseline,
 	createEmptyWriteBaseline,
 	getWriteAutosaveState,
 	getWriteClearDraftState,
 	getWritePublishSafetyState,
 	replaceLocalImagePlaceholders,
+	buildPublishedWriteSnapshot,
 	isWriteSnapshotEquivalent,
 	isWriteStateDirty,
-	resolveWriteDraftRestore,
-	type WriteSafetySnapshot
-} from './write-safety'
+	resolveWriteDraftRestore
+} = await import(new URL('./write-safety.ts', import.meta.url).href)
 import type { PersistedWriteDraft } from './draft-storage'
 
 type ExtendedPublishForm = PublishForm & {
@@ -251,6 +253,45 @@ test('local-image replacement uses the same markdown normalization as publish sa
 	const replacements = new Map([['live-file', '/blogs/post/live.png']])
 	assert.equal(replaceLocalImagePlaceholders('![live]( local-image:live-file )', replacements), '![live](/blogs/post/live.png)')
 	assert.equal(replaceLocalImagePlaceholders('```md\n![live]( local-image:live-file )\n```', replacements), '```md\n![live]( local-image:live-file )\n```')
+})
+
+
+test('buildPublishedWriteSnapshot returns the final published state for baseline sync', () => {
+	const snapshot = buildPublishedWriteSnapshot({
+		form: {
+			slug: 'post-1',
+			title: '标题',
+			md: '![live](local-image:img-1)',
+			tags: ['a'],
+			summary: '摘要'
+		},
+		cover: createFileImage({ id: 'cover-1', filename: 'cover.png', previewUrl: 'blob:cover', hash: 'coverhash' }),
+		images: [createFileImage({ id: 'img-1', filename: 'live.png', previewUrl: 'blob:live', hash: 'imagehash' }), createUrlImage('/blogs/post-1/existing.png', 'remote-1')],
+		mode: 'create',
+		originalSlug: null,
+		markdown: '![live](/blogs/post-1/imagehash.png)',
+		dateStr: '2026-03-27T10:00',
+		coverPath: '/blogs/post-1/coverhash.png',
+		imagePaths: new Map([
+			['img-1', '/blogs/post-1/imagehash.png'],
+			['cover-1', '/blogs/post-1/coverhash.png']
+		])
+	})
+
+	assert.equal(snapshot.mode, 'create')
+	assert.equal(snapshot.originalSlug, null)
+	assert.equal(snapshot.form.md, '![live](/blogs/post-1/imagehash.png)')
+	assert.equal(snapshot.form.date, '2026-03-27T10:00')
+	assert.equal(snapshot.form.summary, '摘要')
+	assert.equal(snapshot.form.hidden, false)
+	assert.equal(snapshot.form.category, '')
+	assert.equal(snapshot.form.folderPath, '')
+	assert.equal(snapshot.form.favorite, false)
+	assert.deepEqual(snapshot.cover, { id: 'cover-1', type: 'url', url: '/blogs/post-1/coverhash.png' })
+	assert.deepEqual(snapshot.images, [
+		{ id: 'img-1', type: 'url', url: '/blogs/post-1/imagehash.png' },
+		{ id: 'remote-1', type: 'url', url: '/blogs/post-1/existing.png' }
+	])
 })
 
 test('clear-draft transaction blocks autosave rewrite', () => {

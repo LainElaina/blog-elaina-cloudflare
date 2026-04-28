@@ -7,7 +7,7 @@ import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
-import { getWritePublishSafetyState, replaceLocalImagePlaceholders } from '../write-safety'
+import { buildPublishedWriteSnapshot, getWritePublishSafetyState, replaceLocalImagePlaceholders, type WriteSafetySnapshot } from '../write-safety'
 import { formatDateTimeLocal } from '../stores/write-store'
 
 export type PushBlogParams = {
@@ -86,7 +86,7 @@ export function replacePublishLocalImagePlaceholders(markdown: string, replaceme
 	return replaceLocalImagePlaceholders(markdown, replacements)
 }
 
-export async function pushBlog(params: PushBlogParams): Promise<void> {
+export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnapshot> {
 	const { form, cover, images, mode = 'create', originalSlug } = params
 
 	assertPublishableBlog({ form, images })
@@ -116,6 +116,7 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 	toast.info('正在准备文件...')
 
 	const uploadedHashes = new Set<string>()
+	const imagePaths = new Map<string, string>()
 	let mdToUpload = form.md
 	let coverPath: string | undefined
 	const treeItems: TreeItem[] = []
@@ -143,6 +144,7 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 			}
 
 			placeholderReplacements.set(id, publicPath)
+			imagePaths.set(id, publicPath)
 
 			if (cover?.type === 'file' && cover.id === id) {
 				coverPath = publicPath
@@ -218,4 +220,15 @@ export async function pushBlog(params: PushBlogParams): Promise<void> {
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 	toast.success('发布成功！')
+	return buildPublishedWriteSnapshot({
+		form,
+		cover,
+		images,
+		mode,
+		originalSlug,
+		markdown: mdToUpload,
+		dateStr,
+		coverPath,
+		imagePaths
+	})
 }

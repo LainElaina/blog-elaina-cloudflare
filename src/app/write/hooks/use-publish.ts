@@ -14,6 +14,7 @@ import { deleteBlog, buildDeleteArtifactContents } from '../services/delete-blog
 import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { buildLocalSaveFilePayloadsFromContents } from '@/app/blog/services/save-blog-edits-utils'
+import { buildPublishedWriteSnapshot } from '../write-safety'
 
 const assertOk = async (response: Response, actionName: string): Promise<void> => {
 	if (response.ok) {
@@ -41,18 +42,17 @@ export function usePublish() {
 			setLoading(true)
 			assertPublishableBlog({ form, images })
 			assertEditableSlug({ form, mode, originalSlug })
-			if (process.env.NODE_ENV === 'development') {
-				await pushBlogLocal()
-			} else {
-				await pushBlog({ form, cover, images, mode, originalSlug })
-			}
+			const publishedSnapshot =
+				process.env.NODE_ENV === 'development'
+					? await pushBlogLocal()
+					: await pushBlog({ form, cover, images, mode, originalSlug })
 			const successMsg = mode === 'edit' ? '更新成功' : '发布成功'
 			toast.success(successMsg)
-			return true
+			return publishedSnapshot
 		} catch (err: any) {
 			console.error(err)
 			toast.error(err?.message || '操作失败')
-			return false
+			return null
 		} finally {
 			setLoading(false)
 		}
@@ -76,6 +76,7 @@ export function usePublish() {
 		}
 
 		const placeholderReplacements = new Map<string, string>()
+		const imagePaths = new Map<string, string>()
 		for (const img of allLocalImages) {
 			const hash = img.hash || (await hashFileSHA256(img.file))
 			const ext = getFileExt(img.file.name)
@@ -88,6 +89,7 @@ export function usePublish() {
 			await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传图片')
 
 			placeholderReplacements.set(img.id, publicPath)
+			imagePaths.set(img.id, publicPath)
 
 			if (cover?.type === 'file' && cover.id === img.id) {
 				coverPath = publicPath
@@ -157,7 +159,19 @@ export function usePublish() {
 				'保存索引产物'
 			)
 		}
-	}, [form, cover, images])
+
+		return buildPublishedWriteSnapshot({
+			form,
+			cover,
+			images,
+			mode,
+			originalSlug,
+			markdown: mdToUpload,
+			dateStr,
+			coverPath,
+			imagePaths
+		})
+	}, [form, cover, images, mode, originalSlug])
 
 	const onDelete = useCallback(async () => {
 		const targetSlug = originalSlug || form.slug

@@ -162,6 +162,19 @@ export default function WritePage() {
 		clearWriteDraft(draftKey)
 	}
 
+	const handlePublishSuccess = (snapshot: WriteSafetySnapshot) => {
+		if (autosaveTimerRef.current !== null) {
+			window.clearTimeout(autosaveTimerRef.current)
+			autosaveTimerRef.current = null
+		}
+		replaceWithSnapshot(snapshot)
+		setBaseline(snapshot)
+		if (draftKey) {
+			setIsClearingDraft(true)
+			clearWriteDraft(draftKey)
+		}
+	}
+
 	return isPreview ? (
 		<WritePreview form={form} coverPreviewUrl={coverPreviewUrl} onClose={closePreview} />
 	) : (
@@ -176,7 +189,7 @@ export default function WritePage() {
 				<WriteSidebar />
 			</div>
 
-			<WriteActions onClearDraft={handleClearDraft} />
+			<WriteActions onClearDraft={handleClearDraft} onPublishSuccess={handlePublishSuccess} />
 		</>
 	)
 }
