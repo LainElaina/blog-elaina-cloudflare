@@ -46,11 +46,14 @@ export default function Page() {
 		try {
 			const savedSnippets = snippets
 			if (process.env.NODE_ENV === 'development') {
-				await fetch('/api/save-file', {
+				const response = await fetch('/api/save-file', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ path: 'src/app/snippets/list.json', content: JSON.stringify(snippets, null, '\t') })
 				})
+				if (!response.ok) {
+					throw new Error('保存句子失败')
+				}
 			} else {
 				await pushSnippets({ snippets })
 			}
@@ -130,7 +133,7 @@ export default function Page() {
 	}
 
 	const isDev = process.env.NODE_ENV === 'development'
-	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
+	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
 
 	return (
 		<>

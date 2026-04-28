@@ -15,11 +15,19 @@ test('snippets local save keeps list.json as the same array shape as production 
 	assert.doesNotMatch(pageSource, /JSON\.stringify\(\{ snippets \}, null, '\\t'\)/)
 })
 
-
 test('snippets save refreshes the displayed snippet from the saved list', async () => {
 	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 
 	assert.match(pageSource, /const savedSnippets = snippets/)
 	assert.match(pageSource, /setCurrentSnippet\(getRandomSnippet\(savedSnippets\)\)/)
+	assert.match(pageSource, /setOriginalSnippets\(savedSnippets\)/)
+})
+
+test('snippets local save checks save-file response before marking snippets as saved', async () => {
+	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+	assert.match(pageSource, /const response = await fetch\('\/api\/save-file'/)
+	assert.match(pageSource, /if \(!response\.ok\) \{/)
+	assert.match(pageSource, /throw new Error\('保存句子失败'\)/)
 	assert.match(pageSource, /setOriginalSnippets\(savedSnippets\)/)
 })
