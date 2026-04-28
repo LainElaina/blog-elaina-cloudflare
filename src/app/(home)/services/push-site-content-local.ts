@@ -132,6 +132,6 @@ async function deleteFile(path: string): Promise<void> {
 	})
 
 	if (!response.ok) {
-		console.error(`删除 ${path} 失败`)
+		throw new Error(`删除 ${path} 失败`)
 	}
 }
