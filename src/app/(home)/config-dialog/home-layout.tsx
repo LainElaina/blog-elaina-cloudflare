@@ -127,10 +127,10 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 	const handleResetBuiltin = async () => {
 		if (!confirm('确定重置所有内置组件的位置和大小为默认值？')) return
 		const defaults = cardStylesDefault as CardStyles
-		setCardStylesData(defaults)
-		setCardStyles(defaults)
 		try {
 			await persistToProject(defaults, customComponents)
+			setCardStylesData(defaults)
+			setCardStyles(defaults)
 		} catch (error) {
 			console.error(error)
 			toast.error('保存失败')
@@ -140,14 +140,14 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 	const handleResetAll = async () => {
 		if (!confirm('确定重置全部？这将清空所有自定义组件，并将内置组件的位置、大小和显示状态全部恢复为默认值。')) return
 		const defaults = cardStylesDefault as CardStyles
-		setCardStylesData(defaults)
-		setCardStyles(defaults)
-		useCustomComponentStore.setState({ components: [] })
-		if (typeof window !== 'undefined') {
-			localStorage.setItem('custom-components', JSON.stringify([]))
-		}
 		try {
 			await persistToProject(defaults, [])
+			setCardStylesData(defaults)
+			setCardStyles(defaults)
+			useCustomComponentStore.setState({ components: [] })
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('custom-components', JSON.stringify([]))
+			}
 		} catch (error) {
 			console.error(error)
 			toast.error('保存失败')
