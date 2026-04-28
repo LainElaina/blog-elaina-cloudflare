@@ -55,11 +55,14 @@ export default function Page() {
 
 		try {
 			if (process.env.NODE_ENV === 'development') {
-				await fetch('/api/save-file', {
+				const response = await fetch('/api/save-file', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ path: 'src/app/about/list.json', content: JSON.stringify(data, null, '\t') })
 				})
+				if (!response.ok) {
+					throw new Error('保存关于页面失败')
+				}
 			} else {
 				await pushAbout(data)
 			}
