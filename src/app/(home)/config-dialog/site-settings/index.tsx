@@ -45,6 +45,7 @@ export function SiteSettings({
 	setSocialButtonImageUploads
 }: SiteSettingsProps) {
 	const isDev = process.env.NODE_ENV === 'development'
+	const buildCompletedAtUtc8 = process.env.NEXT_PUBLIC_BUILD_COMPLETED_AT_UTC8!
 	const theme = formData.theme ?? {}
 	const cardStylePreset = normalizeCardStylePreset(theme.cardStylePreset)
 	const enableHomeColorOverlay = theme.enableHomeColorOverlay ?? false
@@ -69,6 +70,7 @@ export function SiteSettings({
 							<span className='text-secondary text-xs leading-relaxed'>
 								保存时直接写入本地项目文件，图片通过 /api/upload-image 存到 public 目录，无需密钥认证
 							</span>
+							<span className='text-secondary text-xs leading-relaxed'>本次构建完成日期：当前处于 corepack pnpm dev 开发模式，未完成构建</span>
 						</>
 					) : (
 						<>
@@ -77,6 +79,7 @@ export function SiteSettings({
 								线上部署环境
 							</span>
 							<span className='text-secondary text-xs leading-relaxed'>保存时通过 GitHub API 提交到仓库，需要导入私钥进行签名认证</span>
+							<span className='text-secondary text-xs leading-relaxed'>本次构建完成日期：{buildCompletedAtUtc8}</span>
 						</>
 					)}
 				</div>
@@ -456,7 +459,9 @@ export function SiteSettings({
 								type='button'
 								onClick={() => setFormData(prev => ({ ...prev, theme: { ...prev.theme, seasonalEffectStyle: option.value } }))}
 								className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-									seasonalEffectStyle === option.value ? 'border-brand bg-brand/10 text-primary font-medium' : 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
+									seasonalEffectStyle === option.value
+										? 'border-brand bg-brand/10 text-primary font-medium'
+										: 'border-border/60 text-secondary bg-white/60 hover:bg-white/80'
 								}`}>
 								{option.label}
 							</button>

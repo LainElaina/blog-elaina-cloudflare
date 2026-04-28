@@ -1,7 +1,21 @@
 import { NextConfig } from 'next'
 import { codeInspectorPlugin } from 'code-inspector-plugin'
 
+const UTC8_OFFSET_MS = 8 * 60 * 60 * 1000
+
+function padBuildDatePart(value: number) {
+	return String(value).padStart(2, '0')
+}
+
+function formatBuildCompletedAtUtc8(date: Date) {
+	const utc8Date = new Date(date.getTime() + UTC8_OFFSET_MS)
+	return `${utc8Date.getUTCFullYear()}-${padBuildDatePart(utc8Date.getUTCMonth() + 1)}-${padBuildDatePart(utc8Date.getUTCDate())} ${padBuildDatePart(utc8Date.getUTCHours())}:${padBuildDatePart(utc8Date.getUTCMinutes())}:${padBuildDatePart(utc8Date.getUTCSeconds())} UTC+8`
+}
+
 const nextConfig: NextConfig = {
+	env: {
+		NEXT_PUBLIC_BUILD_COMPLETED_AT_UTC8: formatBuildCompletedAtUtc8(new Date())
+	},
 	reactStrictMode: false,
 	pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
 	typescript: {
