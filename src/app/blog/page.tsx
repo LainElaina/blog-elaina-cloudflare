@@ -23,9 +23,27 @@ import { buildArtifactsForSaveBlogEdits, buildLocalSaveFilePayloads, saveBlogEdi
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
 import { buildBlogSaveBaseline, hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
-import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, buildFolderGroups, collectFolderPaths, formatFolderOptionLabel, getFilteredDisplayItems, retainSelectionInView } from './blog-filters'
+import {
+	assignFolderPath,
+	BLOG_FOLDER_ALL,
+	BLOG_FOLDER_UNFILED,
+	buildFolderGroups,
+	collectFolderPaths,
+	formatFolderOptionLabel,
+	getFilteredDisplayItems,
+	retainSelectionInView
+} from './blog-filters'
 import { getAssignFolderActionState, getClearFolderActionState } from './folder-edit-actions'
 import { buildClearFolderDialogCopy } from './folder-interactions'
+
+const assertOk = async (response: Response, actionName: string) => {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
 
 type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category' | 'folder'
 
@@ -321,11 +339,14 @@ export default function BlogPage() {
 			if (process.env.NODE_ENV === 'development') {
 				const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
 				for (const slug of uniqueRemoved) {
-					await fetch('/api/delete-dir', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: `public/blogs/${slug}` })
-					})
+					await assertOk(
+						await fetch('/api/delete-dir', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: `public/blogs/${slug}` })
+						}),
+						'删除文章目录'
+					)
 				}
 
 				let existingStorageRaw: string | null = null
@@ -351,11 +372,14 @@ export default function BlogPage() {
 					existingStorageRaw
 				})
 				for (const payload of payloads) {
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(payload)
-					})
+					await assertOk(
+						await fetch('/api/save-file', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						}),
+						'保存博客产物'
+					)
 				}
 				toast.success('保存成功！')
 			} else {
@@ -531,7 +555,10 @@ export default function BlogPage() {
 											className={cn(
 												'group flex min-h-10 items-center gap-3 py-3 transition-all',
 												editMode
-													? cn('rounded-lg border px-3', isSelected ? 'border-brand/60 bg-brand/5' : 'hover:border-brand/40 border-transparent hover:bg-white/60')
+													? cn(
+															'rounded-lg border px-3',
+															isSelected ? 'border-brand/60 bg-brand/5' : 'hover:border-brand/40 border-transparent hover:bg-white/60'
+														)
 													: 'cursor-pointer'
 											)}>
 											{editMode && (
@@ -548,7 +575,11 @@ export default function BlogPage() {
 												<div className='bg-secondary group-hover:bg-brand h-[5px] w-[5px] rounded-full transition-all group-hover:h-4'></div>
 												<ShortLineSVG className='absolute bottom-4' />
 											</div>
-											<div className={cn('flex-1 truncate text-sm font-medium transition-all', editMode ? null : 'group-hover:text-brand group-hover:translate-x-2')}>
+											<div
+												className={cn(
+													'flex-1 truncate text-sm font-medium transition-all',
+													editMode ? null : 'group-hover:text-brand group-hover:translate-x-2'
+												)}>
 												{it.title || it.slug}
 												{hasRead && <span className='text-secondary ml-2 text-xs'>[已阅读]</span>}
 											</div>
@@ -585,8 +616,12 @@ export default function BlogPage() {
 			</div>
 
 			<div className='pt-12'>
-				{!loading && displayMode === 'folder' && availableFolderPaths.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无目录，请先为文章设置目录</div>}
-				{!loading && displayMode === 'folder' && availableFolderPaths.length > 0 && filteredDisplayItems.length === 0 && <div className='text-secondary py-6 text-center text-sm'>当前筛选条件下暂无文章</div>}
+				{!loading && displayMode === 'folder' && availableFolderPaths.length === 0 && (
+					<div className='text-secondary py-6 text-center text-sm'>暂无目录，请先为文章设置目录</div>
+				)}
+				{!loading && displayMode === 'folder' && availableFolderPaths.length > 0 && filteredDisplayItems.length === 0 && (
+					<div className='text-secondary py-6 text-center text-sm'>当前筛选条件下暂无文章</div>
+				)}
 				{!loading && displayMode !== 'folder' && filteredDisplayItems.length === 0 && <div className='text-secondary py-6 text-center text-sm'>暂无文章</div>}
 				{loading && <div className='text-secondary py-6 text-center text-sm'>加载中...</div>}
 			</div>

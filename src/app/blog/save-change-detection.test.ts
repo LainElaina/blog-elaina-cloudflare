@@ -94,4 +94,14 @@ describe('buildBlogSaveBaseline', () => {
 		assert.match(pageSource, /await mutateCategories\(\{ categories: savedBaseline\.categories \}, \{ revalidate: false \}\)/)
 		assert.match(pageSource, /await mutateBlogFolders\(\{ folders: savedBaseline\.folders \}, \{ revalidate: false \}\)/)
 	})
+
+	it('blog page local save checks delete-dir and save-file responses before marking artifacts as saved', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/delete-dir'/)
+		assert.match(pageSource, /'删除文章目录'/)
+		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/save-file'/)
+		assert.match(pageSource, /'保存博客产物'/)
+		assert.match(pageSource, /const savedBaseline = buildBlogSaveBaseline\(savedArtifacts\)/)
+	})
 })
