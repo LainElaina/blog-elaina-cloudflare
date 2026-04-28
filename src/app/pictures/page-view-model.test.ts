@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import fs from 'node:fs/promises'
 
-import { buildPicturesPageDisplayModeState } from './page-view-model'
+import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model'
 
 describe('pictures page display mode wiring', () => {
 	it('keeps page-level onDisplayModeChange connected to preferred display mode state', () => {
@@ -71,5 +72,39 @@ describe('pictures page display mode wiring', () => {
 
 		assert.equal(mobileState.effectiveDisplayMode, 'random')
 		assert.equal(desktopState.effectiveDisplayMode, 'masonry')
+	})
+})
+
+describe('pictures save path replacement', () => {
+	it('replaces newly uploaded file preview URLs by id/index keys before saving list.json', () => {
+		const pictures = [
+			{
+				id: 'group-1',
+				uploadedAt: '2026-04-28T00:00:00.000Z',
+				images: ['blob:http://localhost/one', 'blob:http://localhost/two']
+			}
+		]
+		const replacements = new Map([
+			['group-1::0', '/images/pictures/one.webp'],
+			['group-1::1', '/images/pictures/two.webp']
+		])
+
+		assert.deepEqual(applyPictureImagePathReplacements(pictures, replacements), [
+			{
+				id: 'group-1',
+				uploadedAt: '2026-04-28T00:00:00.000Z',
+				image: undefined,
+				images: ['/images/pictures/one.webp', '/images/pictures/two.webp']
+			}
+		])
+	})
+
+	it('development save reuses key-based replacements instead of treating imageItems keys as URLs', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+		assert.match(pageSource, /pathReplacements\.set\(key, publicPath\)/)
+		assert.match(pageSource, /updatedPictures = applyPictureImagePathReplacements\(updatedPictures, pathReplacements\)/)
+		assert.doesNotMatch(pageSource, /for \(const \[url, imageItem\] of imageItems\.entries\(\)\)/)
+		assert.doesNotMatch(pageSource, /p\.image === url \? publicPath : p\.image/)
 	})
 })

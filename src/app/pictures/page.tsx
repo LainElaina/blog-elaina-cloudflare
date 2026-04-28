@@ -6,7 +6,7 @@ import initialList from './list.json'
 import { RandomLayout } from './components/random-layout'
 import { MasonryLayout } from './components/masonry-layout'
 import { getPicturesDisplayModeSessionStorage, readPicturesDisplayModeFromSessionStorage, writePicturesDisplayModeToSessionStorage, type PicturesDisplayMode } from './display-mode'
-import { buildPicturesPageDisplayModeState } from './page-view-model'
+import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model'
 import { PicturesPageView } from './page-view'
 import UploadDialog from './components/upload-dialog'
 import { pushPictures } from './services/push-pictures'
@@ -119,7 +119,7 @@ export default function Page() {
 			} else {
 				// 删除特定索引的文件项
 				next.delete(`${pictureId}::${imageIndex}`)
-				
+
 				// 重新索引：删除索引 imageIndex 后，后面的索引需要前移
 				// 例如：删除索引 1，原来的索引 2 变成 1，索引 3 变成 2
 				const keysToUpdate: Array<{ oldKey: string; newKey: string }> = []
@@ -136,7 +136,7 @@ export default function Page() {
 						}
 					}
 				}
-				
+
 				// 执行重新索引
 				for (const { oldKey, newKey } of keysToUpdate) {
 					const value = next.get(oldKey)
@@ -194,8 +194,9 @@ export default function Page() {
 
 			if (process.env.NODE_ENV === 'development') {
 				let updatedPictures = [...pictures]
+				const pathReplacements = new Map<string, string>()
 				// Upload new images
-				for (const [url, imageItem] of imageItems.entries()) {
+				for (const [key, imageItem] of imageItems.entries()) {
 					if (imageItem.type === 'file') {
 						const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
 						const ext = getFileExt(imageItem.file.name)
@@ -205,14 +206,10 @@ export default function Page() {
 						formData.append('file', imageItem.file)
 						formData.append('path', `public${publicPath}`)
 						await fetch('/api/upload-image', { method: 'POST', body: formData })
-						// Replace placeholder URL with actual path
-						updatedPictures = updatedPictures.map(p => ({
-							...p,
-							image: p.image === url ? publicPath : p.image,
-							images: p.images?.map(u => u === url ? publicPath : u)
-						}))
+						pathReplacements.set(key, publicPath)
 					}
 				}
+				updatedPictures = applyPictureImagePathReplacements(updatedPictures, pathReplacements)
 				// Find orphaned images (in original but not in current)
 				const currentUrls = new Set<string>()
 				for (const p of updatedPictures) {
