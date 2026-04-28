@@ -99,6 +99,17 @@ describe('pictures save path replacement', () => {
 		])
 	})
 
+	it('development save checks local upload delete and save-file responses before marking pictures as saved', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+		assert.match(pageSource, /await assertOk\(await fetch\('\/api\/upload-image', \{ method: 'POST', body: formData \}\), '上传图床图片'\)/)
+		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/delete-image'/)
+		assert.match(pageSource, /'删除图床旧图片'/)
+		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/save-file'/)
+		assert.match(pageSource, /'保存图床列表'/)
+		assert.match(pageSource, /savedPictures = updatedPictures/)
+	})
+
 	it('development save reuses key-based replacements instead of treating imageItems keys as URLs', async () => {
 		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 

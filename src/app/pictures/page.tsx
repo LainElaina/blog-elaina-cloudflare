@@ -5,7 +5,12 @@ import { toast } from 'sonner'
 import initialList from './list.json'
 import { RandomLayout } from './components/random-layout'
 import { MasonryLayout } from './components/masonry-layout'
-import { getPicturesDisplayModeSessionStorage, readPicturesDisplayModeFromSessionStorage, writePicturesDisplayModeToSessionStorage, type PicturesDisplayMode } from './display-mode'
+import {
+	getPicturesDisplayModeSessionStorage,
+	readPicturesDisplayModeFromSessionStorage,
+	writePicturesDisplayModeToSessionStorage,
+	type PicturesDisplayMode
+} from './display-mode'
 import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model'
 import { PicturesPageView } from './page-view'
 import UploadDialog from './components/upload-dialog'
@@ -17,6 +22,15 @@ import type { ImageItem } from '../projects/components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+
+const assertOk = async (response: Response, actionName: string) => {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
 
 export interface Picture {
 	id: string
@@ -205,7 +219,7 @@ export default function Page() {
 						const formData = new FormData()
 						formData.append('file', imageItem.file)
 						formData.append('path', `public${publicPath}`)
-						await fetch('/api/upload-image', { method: 'POST', body: formData })
+						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传图床图片')
 						pathReplacements.set(key, publicPath)
 					}
 				}
@@ -220,19 +234,25 @@ export default function Page() {
 					const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
 					for (const url of urls) {
 						if (!currentUrls.has(url) && url.startsWith('/images/pictures/')) {
-							await fetch('/api/delete-image', {
-								method: 'POST',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({ path: `public${url}` })
-							})
+							await assertOk(
+								await fetch('/api/delete-image', {
+									method: 'POST',
+									headers: { 'Content-Type': 'application/json' },
+									body: JSON.stringify({ path: `public${url}` })
+								}),
+								'删除图床旧图片'
+							)
 						}
 					}
 				}
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
-				})
+				await assertOk(
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
+					}),
+					'保存图床列表'
+				)
 				savedPictures = updatedPictures
 			} else {
 				savedPictures = await pushPictures({ pictures, imageItems })
@@ -258,7 +278,7 @@ export default function Page() {
 	}
 
 	const isDev = process.env.NODE_ENV === 'development'
-	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
+	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
 	const displayModeState = buildPicturesPageDisplayModeState({
 		preferredDisplayMode,
 		isEditMode,
@@ -267,11 +287,7 @@ export default function Page() {
 	})
 
 	useEffect(() => {
-		setPreferredDisplayMode(
-			readPicturesDisplayModeFromSessionStorage(
-				getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window)
-			)
-		)
+		setPreferredDisplayMode(readPicturesDisplayModeFromSessionStorage(getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window)))
 		setHasRestoredDisplayModePreference(true)
 	}, [])
 
@@ -280,10 +296,7 @@ export default function Page() {
 			return
 		}
 
-		writePicturesDisplayModeToSessionStorage(
-			preferredDisplayMode,
-			getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window)
-		)
+		writePicturesDisplayModeToSessionStorage(preferredDisplayMode, getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window))
 	}, [hasRestoredDisplayModePreference, preferredDisplayMode])
 
 	useEffect(() => {
