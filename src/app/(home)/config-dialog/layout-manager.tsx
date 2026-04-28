@@ -30,13 +30,13 @@ export function LayoutManager() {
 		addLog('success', 'layout', '导出布局', { filename })
 	}
 
-	const handleImport = () => {
+	const handleImport = async () => {
 		try {
 			const layout = JSON.parse(importText)
 			setCardStyles(layout)
 
 			if (isDev) {
-				saveLayout()
+				await saveLayout()
 				toast.success('布局已导入并保存')
 				addLog('success', 'layout', '导入布局（已保存到服务器）')
 			} else {
@@ -48,8 +48,13 @@ export function LayoutManager() {
 			setImportText('')
 			setShowImport(false)
 		} catch (error) {
-			toast.error('JSON 格式错误')
-			addLog('error', 'layout', '导入布局失败：JSON 格式错误')
+			if (error instanceof SyntaxError) {
+				toast.error('JSON 格式错误')
+				addLog('error', 'layout', '导入布局失败：JSON 格式错误')
+			} else {
+				toast.error('保存失败')
+				addLog('error', 'layout', '导入布局保存失败', error)
+			}
 		}
 	}
 

@@ -52,20 +52,12 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 	},
 	saveLayout: async () => {
 		const { cardStyles } = get()
-		try {
-			await saveLayoutToServer(cardStyles)
-		} catch (error) {
-			console.error('Failed to save layout:', error)
-		}
+		await saveLayoutToServer(cardStyles)
 	},
 	undoLayout: async () => {
-		try {
-			await undoLayout()
-			// 重新加载页面以应用撤销的布局
-			window.location.reload()
-		} catch (error) {
-			console.error('Failed to undo layout:', error)
-		}
+		await undoLayout()
+		// 重新加载页面以应用撤销的布局
+		window.location.reload()
 	}
 }))
 
