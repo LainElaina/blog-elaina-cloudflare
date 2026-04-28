@@ -14,3 +14,12 @@ test('snippets local save keeps list.json as the same array shape as production 
 	assert.match(pageSource, /content: JSON\.stringify\(snippets, null, '\\t'\)/)
 	assert.doesNotMatch(pageSource, /JSON\.stringify\(\{ snippets \}, null, '\\t'\)/)
 })
+
+
+test('snippets save refreshes the displayed snippet from the saved list', async () => {
+	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+	assert.match(pageSource, /const savedSnippets = snippets/)
+	assert.match(pageSource, /setCurrentSnippet\(getRandomSnippet\(savedSnippets\)\)/)
+	assert.match(pageSource, /setOriginalSnippets\(savedSnippets\)/)
+})

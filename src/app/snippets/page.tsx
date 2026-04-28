@@ -44,6 +44,7 @@ export default function Page() {
 	const handleSave = async () => {
 		setIsSaving(true)
 		try {
+			const savedSnippets = snippets
 			if (process.env.NODE_ENV === 'development') {
 				await fetch('/api/save-file', {
 					method: 'POST',
@@ -53,7 +54,8 @@ export default function Page() {
 			} else {
 				await pushSnippets({ snippets })
 			}
-			setOriginalSnippets(snippets)
+			setOriginalSnippets(savedSnippets)
+			setCurrentSnippet(getRandomSnippet(savedSnippets))
 			setIsEditMode(false)
 			toast.success('保存成功！')
 		} catch (error: any) {
