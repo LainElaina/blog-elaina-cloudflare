@@ -313,11 +313,14 @@ export function ComponentStore() {
 		try {
 			const componentsJson = JSON.stringify(customComponents, null, '\t')
 			if (process.env.NODE_ENV === 'development') {
-				await fetch('/api/config', {
+				const response = await fetch('/api/config', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ customComponents })
 				})
+				if (!response.ok) {
+					throw new Error('保存自定义组件失败')
+				}
 				toast.success('自定义组件已保存到项目')
 				addLog('success', 'component', '自定义组件已保存到本地项目')
 			} else if (isAuth) {
