@@ -13,6 +13,15 @@ import type { AvatarItem } from './components/avatar-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 
+const assertOk = async (response: Response, actionName: string) => {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
+
 export default function Page() {
 	const [bloggers, setBloggers] = useState<Blogger[]>(initialList as Blogger[])
 	const [originalBloggers, setOriginalBloggers] = useState<Blogger[]>(initialList as Blogger[])
@@ -98,15 +107,18 @@ export default function Page() {
 						const formData = new FormData()
 						formData.append('file', avatarItem.file)
 						formData.append('path', `public${publicPath}`)
-						await fetch('/api/upload-image', { method: 'POST', body: formData })
-						updatedBloggers = updatedBloggers.map(b => b.url === url ? { ...b, avatar: publicPath } : b)
+						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传友链头像')
+						updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: publicPath } : b))
 					}
 				}
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'src/app/bloggers/list.json', content: JSON.stringify(updatedBloggers, null, '\t') })
-				})
+				await assertOk(
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: 'src/app/bloggers/list.json', content: JSON.stringify(updatedBloggers, null, '\t') })
+					}),
+					'保存友链列表'
+				)
 				savedBloggers = updatedBloggers
 			} else {
 				savedBloggers = await pushBloggers({ bloggers, avatarItems })
@@ -132,7 +144,7 @@ export default function Page() {
 	}
 
 	const isDev = process.env.NODE_ENV === 'development'
-	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
+	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
