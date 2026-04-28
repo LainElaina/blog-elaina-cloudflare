@@ -64,7 +64,7 @@ export function buildLocalSaveFilePayloads(params: {
 	})
 }
 
-export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: BlogIndexItem[], categories: string[]): Promise<void> {
+export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: BlogIndexItem[], categories: string[]): Promise<SaveBlogEditsArtifacts> {
 	const token = await getAuthToken()
 
 	toast.info('正在获取分支信息...')
@@ -160,4 +160,5 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 	toast.success('保存成功！请等待页面部署后刷新')
+	return artifacts
 }

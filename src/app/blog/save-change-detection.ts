@@ -1,7 +1,40 @@
 import type { BlogIndexItem } from './types'
 
+type BlogFolderNodeLike = {
+	path: string
+	children?: BlogFolderNodeLike[]
+}
+
+export type BlogSaveBaseline = {
+	items: BlogIndexItem[]
+	categories: string[]
+	folders: string[]
+}
+
 export function normalizeCategoryList(list: string[]): string[] {
 	return list.map(c => c.trim()).filter(Boolean)
+}
+
+function flattenBlogFolderPaths(nodes: BlogFolderNodeLike[]): string[] {
+	const paths: string[] = []
+	const visit = (node: BlogFolderNodeLike) => {
+		paths.push(node.path)
+		for (const child of node.children ?? []) {
+			visit(child)
+		}
+	}
+	for (const node of nodes) {
+		visit(node)
+	}
+	return paths
+}
+
+export function buildBlogSaveBaseline(artifacts: { index: BlogIndexItem[]; categories: string[]; folders: BlogFolderNodeLike[] }): BlogSaveBaseline {
+	return {
+		items: artifacts.index,
+		categories: artifacts.categories,
+		folders: flattenBlogFolderPaths(artifacts.folders)
+	}
 }
 
 export function hasBlogSaveChanges(params: {

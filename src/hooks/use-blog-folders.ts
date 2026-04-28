@@ -74,7 +74,7 @@ const fetcher = async (url: string): Promise<BlogFoldersConfig> => {
 }
 
 export function useBlogFolders() {
-	const { data, error, isLoading } = useSWR<BlogFoldersConfig>('/blogs/folders.json', fetcher, {
+	const { data, error, isLoading, mutate } = useSWR<BlogFoldersConfig>('/blogs/folders.json', fetcher, {
 		revalidateOnFocus: false,
 		revalidateOnReconnect: true
 	})
@@ -82,6 +82,7 @@ export function useBlogFolders() {
 	return {
 		folders: data?.folders ?? [],
 		loading: isLoading,
-		error
+		error,
+		mutate
 	}
 }

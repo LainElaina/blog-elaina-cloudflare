@@ -19,10 +19,10 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { readFileAsText } from '@/lib/file-utils'
 import { cn } from '@/lib/utils'
-import { buildLocalSaveFilePayloads, saveBlogEdits } from './services/save-blog-edits'
+import { buildArtifactsForSaveBlogEdits, buildLocalSaveFilePayloads, saveBlogEdits, type SaveBlogEditsArtifacts } from './services/save-blog-edits'
 import { Check } from 'lucide-react'
 import { CategoryModal } from './components/category-modal'
-import { hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
+import { buildBlogSaveBaseline, hasBlogSaveChanges, normalizeCategoryList } from './save-change-detection'
 import { assignFolderPath, BLOG_FOLDER_ALL, BLOG_FOLDER_UNFILED, buildFolderGroups, collectFolderPaths, formatFolderOptionLabel, getFilteredDisplayItems, retainSelectionInView } from './blog-filters'
 import { getAssignFolderActionState, getClearFolderActionState } from './folder-edit-actions'
 import { buildClearFolderDialogCopy } from './folder-interactions'
@@ -30,9 +30,9 @@ import { buildClearFolderDialogCopy } from './folder-interactions'
 type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category' | 'folder'
 
 export default function BlogPage() {
-	const { items, loading } = useBlogIndex()
-	const { categories: categoriesFromServer } = useCategories()
-	const { folders } = useBlogFolders()
+	const { items, loading, mutate: mutateBlogIndex } = useBlogIndex()
+	const { categories: categoriesFromServer, mutate: mutateCategories } = useCategories()
+	const { folders, mutate: mutateBlogFolders } = useBlogFolders()
 	const { isRead } = useReadArticles()
 	const { isAuth, setPrivateKey } = useAuthStore()
 	const { siteContent } = useConfigStore()
@@ -317,6 +317,7 @@ export default function BlogPage() {
 
 		try {
 			setSaving(true)
+			let savedArtifacts: SaveBlogEditsArtifacts
 			if (process.env.NODE_ENV === 'development') {
 				const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
 				for (const slug of uniqueRemoved) {
@@ -337,6 +338,12 @@ export default function BlogPage() {
 					existingStorageRaw = null
 				}
 
+				savedArtifacts = buildArtifactsForSaveBlogEdits({
+					originalItems: items,
+					nextItems: editableItems,
+					categories: normalizedCategoryList,
+					existingStorageRaw
+				})
 				const payloads = buildLocalSaveFilePayloads({
 					originalItems: items,
 					nextItems: editableItems,
@@ -352,8 +359,14 @@ export default function BlogPage() {
 				}
 				toast.success('保存成功！')
 			} else {
-				await saveBlogEdits(items, editableItems, normalizedCategoryList)
+				savedArtifacts = await saveBlogEdits(items, editableItems, normalizedCategoryList)
 			}
+			const savedBaseline = buildBlogSaveBaseline(savedArtifacts)
+			await mutateBlogIndex(savedBaseline.items, { revalidate: false })
+			await mutateCategories({ categories: savedBaseline.categories }, { revalidate: false })
+			await mutateBlogFolders({ folders: savedBaseline.folders }, { revalidate: false })
+			setEditableItems(savedBaseline.items)
+			setCategoryList(savedBaseline.categories)
 			setEditMode(false)
 			setSelectedSlugs(new Set())
 			setCategoryModalOpen(false)
@@ -364,7 +377,7 @@ export default function BlogPage() {
 		} finally {
 			setSaving(false)
 		}
-	}, [items, editableItems, categoryList, categoriesFromServer])
+	}, [items, editableItems, categoryList, categoriesFromServer, mutateBlogIndex, mutateCategories, mutateBlogFolders])
 
 	const handleSaveClick = useCallback(() => {
 		if (process.env.NODE_ENV === 'development') {
