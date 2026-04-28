@@ -160,6 +160,8 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			)
 			setSiteContent(formData)
 			setCardStyles(cardStylesData)
+			setOriginalData(formData)
+			setOriginalCardStyles(cardStylesData)
 			updateThemeVariables(formData.theme)
 			setFaviconItem(null)
 			setAvatarItem(null)
@@ -204,6 +206,10 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 
 			setSiteContent(formData)
 			setCardStyles(cardStylesData)
+			if (action === 'publish') {
+				setOriginalData(formData)
+				setOriginalCardStyles(cardStylesData)
+			}
 			updateThemeVariables(formData.theme)
 			if (shouldClearLocalPendingAssetUploads(action)) {
 				setFaviconItem(null)
