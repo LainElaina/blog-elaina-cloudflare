@@ -13,6 +13,15 @@ import type { ImageItem } from './components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 
+const assertOk = async (response: Response, actionName: string) => {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
+
 export default function Page() {
 	const [projects, setProjects] = useState<Project[]>(initialList as Project[])
 	const [originalProjects, setOriginalProjects] = useState<Project[]>(initialList as Project[])
@@ -96,15 +105,18 @@ export default function Page() {
 						const formData = new FormData()
 						formData.append('file', imageItem.file)
 						formData.append('path', `public${publicPath}`)
-						await fetch('/api/upload-image', { method: 'POST', body: formData })
-						updatedProjects = updatedProjects.map(p => p.url === url ? { ...p, image: publicPath } : p)
+						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传项目图片')
+						updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: publicPath } : p))
 					}
 				}
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'src/app/projects/list.json', content: JSON.stringify(updatedProjects, null, '\t') })
-				})
+				await assertOk(
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: 'src/app/projects/list.json', content: JSON.stringify(updatedProjects, null, '\t') })
+					}),
+					'保存项目列表'
+				)
 				savedProjects = updatedProjects
 			} else {
 				savedProjects = await pushProjects({ projects, imageItems })
@@ -130,7 +142,7 @@ export default function Page() {
 	}
 
 	const isDev = process.env.NODE_ENV === 'development'
-	const buttonText = (isDev || isAuth) ? '保存' : '导入密钥'
+	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
