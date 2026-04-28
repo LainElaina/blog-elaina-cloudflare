@@ -48,7 +48,7 @@ export default function Page() {
 				await fetch('/api/save-file', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: 'src/app/snippets/list.json', content: JSON.stringify({ snippets }, null, '\t') })
+					body: JSON.stringify({ path: 'src/app/snippets/list.json', content: JSON.stringify(snippets, null, '\t') })
 				})
 			} else {
 				await pushSnippets({ snippets })
