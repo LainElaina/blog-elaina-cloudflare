@@ -248,6 +248,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 				true
 			)
 			await syncDraftState()
+			window.location.reload()
 		} catch (error: any) {
 			toast.error(`正式保存失败: ${error?.message || '未知错误'}`)
 		} finally {

@@ -19,3 +19,12 @@ test('config dialog advances saved baselines after successful local publish only
 		/setSiteContent\(formData\)\n\s*setCardStyles\(cardStylesData\)\n\s*if \(action === 'publish'\) \{\n\s*setOriginalData\(formData\)\n\s*setOriginalCardStyles\(cardStylesData\)\n\s*\}/
 	)
 })
+
+test('config dialog reloads after successful local draft reminder publish', async () => {
+	const source = await fs.readFile(new URL('./index.tsx', import.meta.url), 'utf-8')
+
+	assert.match(
+		source,
+		/const handlePublishFromDraftReminder = async \(\) => \{[\s\S]*await pushSiteContentLocal\([\s\S]*true\n\s*\)\n\s*await syncDraftState\(\)\n\s*window\.location\.reload\(\)\n\s*\} catch/
+	)
+})
