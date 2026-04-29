@@ -33,7 +33,14 @@ export function LayoutSavePanel() {
 
 			if (process.env.NODE_ENV === 'development') {
 				await saveLayout()
-				// 同时保存自定义组件到本地
+				const response = await fetch('/api/config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ customComponents })
+				})
+				if (!response.ok) {
+					throw new Error('保存自定义组件失败')
+				}
 				localStorage.setItem('custom-components', JSON.stringify(customComponents))
 				stopEditing()
 				addLog('success', 'layout', '布局和自定义组件已保存到本地', { cardStyles, customComponents })
