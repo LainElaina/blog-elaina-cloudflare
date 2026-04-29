@@ -93,13 +93,13 @@ export function ImportLayoutButton() {
 				if (config.cardStyles) {
 					useConfigStore.getState().setCardStyles(config.cardStyles)
 				}
-				if (config.customComponents) {
+				if (Array.isArray(config.customComponents)) {
 					localStorage.setItem('custom-components', JSON.stringify(config.customComponents))
 				}
-				if (config.componentFavorites) {
+				if (Array.isArray(config.componentFavorites)) {
 					localStorage.setItem('component-favorites', JSON.stringify(config.componentFavorites))
 				}
-				if (config.templates) {
+				if (Array.isArray(config.templates)) {
 					localStorage.setItem('templates', JSON.stringify(config.templates))
 				}
 
