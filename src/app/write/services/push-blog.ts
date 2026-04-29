@@ -219,7 +219,6 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 	toast.info('正在更新分支...')
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
-	toast.success('发布成功！')
 	return buildPublishedWriteSnapshot({
 		form,
 		cover,
