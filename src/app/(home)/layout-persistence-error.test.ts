@@ -19,3 +19,10 @@ test('layout import awaits development save before reporting success', async () 
 	assert.match(source, /error instanceof SyntaxError/)
 	assert.match(source, /toast\.error\('保存失败'\)/)
 })
+
+test('layout import restores previous visible layout when development save fails', async () => {
+	const source = await fs.readFile(new URL('./config-dialog/layout-manager.tsx', import.meta.url), 'utf-8')
+
+	assert.match(source, /const previousCardStyles = cardStyles/)
+	assert.match(source, /catch \(error\) \{[\s\S]*setCardStyles\(previousCardStyles\)[\s\S]*toast\.error\('保存失败'\)/)
+})

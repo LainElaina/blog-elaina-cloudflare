@@ -31,6 +31,7 @@ export function LayoutManager() {
 	}
 
 	const handleImport = async () => {
+		const previousCardStyles = cardStyles
 		try {
 			const layout = JSON.parse(importText)
 			setCardStyles(layout)
@@ -52,6 +53,7 @@ export function LayoutManager() {
 				toast.error('JSON 格式错误')
 				addLog('error', 'layout', '导入布局失败：JSON 格式错误')
 			} else {
+				setCardStyles(previousCardStyles)
 				toast.error('保存失败')
 				addLog('error', 'layout', '导入布局保存失败', error)
 			}
