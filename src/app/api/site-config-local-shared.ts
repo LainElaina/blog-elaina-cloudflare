@@ -8,6 +8,11 @@ export type SiteConfigDraftPayload = {
 	colorPresets?: unknown
 }
 
+type LocalAssetReference = {
+	label: string
+	url: string
+}
+
 const DRAFT_FILE_RELATIVE_PATH = path.join('data', 'site-config.draft.json')
 
 export function resolveSiteConfigDraftPath(baseDir: string) {
@@ -64,7 +69,6 @@ export async function canPublishSiteConfigDraft(baseDir: string) {
 	return draft !== null
 }
 
-
 export async function resolveSiteConfigPublishPayload(baseDir: string, payload: SiteConfigDraftPayload) {
 	if (Object.keys(payload).length > 0) {
 		return payload
@@ -81,6 +85,8 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 	if (!draft || Object.keys(draft).length === 0) {
 		throw new Error('没有可发布的草稿')
 	}
+
+	await assertSiteConfigDraftLocalAssetsExist(baseDir, draft)
 
 	const configDir = path.join(baseDir, 'src/config')
 	const touchedFormal: string[] = []
@@ -107,4 +113,57 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 
 	await clearSiteConfigDraft(baseDir)
 	return touchedFormal
+}
+
+function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): LocalAssetReference[] {
+	const siteContent = draft.siteContent as {
+		artImages?: Array<{ url?: unknown }>
+		backgroundImages?: Array<{ url?: unknown }>
+		socialButtons?: Array<{ value?: unknown }>
+	} | null
+
+	if (!siteContent || typeof siteContent !== 'object') {
+		return []
+	}
+
+	const assets: LocalAssetReference[] = []
+	for (const image of siteContent.artImages ?? []) {
+		if (typeof image.url === 'string') {
+			assets.push({ label: '首页图片', url: image.url })
+		}
+	}
+	for (const image of siteContent.backgroundImages ?? []) {
+		if (typeof image.url === 'string') {
+			assets.push({ label: '背景图片', url: image.url })
+		}
+	}
+	for (const button of siteContent.socialButtons ?? []) {
+		if (typeof button.value === 'string') {
+			assets.push({ label: '社交按钮图片', url: button.value })
+		}
+	}
+
+	return assets
+}
+
+function isProjectLocalAssetUrl(url: string) {
+	return url.startsWith('/images/art/') || url.startsWith('/images/background/') || url.startsWith('/images/social-buttons/')
+}
+
+async function assertSiteConfigDraftLocalAssetsExist(baseDir: string, draft: SiteConfigDraftPayload) {
+	for (const asset of collectSiteConfigDraftLocalAssets(draft)) {
+		if (!isProjectLocalAssetUrl(asset.url)) {
+			continue
+		}
+
+		const assetPath = path.join(baseDir, 'public', asset.url)
+		try {
+			const stat = await fs.stat(assetPath)
+			if (!stat.isFile()) {
+				throw new Error('not a file')
+			}
+		} catch {
+			throw new Error(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
+		}
+	}
 }

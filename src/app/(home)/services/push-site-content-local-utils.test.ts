@@ -13,14 +13,8 @@ const {
 	resolveLocalSocialButtonImageUploadPath,
 	shouldClearLocalPendingAssetUploads
 } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
-const {
-	writeSiteConfigDraft,
-	readSiteConfigDraft,
-	clearSiteConfigDraft,
-	publishSiteConfigDraft,
-	canPublishSiteConfigDraft,
-	resolveSiteConfigPublishPayload
-} = await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
+const { writeSiteConfigDraft, readSiteConfigDraft, clearSiteConfigDraft, publishSiteConfigDraft, canPublishSiteConfigDraft, resolveSiteConfigPublishPayload } =
+	await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
 
 test('buildLocalConfigPayload only includes changed site content', () => {
 	const originalSiteContent = { meta: { title: 'A' }, theme: { colorBrand: '#000' } }
@@ -176,3 +170,24 @@ test('正式保存请求为空时回退发布已有草稿', async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
+test('正式保存草稿前会拒绝引用缺失的本地资源', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-missing-asset-'))
+	await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+	const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+	await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+
+	const draft = {
+		siteContent: {
+			meta: { title: 'draft' },
+			artImages: [{ id: 'missing', url: '/images/art/missing.png' }]
+		}
+	}
+	await writeSiteConfigDraft(tmpDir, draft)
+
+	await assert.rejects(() => publishSiteConfigDraft(tmpDir, draft), /草稿引用的本地资源不存在/)
+
+	const formalRaw = await fs.readFile(formalPath, 'utf-8')
+	assert.equal(JSON.parse(formalRaw).meta.title, 'formal')
+	assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
+	await fs.rm(tmpDir, { recursive: true, force: true })
+})
