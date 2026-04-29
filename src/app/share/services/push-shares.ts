@@ -131,7 +131,6 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	const categoriesPayload = payloads.find(payload => payload.path === 'public/share/categories.json')
 	const foldersPayload = payloads.find(payload => payload.path === 'public/share/folders.json')
 
-	toast.success('发布成功！')
 	return {
 		list: listPayload ? (JSON.parse(listPayload.content) as Share[]) : updatedShares,
 		categories: categoriesPayload ? (JSON.parse(categoriesPayload.content) as ShareCategoriesArtifact) : { categories: [] },

@@ -74,7 +74,6 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 	toast.info('正在更新分支...')
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
-	toast.success('发布成功！')
 	return updatedProjects
 }
 
