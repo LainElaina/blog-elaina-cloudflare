@@ -118,7 +118,7 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 		} else {
 			toast.error('线上环境需要先导入密钥才能持久化保存')
 			addLog('error', 'layout', '重置未能持久化：未导入密钥')
-			return
+			throw new Error('线上环境需要先导入密钥才能持久化保存')
 		}
 		toast.success('重置已保存到项目，即将刷新页面...')
 		setTimeout(() => window.location.reload(), 1000)
