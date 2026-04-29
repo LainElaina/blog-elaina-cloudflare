@@ -17,11 +17,11 @@ export async function handleConfigPost(request: NextRequest) {
 			await fs.writeFile(path.join(configDir, 'card-styles.json'), JSON.stringify(cardStyles, null, '\t'))
 		}
 
-		if (customComponents) {
+		if (customComponents !== undefined) {
 			await fs.writeFile(path.join(configDir, 'custom-components.json'), JSON.stringify(customComponents, null, '\t'))
 		}
 
-		if (colorPresets) {
+		if (colorPresets !== undefined) {
 			await fs.writeFile(path.join(configDir, 'color-presets.json'), JSON.stringify(colorPresets, null, '\t'))
 		}
 
