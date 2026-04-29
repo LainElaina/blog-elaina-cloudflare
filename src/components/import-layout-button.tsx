@@ -76,6 +76,20 @@ export function ImportLayoutButton() {
 				const text = await file.text()
 				const config = JSON.parse(text)
 
+				if (process.env.NODE_ENV === 'development') {
+					const response = await fetch('/api/config', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							cardStyles: config.cardStyles,
+							customComponents: config.customComponents
+						})
+					})
+					if (!response.ok) {
+						throw new Error('保存布局配置失败')
+					}
+				}
+
 				if (config.cardStyles) {
 					useConfigStore.getState().setCardStyles(config.cardStyles)
 				}
