@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { RotateCcw, Pencil, Trash2, Save } from 'lucide-react'
 import { useConfigStore } from '../stores/config-store'
+import { useCustomComponentStore, type CustomComponent } from '../stores/custom-component-store'
 import { useLogStore } from '../stores/log-store'
 import { toast } from 'sonner'
 
@@ -12,6 +13,7 @@ interface LayoutSnapshot {
 	name: string
 	timestamp: number
 	data: any
+	customComponents?: CustomComponent[]
 }
 
 export function LayoutHistory() {
@@ -19,6 +21,7 @@ export function LayoutHistory() {
 	const [editingId, setEditingId] = useState<string | null>(null)
 	const [editingName, setEditingName] = useState('')
 	const { cardStyles, setCardStyles } = useConfigStore()
+	const { components: customComponents } = useCustomComponentStore()
 	const { addLog } = useLogStore()
 
 	useEffect(() => {
@@ -45,7 +48,8 @@ export function LayoutHistory() {
 			id: Date.now().toString(),
 			name,
 			timestamp: Date.now(),
-			data: cardStyles
+			data: cardStyles,
+			customComponents
 		}
 
 		saveSnapshots([newSnapshot, ...snapshots])
@@ -56,6 +60,10 @@ export function LayoutHistory() {
 	const handleLoadSnapshot = (snapshot: LayoutSnapshot) => {
 		if (confirm(`确定要加载布局"${snapshot.name}"吗？`)) {
 			setCardStyles(snapshot.data)
+			if (snapshot.customComponents) {
+				useCustomComponentStore.setState({ components: snapshot.customComponents })
+				localStorage.setItem('custom-components', JSON.stringify(snapshot.customComponents))
+			}
 			toast.success('布局已加载')
 			addLog('success', 'history', '加载历史布局', { name: snapshot.name })
 		}
