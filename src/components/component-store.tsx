@@ -95,7 +95,7 @@ export function ComponentStore() {
 		if (savedCustom) {
 			try {
 				const parsed = JSON.parse(savedCustom)
-				if (Array.isArray(parsed) && parsed.length > 0) {
+				if (Array.isArray(parsed)) {
 					useCustomComponentStore.setState({ components: parsed })
 				}
 			} catch {}
