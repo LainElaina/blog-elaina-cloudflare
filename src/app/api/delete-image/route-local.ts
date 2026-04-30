@@ -3,6 +3,7 @@ import { unlink } from 'fs/promises'
 import { resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isPathInsideDirectory } from '../local-path'
 
 export async function handleDeleteImage(request: NextRequest) {
 	try {
@@ -12,10 +13,10 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: '缺少文件路径' }, { status: 400 })
 		}
 
-		const publicDir = resolve(process.cwd(), 'public').replace(/\\/g, '/')
-		const fullPath = resolve(process.cwd(), filePath).replace(/\\/g, '/')
+		const publicDir = resolve(process.cwd(), 'public')
+		const fullPath = resolve(process.cwd(), filePath)
 
-		if (!fullPath.startsWith(publicDir)) {
+		if (!isPathInsideDirectory(publicDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public 目录内的文件' }, { status: 403 })
 		}
 

@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isPathInsideDirectory } from '../local-path'
 
 export async function handleSaveFile(request: NextRequest) {
 	try {
@@ -12,10 +13,10 @@ export async function handleSaveFile(request: NextRequest) {
 			return NextResponse.json({ error: '缺少文件路径或内容' }, { status: 400 })
 		}
 
-		const projectDir = resolve(process.cwd()).replace(/\\/g, '/')
-		const fullPath = resolve(process.cwd(), filePath).replace(/\\/g, '/')
+		const projectDir = resolve(process.cwd())
+		const fullPath = resolve(process.cwd(), filePath)
 
-		if (!fullPath.startsWith(projectDir)) {
+		if (!isPathInsideDirectory(projectDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 

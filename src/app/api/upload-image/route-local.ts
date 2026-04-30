@@ -1,8 +1,9 @@
 import { existsSync } from 'fs'
 import { mkdir, writeFile } from 'fs/promises'
-import { extname, resolve } from 'path'
+import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isPathInsideDirectory } from '../local-path'
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -26,17 +27,17 @@ export async function handleUploadImage(request: NextRequest) {
 			return NextResponse.json({ error: `不允许的文件类型: ${ext}` }, { status: 400 })
 		}
 
-		const publicDir = resolve(process.cwd(), 'public').replace(/\\/g, '/')
-		const fullPath = resolve(process.cwd(), path).replace(/\\/g, '/')
+		const publicDir = resolve(process.cwd(), 'public')
+		const fullPath = resolve(process.cwd(), path)
 
-		if (!fullPath.startsWith(publicDir)) {
+		if (!isPathInsideDirectory(publicDir, fullPath)) {
 			return NextResponse.json({ error: `路径不合法，只能写入 public 目录` }, { status: 403 })
 		}
 
 		const bytes = await file.arrayBuffer()
 		const buffer = Buffer.from(bytes)
 
-		const dir = fullPath.substring(0, fullPath.lastIndexOf('/'))
+		const dir = dirname(fullPath)
 		if (!existsSync(dir)) {
 			await mkdir(dir, { recursive: true })
 		}
