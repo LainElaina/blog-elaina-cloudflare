@@ -68,7 +68,10 @@ const loadCustomPresets = (): ColorPreset[] => {
 	if (typeof window === 'undefined') return colorPresetsDefault as ColorPreset[]
 	try {
 		const saved = localStorage.getItem('color-presets')
-		if (saved) return JSON.parse(saved)
+		if (saved) {
+			const parsed = JSON.parse(saved)
+			if (Array.isArray(parsed)) return parsed
+		}
 	} catch {}
 	return colorPresetsDefault as ColorPreset[]
 }
