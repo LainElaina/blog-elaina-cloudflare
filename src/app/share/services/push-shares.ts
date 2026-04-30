@@ -26,6 +26,16 @@ export type PushSharesParams = {
 	deletedPublishedUrls?: Set<string>
 }
 
+function parseJsonWithFallback<T>(content: string | undefined, fallback: T): T {
+	if (!content) return fallback
+
+	try {
+		return JSON.parse(content) as T
+	} catch {
+		return fallback
+	}
+}
+
 export function buildRemoteShareArtifactContents(params: {
 	shares: Share[]
 	existingStorageRaw: string | null
@@ -127,13 +137,9 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	toast.info('正在更新分支...')
 	await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
-	const listPayload = payloads.find(payload => payload.path === 'public/share/list.json')
-	const categoriesPayload = payloads.find(payload => payload.path === 'public/share/categories.json')
-	const foldersPayload = payloads.find(payload => payload.path === 'public/share/folders.json')
-
 	return {
-		list: listPayload ? (JSON.parse(listPayload.content) as Share[]) : updatedShares,
-		categories: categoriesPayload ? (JSON.parse(categoriesPayload.content) as ShareCategoriesArtifact) : { categories: [] },
-		folders: foldersPayload ? (JSON.parse(foldersPayload.content) as ShareFolderNode[]) : []
+		list: parseJsonWithFallback<Share[]>(artifactContents.list, updatedShares),
+		categories: parseJsonWithFallback<ShareCategoriesArtifact>(artifactContents.categories, { categories: [] }),
+		folders: parseJsonWithFallback<ShareFolderNode[]>(artifactContents.folders, [])
 	}
 }
