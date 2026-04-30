@@ -122,6 +122,7 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 			}
 		} catch (error) {
 			console.error('Failed to parse previous list.json:', error)
+			throw new Error('远程图床列表解析失败，请修复 src/app/pictures/list.json 后重试')
 		}
 	}
 
