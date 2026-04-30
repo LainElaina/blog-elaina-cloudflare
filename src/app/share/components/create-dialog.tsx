@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { DialogModal } from '@/components/dialog-modal'
+import { revokeFilePreviewUrls } from '@/lib/upload-preview-url'
 import LogoUploadDialog, { type LogoItem } from './logo-upload-dialog'
 import ShareFolderSelect from './share-folder-select'
 import type { Share } from './share-card'
@@ -47,11 +48,22 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 			setFormData(EMPTY_SHARE)
 			setTagsInput('')
 		}
-		setLogoItem(null)
+		setLogoItem(current => {
+			revokeFilePreviewUrls(current ? [current] : [])
+			return null
+		})
 	}, [share])
 
+	const closeDialog = () => {
+		revokeFilePreviewUrls(logoItem ? [logoItem] : [])
+		onClose()
+	}
+
 	const handleLogoSubmit = (logo: LogoItem) => {
-		setLogoItem(logo)
+		setLogoItem(current => {
+			revokeFilePreviewUrls(current ? [current] : [])
+			return logo
+		})
 		const logoUrl = logo.type === 'url' ? logo.url : logo.previewUrl
 		setFormData(current => ({ ...current, logo: logoUrl }))
 	}
@@ -90,6 +102,7 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 		})
 		try {
 			onSave(payload)
+			setLogoItem(null)
 			onClose()
 			toast.success(share ? '更新成功' : '添加成功')
 		} catch (error: any) {
@@ -98,7 +111,7 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 	}
 
 	return (
-		<DialogModal open onClose={onClose} className='card max-h-[90vh] w-sm overflow-y-auto'>
+		<DialogModal open onClose={closeDialog} className='card max-h-[90vh] w-sm overflow-y-auto'>
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative cursor-pointer' onClick={() => setShowLogoDialog(true)}>
@@ -184,7 +197,7 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 			</div>
 
 			<div className='mt-6 flex gap-3'>
-				<button onClick={onClose} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
+				<button onClick={closeDialog} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
 					取消
 				</button>
 				<button onClick={handleSubmit} className='brand-btn flex-1 justify-center px-4'>

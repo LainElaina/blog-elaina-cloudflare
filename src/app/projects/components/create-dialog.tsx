@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 import ImageUploadDialog, { type ImageItem } from './image-upload-dialog'
 import type { Project } from './project-card'
 import { DialogModal } from '@/components/dialog-modal'
+import { revokeFilePreviewUrls } from '@/lib/upload-preview-url'
 
 interface CreateDialogProps {
 	project: Project | null
@@ -45,12 +46,23 @@ export default function CreateDialog({ project, onClose, onSave }: CreateDialogP
 			})
 			setTagsInput('')
 		}
-		setPendingImageItem(undefined)
+		setPendingImageItem(current => {
+			revokeFilePreviewUrls(current ? [current] : [])
+			return undefined
+		})
 	}, [project])
+
+	const closeDialog = () => {
+		revokeFilePreviewUrls(pendingImageItem ? [pendingImageItem] : [])
+		onClose()
+	}
 
 	const handleImageSubmit = (image: ImageItem) => {
 		const imageUrl = image.type === 'url' ? image.url : image.previewUrl
-		setPendingImageItem(image)
+		setPendingImageItem(current => {
+			revokeFilePreviewUrls(current ? [current] : [])
+			return image
+		})
 		setFormData({ ...formData, image: imageUrl })
 	}
 
@@ -75,12 +87,13 @@ export default function CreateDialog({ project, onClose, onSave }: CreateDialogP
 		}
 
 		onSave(formData, pendingImageItem)
+		setPendingImageItem(undefined)
 		onClose()
 		toast.success(project ? '更新成功' : '添加成功')
 	}
 
 	return (
-		<DialogModal open onClose={onClose} className='card static w-md max-sm:w-full'>
+		<DialogModal open onClose={closeDialog} className='card static w-md max-sm:w-full'>
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative cursor-pointer' onClick={() => setShowImageDialog(true)}>
@@ -168,7 +181,7 @@ export default function CreateDialog({ project, onClose, onSave }: CreateDialogP
 			</div>
 
 			<div className='mt-6 flex gap-3'>
-				<button onClick={onClose} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
+				<button onClick={closeDialog} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
 					取消
 				</button>
 				<button onClick={handleSubmit} className='brand-btn flex-1 justify-center px-4'>

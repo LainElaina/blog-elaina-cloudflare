@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import AvatarUploadDialog, { type AvatarItem } from './avatar-upload-dialog'
 import { DialogModal } from '@/components/dialog-modal'
+import { revokeFilePreviewUrls } from '@/lib/upload-preview-url'
 
 interface Blogger {
 	name: string
@@ -43,12 +44,23 @@ export default function CreateDialog({ blogger, onClose, onSave }: CreateDialogP
 				stars: 3
 			})
 		}
-		setPendingAvatarItem(undefined)
+		setPendingAvatarItem(current => {
+			revokeFilePreviewUrls(current ? [current] : [])
+			return undefined
+		})
 	}, [blogger])
+
+	const closeDialog = () => {
+		revokeFilePreviewUrls(pendingAvatarItem ? [pendingAvatarItem] : [])
+		onClose()
+	}
 
 	const handleAvatarSubmit = (avatar: AvatarItem) => {
 		const avatarUrl = avatar.type === 'url' ? avatar.url : avatar.previewUrl
-		setPendingAvatarItem(avatar)
+		setPendingAvatarItem(current => {
+			revokeFilePreviewUrls(current ? [current] : [])
+			return avatar
+		})
 		setFormData({ ...formData, avatar: avatarUrl })
 	}
 
@@ -59,12 +71,13 @@ export default function CreateDialog({ blogger, onClose, onSave }: CreateDialogP
 		}
 
 		onSave(formData, pendingAvatarItem)
+		setPendingAvatarItem(undefined)
 		onClose()
 		toast.success(blogger ? '更新成功' : '添加成功')
 	}
 
 	return (
-		<DialogModal open onClose={onClose} className='card w-sm'>
+		<DialogModal open onClose={closeDialog} className='card w-sm'>
 			{/* 卡片样式的内容 */}
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
@@ -122,7 +135,7 @@ export default function CreateDialog({ blogger, onClose, onSave }: CreateDialogP
 
 			{/* 操作按钮 */}
 			<div className='mt-6 flex gap-3'>
-				<button onClick={onClose} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
+				<button onClick={closeDialog} className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm transition-colors hover:bg-gray-50'>
 					取消
 				</button>
 				<button onClick={handleSubmit} className='brand-btn flex-1 justify-center px-4'>
