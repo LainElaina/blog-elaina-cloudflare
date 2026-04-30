@@ -120,15 +120,25 @@ function getEmptyMessage(emptyState: ReturnType<typeof createInitialPageState>['
 	}
 }
 
+function parseJsonWithFallback<T>(payload: ShareSaveFilePayload | undefined, fallback: T): T {
+	if (!payload) return fallback
+
+	try {
+		return JSON.parse(payload.content) as T
+	} catch {
+		return fallback
+	}
+}
+
 function parseSavedArtifacts(payloads: ShareSaveFilePayload[], fallback: SharePageArtifacts): SharePageArtifacts {
 	const listPayload = payloads.find(payload => payload.path === LOCAL_SHARE_SAVE_PATHS.list)
 	const categoriesPayload = payloads.find(payload => payload.path === LOCAL_SHARE_SAVE_PATHS.categories)
 	const foldersPayload = payloads.find(payload => payload.path === LOCAL_SHARE_SAVE_PATHS.folders)
 
 	return {
-		list: listPayload ? (JSON.parse(listPayload.content) as Share[]) : fallback.list,
-		categories: categoriesPayload ? (JSON.parse(categoriesPayload.content) as ShareCategoriesArtifact) : fallback.categories,
-		folders: foldersPayload ? (JSON.parse(foldersPayload.content) as ShareFolderNode[]) : fallback.folders
+		list: parseJsonWithFallback<Share[]>(listPayload, fallback.list),
+		categories: parseJsonWithFallback<ShareCategoriesArtifact>(categoriesPayload, fallback.categories),
+		folders: parseJsonWithFallback<ShareFolderNode[]>(foldersPayload, fallback.folders)
 	}
 }
 
