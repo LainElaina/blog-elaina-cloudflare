@@ -12,3 +12,13 @@ test('layout config import preserves explicit empty arrays', async () => {
 	assert.doesNotMatch(source, /if \(config\.componentFavorites\) \{/)
 	assert.doesNotMatch(source, /if \(config\.templates\) \{/)
 })
+
+test('layout config import does not erase project components when config omits them', async () => {
+	const source = await fs.readFile(new URL('./import-layout-button.tsx', import.meta.url), 'utf-8')
+
+	assert.match(
+		source,
+		/body: JSON\.stringify\(\{\n\s*\.\.\.\(config\.cardStyles \? \{ cardStyles: config\.cardStyles \} : \{\}\),\n\s*\.\.\.\(Array\.isArray\(config\.customComponents\) \? \{ customComponents: config\.customComponents \} : \{\}\)\n\s*\}\)/
+	)
+	assert.doesNotMatch(source, /cardStyles: config\.cardStyles,\n\s*customComponents: config\.customComponents/)
+})

@@ -81,8 +81,8 @@ export function ImportLayoutButton() {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({
-							cardStyles: config.cardStyles,
-							customComponents: config.customComponents
+							...(config.cardStyles ? { cardStyles: config.cardStyles } : {}),
+							...(Array.isArray(config.customComponents) ? { customComponents: config.customComponents } : {})
 						})
 					})
 					if (!response.ok) {
