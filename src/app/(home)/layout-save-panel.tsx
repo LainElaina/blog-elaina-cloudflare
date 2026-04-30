@@ -7,6 +7,18 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useLogStore } from './stores/log-store'
 import { toast } from 'sonner'
 
+function readLayoutSnapshots(): unknown[] {
+	try {
+		const saved = localStorage.getItem('layout-snapshots')
+		if (!saved) return []
+
+		const parsed = JSON.parse(saved)
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
 export function LayoutSavePanel() {
 	const editing = useLayoutEditStore(state => state.editing)
 	const stopEditing = useLayoutEditStore(state => state.stopEditing)
@@ -21,7 +33,7 @@ export function LayoutSavePanel() {
 	const handleSave = async () => {
 		try {
 			// 保存到历史记录（包含自定义组件）
-			const snapshots = JSON.parse(localStorage.getItem('layout-snapshots') || '[]')
+			const snapshots = readLayoutSnapshots()
 			const newSnapshot = {
 				id: Date.now().toString(),
 				name: `自动保存 ${new Date().toLocaleString('zh-CN')}`,

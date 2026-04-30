@@ -16,6 +16,18 @@ interface LayoutSnapshot {
 	customComponents?: CustomComponent[]
 }
 
+function readLayoutSnapshots(): LayoutSnapshot[] {
+	try {
+		const saved = localStorage.getItem('layout-snapshots')
+		if (!saved) return []
+
+		const parsed = JSON.parse(saved)
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
 export function LayoutHistory() {
 	const [snapshots, setSnapshots] = useState<LayoutSnapshot[]>([])
 	const [editingId, setEditingId] = useState<string | null>(null)
@@ -29,10 +41,7 @@ export function LayoutHistory() {
 	}, [])
 
 	const loadSnapshots = () => {
-		const saved = localStorage.getItem('layout-snapshots')
-		if (saved) {
-			setSnapshots(JSON.parse(saved))
-		}
+		setSnapshots(readLayoutSnapshots())
 	}
 
 	const saveSnapshots = (newSnapshots: LayoutSnapshot[]) => {
