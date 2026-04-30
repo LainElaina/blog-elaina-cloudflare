@@ -11,6 +11,14 @@ interface UploadDialogProps {
 	onSubmit: (payload: { images: ImageItem[]; description: string }) => void
 }
 
+function revokeImagePreviews(items: ImageItem[]) {
+	for (const image of items) {
+		if (image.type === 'file') {
+			URL.revokeObjectURL(image.previewUrl)
+		}
+	}
+}
+
 export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 	const [description, setDescription] = useState('')
 	const [images, setImages] = useState<ImageItem[]>([])
@@ -24,6 +32,7 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 
 		for (const file of files) {
 			if (!file.type.startsWith('image/')) {
+				revokeImagePreviews(nextImages)
 				toast.error('请选择图片文件')
 				return
 			}
@@ -36,6 +45,7 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 			})
 		}
 
+		revokeImagePreviews(images)
 		setImages(nextImages)
 	}
 
@@ -56,11 +66,7 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 	}
 
 	const handleClose = () => {
-		images.forEach(image => {
-			if (image.type === 'file') {
-				URL.revokeObjectURL(image.previewUrl)
-			}
-		})
+		revokeImagePreviews(images)
 		setImages([])
 		setDescription('')
 		onClose()
