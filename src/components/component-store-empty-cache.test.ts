@@ -22,3 +22,12 @@ test('component store ignores corrupted cached lists', async () => {
 	assert.doesNotMatch(source, /useTemplateStore\.setState\(\{ templates: JSON\.parse\(savedTemplates\) \}\)/)
 	assert.doesNotMatch(source, /useComponentFavoriteStore\.setState\(\{ favorites: JSON\.parse\(savedFavorites\) \}\)/)
 })
+
+test('component favorite import filters invalid favorite entries', async () => {
+	const source = await fs.readFile(new URL('./component-store.tsx', import.meta.url), 'utf-8')
+
+	assert.match(source, /function isFavoriteImport\(value: unknown\): value is \{ name: string; component: Omit<CustomComponent, 'id'> \}/)
+	assert.match(source, /const validFavorites = imported\.filter\(isFavoriteImport\)\n\s*if \(validFavorites\.length === 0\) throw new Error\('格式错误'\)/)
+	assert.match(source, /for \(const fav of validFavorites\) \{\n\s*addFavorite\(fav\.name\.trim\(\), fav\.component\)\n\s*\}/)
+	assert.doesNotMatch(source, /for \(const fav of imported\) \{\n\s*if \(fav\.name && fav\.component\) \{/)
+})

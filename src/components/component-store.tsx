@@ -3,7 +3,7 @@
 import { Store, X, Plus, Star, Copy, Save } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTemplateStore } from '../app/(home)/stores/template-store'
-import { useCustomComponentStore } from '../app/(home)/stores/custom-component-store'
+import { useCustomComponentStore, type CustomComponent } from '../app/(home)/stores/custom-component-store'
 import { useComponentFavoriteStore } from '../app/(home)/stores/component-favorite-store'
 import { useConfigStore } from '../app/(home)/stores/config-store'
 import { useLayoutEditStore } from '../app/(home)/stores/layout-edit-store'
@@ -28,6 +28,30 @@ function readCachedList(key: string): unknown[] | null {
 	} catch {
 		return null
 	}
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isFavoriteImport(value: unknown): value is { name: string; component: Omit<CustomComponent, 'id'> } {
+	if (!isObject(value) || typeof value.name !== 'string' || !value.name.trim() || !isObject(value.component)) return false
+
+	const component = value.component
+	const style = component.style
+	const content = component.content
+	const type = component.type
+
+	return (type === 'text' || type === 'image' || type === 'link' || type === 'iframe' || type === 'custom') &&
+		typeof component.templateId === 'string' &&
+		isObject(style) &&
+		typeof style.width === 'number' &&
+		typeof style.height === 'number' &&
+		typeof style.order === 'number' &&
+		(typeof style.offsetX === 'number' || style.offsetX === null) &&
+		(typeof style.offsetY === 'number' || style.offsetY === null) &&
+		typeof style.enabled === 'boolean' &&
+		isObject(content)
 }
 
 export function ComponentStore() {
@@ -626,12 +650,14 @@ export function ComponentStore() {
 												const text = await file.text()
 												const imported = JSON.parse(text)
 												if (!Array.isArray(imported)) throw new Error('格式错误')
-												for (const fav of imported) {
-													if (fav.name && fav.component) {
-														addFavorite(fav.name, fav.component)
-													}
+
+												const validFavorites = imported.filter(isFavoriteImport)
+												if (validFavorites.length === 0) throw new Error('格式错误')
+
+												for (const fav of validFavorites) {
+													addFavorite(fav.name.trim(), fav.component)
 												}
-												toast.success(`已导入 ${imported.length} 个收藏`)
+												toast.success(`已导入 ${validFavorites.length} 个收藏`)
 											} catch {
 												toast.error('导入失败，请检查文件格式')
 											}
