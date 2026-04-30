@@ -54,6 +54,8 @@ function isFavoriteImport(value: unknown): value is { name: string; component: O
 		isObject(content)
 }
 
+type PendingImageFile = { file: File; previewUrl: string; hash: string }
+
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
 	const [showStore, setShowStore] = useState(false)
@@ -115,7 +117,27 @@ export function ComponentStore() {
 		templateId: 'medium-rect',
 		content: { text: '', imageUrl: '', linkUrl: '', iframeUrl: '' }
 	})
-	const [pendingImageFile, setPendingImageFile] = useState<{ file: File; previewUrl: string; hash: string } | null>(null)
+	const [pendingImageFile, setPendingImageFileState] = useState<PendingImageFile | null>(null)
+	const pendingImageFileRef = useRef<PendingImageFile | null>(null)
+
+	const setPendingImageFile = useCallback((next: PendingImageFile | null) => {
+		const previous = pendingImageFileRef.current
+		if (previous && previous.previewUrl !== next?.previewUrl) {
+			URL.revokeObjectURL(previous.previewUrl)
+		}
+		pendingImageFileRef.current = next
+		setPendingImageFileState(next)
+	}, [])
+
+	useEffect(() => {
+		return () => {
+			const pending = pendingImageFileRef.current
+			if (pending) {
+				URL.revokeObjectURL(pending.previewUrl)
+				pendingImageFileRef.current = null
+			}
+		}
+	}, [])
 
 	useEffect(() => {
 		setMounted(true)

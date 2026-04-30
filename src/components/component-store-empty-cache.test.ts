@@ -31,3 +31,12 @@ test('component favorite import filters invalid favorite entries', async () => {
 	assert.match(source, /for \(const fav of validFavorites\) \{\n\s*addFavorite\(fav\.name\.trim\(\), fav\.component\)\n\s*\}/)
 	assert.doesNotMatch(source, /for \(const fav of imported\) \{\n\s*if \(fav\.name && fav\.component\) \{/)
 })
+
+test('component store revokes pending image preview urls', async () => {
+	const source = await fs.readFile(new URL('./component-store.tsx', import.meta.url), 'utf-8')
+
+	assert.match(source, /const pendingImageFileRef = useRef<PendingImageFile \| null>\(null\)/)
+	assert.match(source, /if \(previous && previous\.previewUrl !== next\?\.previewUrl\) \{\n\s*URL\.revokeObjectURL\(previous\.previewUrl\)/)
+	assert.match(source, /return \(\) => \{\n\s*const pending = pendingImageFileRef\.current\n\s*if \(pending\) \{\n\s*URL\.revokeObjectURL\(pending\.previewUrl\)/)
+	assert.doesNotMatch(source, /const \[pendingImageFile, setPendingImageFile\] = useState<\{ file: File; previewUrl: string; hash: string \} \| null>\(null\)/)
+})
