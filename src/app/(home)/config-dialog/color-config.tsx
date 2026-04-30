@@ -212,12 +212,14 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 		reader.onload = (event) => {
 			try {
 				const config = JSON.parse(event.target?.result as string)
-				if (config.theme || config.backgroundColors) {
+				const hasTheme = config.theme && typeof config.theme === 'object' && !Array.isArray(config.theme)
+				const hasBackgroundColors = Array.isArray(config.backgroundColors)
+				if (hasTheme || hasBackgroundColors) {
 					const name = config.name || file.name.replace(/\.json$/, '')
 					const newPreset: ColorPreset = {
 						name,
-						theme: config.theme || {},
-						backgroundColors: config.backgroundColors || []
+						theme: hasTheme ? config.theme : {},
+						backgroundColors: hasBackgroundColors ? config.backgroundColors : []
 					}
 					saveCustomPresetsLocal([...customPresets, newPreset])
 					toast.success(`已导入预设"${name}"`)
