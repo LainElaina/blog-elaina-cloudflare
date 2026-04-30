@@ -18,6 +18,18 @@ import DraggerSVG from '@/svgs/dragger.svg'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 
+function readCachedList(key: string): unknown[] | null {
+	try {
+		const saved = localStorage.getItem(key)
+		if (!saved) return null
+
+		const parsed = JSON.parse(saved)
+		return Array.isArray(parsed) ? parsed : null
+	} catch {
+		return null
+	}
+}
+
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
 	const [showStore, setShowStore] = useState(false)
@@ -85,26 +97,21 @@ export function ComponentStore() {
 		setMounted(true)
 
 		// 加载模板
-		const savedTemplates = localStorage.getItem('templates')
+		const savedTemplates = readCachedList('templates')
 		if (savedTemplates) {
-			useTemplateStore.setState({ templates: JSON.parse(savedTemplates) })
+			useTemplateStore.setState({ templates: savedTemplates })
 		}
 
 		// 加载自定义组件（localStorage 有数据则用，否则用项目 JSON 文件）
-		const savedCustom = localStorage.getItem('custom-components')
+		const savedCustom = readCachedList('custom-components')
 		if (savedCustom) {
-			try {
-				const parsed = JSON.parse(savedCustom)
-				if (Array.isArray(parsed)) {
-					useCustomComponentStore.setState({ components: parsed })
-				}
-			} catch {}
+			useCustomComponentStore.setState({ components: savedCustom })
 		}
 
 		// 加载收藏
-		const savedFavorites = localStorage.getItem('component-favorites')
+		const savedFavorites = readCachedList('component-favorites')
 		if (savedFavorites) {
-			useComponentFavoriteStore.setState({ favorites: JSON.parse(savedFavorites) })
+			useComponentFavoriteStore.setState({ favorites: savedFavorites })
 		}
 	}, [])
 
