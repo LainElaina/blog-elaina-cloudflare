@@ -56,6 +56,8 @@ export async function pushSiteContentLocal(
 	// Delete removed art images
 	if (syncFormalAssets && removedArtImages && removedArtImages.length > 0) {
 		for (const art of removedArtImages) {
+			if (!art.url.startsWith('/images/art/')) continue
+
 			const normalizedUrl = art.url.startsWith('/') ? art.url : `/${art.url}`
 			uploadPromises.push(deleteFile(`public${normalizedUrl}`))
 		}

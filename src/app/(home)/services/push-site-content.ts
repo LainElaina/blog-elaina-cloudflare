@@ -86,6 +86,8 @@ export async function pushSiteContent(
 	// Handle art images deletion
 	if (removedArtImages && removedArtImages.length > 0) {
 		for (const art of removedArtImages) {
+			if (!art.url.startsWith('/images/art/')) continue
+
 			const normalizedUrlPath = art.url.startsWith('/') ? art.url : `/${art.url}`
 			const path = `public${normalizedUrlPath}`
 			treeItems.push({
