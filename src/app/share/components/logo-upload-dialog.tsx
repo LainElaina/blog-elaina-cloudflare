@@ -28,6 +28,9 @@ export default function LogoUploadDialog({ currentLogo, onClose, onSubmit }: Log
 		}
 
 		const previewUrl = URL.createObjectURL(file)
+		if (previewFile) {
+			URL.revokeObjectURL(previewFile.previewUrl)
+		}
 		setPreviewFile({ file, previewUrl })
 		setUrlInput('')
 	}

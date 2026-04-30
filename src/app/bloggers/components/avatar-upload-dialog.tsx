@@ -28,6 +28,9 @@ export default function AvatarUploadDialog({ currentAvatar, onClose, onSubmit }:
 		}
 
 		const previewUrl = URL.createObjectURL(file)
+		if (previewFile) {
+			URL.revokeObjectURL(previewFile.previewUrl)
+		}
 		setPreviewFile({ file, previewUrl })
 		setUrlInput('')
 	}
