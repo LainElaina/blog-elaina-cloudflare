@@ -69,7 +69,7 @@ export function LayoutHistory() {
 	const handleLoadSnapshot = (snapshot: LayoutSnapshot) => {
 		if (confirm(`确定要加载布局"${snapshot.name}"吗？`)) {
 			setCardStyles(snapshot.data)
-			if (snapshot.customComponents) {
+			if (Array.isArray(snapshot.customComponents)) {
 				useCustomComponentStore.setState({ components: snapshot.customComponents })
 				localStorage.setItem('custom-components', JSON.stringify(snapshot.customComponents))
 			}
