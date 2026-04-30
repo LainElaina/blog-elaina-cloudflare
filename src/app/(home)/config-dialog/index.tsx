@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type SetStateAction } from 'react'
 import { motion } from 'motion/react'
 import { toast } from 'sonner'
 import { DialogModal } from '@/components/dialog-modal'
@@ -11,6 +11,7 @@ import { pushSiteContentLocal } from '../services/push-site-content-local'
 import { shouldClearLocalPendingAssetUploads } from '../services/push-site-content-local-utils'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
+import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 import { ColorConfig } from './color-config'
 import { BlogMigrationPanel } from './blog-migration-panel'
 import { normalizeCardStylePreset } from '@/lib/card-style-preset'
@@ -38,6 +39,44 @@ function normalizeSiteContentCardStyle(content: SiteContent): SiteContent {
 	}
 }
 
+function collectPendingAssetUploads(
+	faviconItem: FileItem | null,
+	avatarItem: FileItem | null,
+	artImageUploads: ArtImageUploads,
+	backgroundImageUploads: BackgroundImageUploads,
+	socialButtonImageUploads: SocialButtonImageUploads
+) {
+	return [
+		...(faviconItem ? [faviconItem] : []),
+		...(avatarItem ? [avatarItem] : []),
+		...Object.values(artImageUploads),
+		...Object.values(backgroundImageUploads),
+		...Object.values(socialButtonImageUploads)
+	]
+}
+
+interface PendingAssetUploadsState {
+	faviconItem: FileItem | null
+	avatarItem: FileItem | null
+	artImageUploads: ArtImageUploads
+	backgroundImageUploads: BackgroundImageUploads
+	socialButtonImageUploads: SocialButtonImageUploads
+}
+
+function createEmptyPendingAssetUploads(): PendingAssetUploadsState {
+	return {
+		faviconItem: null,
+		avatarItem: null,
+		artImageUploads: {},
+		backgroundImageUploads: {},
+		socialButtonImageUploads: {}
+	}
+}
+
+function resolveStateAction<T>(action: SetStateAction<T>, previous: T): T {
+	return typeof action === 'function' ? (action as (previousState: T) => T)(previous) : action
+}
+
 export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const { isAuth, setPrivateKey } = useAuthStore()
 	const { siteContent, setSiteContent, cardStyles, setCardStyles, regenerateBubbles } = useConfigStore()
@@ -54,6 +93,72 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const [backgroundImageUploads, setBackgroundImageUploads] = useState<BackgroundImageUploads>({})
 	const [socialButtonImageUploads, setSocialButtonImageUploads] = useState<SocialButtonImageUploads>({})
 	const [draftItems, setDraftItems] = useState<DraftReminderItem[]>([])
+	const pendingAssetUploadsRef = useRef<PendingAssetUploadsState>(createEmptyPendingAssetUploads())
+
+	const getPendingAssetUploads = useCallback(() => {
+		const current = pendingAssetUploadsRef.current
+		return collectPendingAssetUploads(
+			current.faviconItem,
+			current.avatarItem,
+			current.artImageUploads,
+			current.backgroundImageUploads,
+			current.socialButtonImageUploads
+		)
+	}, [])
+
+	const revokePendingAssetUploads = useCallback(() => {
+		revokeFilePreviewUrls(getPendingAssetUploads())
+		pendingAssetUploadsRef.current = createEmptyPendingAssetUploads()
+	}, [getPendingAssetUploads])
+
+	const clearPendingAssetUploads = useCallback(() => {
+		revokePendingAssetUploads()
+		setFaviconItem(null)
+		setAvatarItem(null)
+		setArtImageUploads({})
+		setBackgroundImageUploads({})
+		setSocialButtonImageUploads({})
+	}, [revokePendingAssetUploads])
+
+	const setFaviconItemWithPreviewCleanup = useCallback((action: SetStateAction<FileItem | null>) => {
+		const previous = pendingAssetUploadsRef.current.faviconItem
+		const next = resolveStateAction(action, previous)
+		revokeUnusedFilePreviewUrls(previous ? [previous] : [], next ? [next] : [])
+		pendingAssetUploadsRef.current.faviconItem = next
+		setFaviconItem(next)
+	}, [])
+
+	const setAvatarItemWithPreviewCleanup = useCallback((action: SetStateAction<FileItem | null>) => {
+		const previous = pendingAssetUploadsRef.current.avatarItem
+		const next = resolveStateAction(action, previous)
+		revokeUnusedFilePreviewUrls(previous ? [previous] : [], next ? [next] : [])
+		pendingAssetUploadsRef.current.avatarItem = next
+		setAvatarItem(next)
+	}, [])
+
+	const setArtImageUploadsWithPreviewCleanup = useCallback((action: SetStateAction<ArtImageUploads>) => {
+		const previous = pendingAssetUploadsRef.current.artImageUploads
+		const next = resolveStateAction(action, previous)
+		revokeUnusedFilePreviewUrls(Object.values(previous), Object.values(next))
+		pendingAssetUploadsRef.current.artImageUploads = next
+		setArtImageUploads(next)
+	}, [])
+
+	const setBackgroundImageUploadsWithPreviewCleanup = useCallback((action: SetStateAction<BackgroundImageUploads>) => {
+		const previous = pendingAssetUploadsRef.current.backgroundImageUploads
+		const next = resolveStateAction(action, previous)
+		revokeUnusedFilePreviewUrls(Object.values(previous), Object.values(next))
+		pendingAssetUploadsRef.current.backgroundImageUploads = next
+		setBackgroundImageUploads(next)
+	}, [])
+
+	const setSocialButtonImageUploadsWithPreviewCleanup = useCallback((action: SetStateAction<SocialButtonImageUploads>) => {
+		const previous = pendingAssetUploadsRef.current.socialButtonImageUploads
+		const next = resolveStateAction(action, previous)
+		revokeUnusedFilePreviewUrls(Object.values(previous), Object.values(next))
+		pendingAssetUploadsRef.current.socialButtonImageUploads = next
+		setSocialButtonImageUploads(next)
+	}, [])
 
 	useEffect(() => {
 		if (open) {
@@ -63,41 +168,15 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			setCardStylesData(currentCardStyles)
 			setOriginalData(current)
 			setOriginalCardStyles(currentCardStyles)
-			setFaviconItem(null)
-			setAvatarItem(null)
-			setArtImageUploads({})
-			setBackgroundImageUploads({})
-			setSocialButtonImageUploads({})
 			setActiveTab('site')
 		}
 	}, [open, siteContent, cardStyles])
 
 	useEffect(() => {
 		return () => {
-			// Clean up preview URLs on unmount
-			if (faviconItem?.type === 'file') {
-				URL.revokeObjectURL(faviconItem.previewUrl)
-			}
-			if (avatarItem?.type === 'file') {
-				URL.revokeObjectURL(avatarItem.previewUrl)
-			}
-			Object.values(artImageUploads).forEach(item => {
-				if (item.type === 'file') {
-					URL.revokeObjectURL(item.previewUrl)
-				}
-			})
-			Object.values(backgroundImageUploads).forEach(item => {
-				if (item.type === 'file') {
-					URL.revokeObjectURL(item.previewUrl)
-				}
-			})
-			Object.values(socialButtonImageUploads).forEach(item => {
-				if (item.type === 'file') {
-					URL.revokeObjectURL(item.previewUrl)
-				}
-			})
+			revokePendingAssetUploads()
 		}
-	}, [faviconItem, avatarItem, artImageUploads, backgroundImageUploads, socialButtonImageUploads])
+	}, [revokePendingAssetUploads])
 
 	const syncDraftState = useCallback(async () => {
 		if (process.env.NODE_ENV !== 'development') return
@@ -163,11 +242,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			setOriginalData(formData)
 			setOriginalCardStyles(cardStylesData)
 			updateThemeVariables(formData.theme)
-			setFaviconItem(null)
-			setAvatarItem(null)
-			setArtImageUploads({})
-			setBackgroundImageUploads({})
-			setSocialButtonImageUploads({})
+			clearPendingAssetUploads()
 			onClose()
 		} catch (error: any) {
 			console.error('Failed to save:', error)
@@ -212,11 +287,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			}
 			updateThemeVariables(formData.theme)
 			if (shouldClearLocalPendingAssetUploads(action)) {
-				setFaviconItem(null)
-				setAvatarItem(null)
-				setArtImageUploads({})
-				setBackgroundImageUploads({})
-				setSocialButtonImageUploads({})
+				clearPendingAssetUploads()
 			}
 			await syncDraftState()
 			if (action === 'publish') {
@@ -273,28 +344,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	}
 
 	const handleCancel = () => {
-		// Clean up preview URLs
-		if (faviconItem?.type === 'file') {
-			URL.revokeObjectURL(faviconItem.previewUrl)
-		}
-		if (avatarItem?.type === 'file') {
-			URL.revokeObjectURL(avatarItem.previewUrl)
-		}
-		Object.values(artImageUploads).forEach(item => {
-			if (item.type === 'file') {
-				URL.revokeObjectURL(item.previewUrl)
-			}
-		})
-		Object.values(backgroundImageUploads).forEach(item => {
-			if (item.type === 'file') {
-				URL.revokeObjectURL(item.previewUrl)
-			}
-		})
-		Object.values(socialButtonImageUploads).forEach(item => {
-			if (item.type === 'file') {
-				URL.revokeObjectURL(item.previewUrl)
-			}
-		})
+		clearPendingAssetUploads()
 		// Restore to the state when dialog was opened
 		setSiteContent(originalData)
 		setCardStyles(originalCardStyles)
@@ -308,11 +358,6 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			}
 		}
 		updateThemeVariables(originalData.theme)
-		setFaviconItem(null)
-		setAvatarItem(null)
-		setArtImageUploads({})
-		setBackgroundImageUploads({})
-		setSocialButtonImageUploads({})
 		onClose()
 	}
 
@@ -451,15 +496,15 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 							formData={formData}
 							setFormData={setFormData}
 							faviconItem={faviconItem}
-							setFaviconItem={setFaviconItem}
+							setFaviconItem={setFaviconItemWithPreviewCleanup}
 							avatarItem={avatarItem}
-							setAvatarItem={setAvatarItem}
+							setAvatarItem={setAvatarItemWithPreviewCleanup}
 							artImageUploads={artImageUploads}
-							setArtImageUploads={setArtImageUploads}
+							setArtImageUploads={setArtImageUploadsWithPreviewCleanup}
 							backgroundImageUploads={backgroundImageUploads}
-							setBackgroundImageUploads={setBackgroundImageUploads}
+							setBackgroundImageUploads={setBackgroundImageUploadsWithPreviewCleanup}
 							socialButtonImageUploads={socialButtonImageUploads}
-							setSocialButtonImageUploads={setSocialButtonImageUploads}
+							setSocialButtonImageUploads={setSocialButtonImageUploadsWithPreviewCleanup}
 						/>
 					)}
 
