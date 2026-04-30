@@ -3,9 +3,51 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
 import { Download, Upload, Undo2 } from 'lucide-react'
-import { useConfigStore } from '../stores/config-store'
+import { useConfigStore, type CardStyles } from '../stores/config-store'
 import { useLogStore } from '../stores/log-store'
 import { toast } from 'sonner'
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isCardStyleLike(value: unknown): value is { width: number; height: number; order: number; offsetX: number | null; offsetY: number | null; enabled: boolean; offset?: unknown } {
+	if (!isObject(value)) return false
+
+	return typeof value.width === 'number' &&
+		typeof value.height === 'number' &&
+		typeof value.order === 'number' &&
+		(typeof value.offsetX === 'number' || value.offsetX === null) &&
+		(typeof value.offsetY === 'number' || value.offsetY === null) &&
+		typeof value.enabled === 'boolean'
+}
+
+function sanitizeCardStyles(value: unknown, currentCardStyles: CardStyles): CardStyles | null {
+	if (!isObject(value)) return null
+
+	const nextCardStyles = { ...currentCardStyles }
+	let hasValidStyle = false
+
+	for (const key of Object.keys(currentCardStyles) as Array<keyof CardStyles>) {
+		const style = value[key]
+		if (isCardStyleLike(style)) {
+			const currentStyle = currentCardStyles[key]
+			nextCardStyles[key] = {
+				...currentStyle,
+				width: style.width,
+				height: style.height,
+				order: style.order,
+				offsetX: style.offsetX,
+				offsetY: style.offsetY,
+				enabled: style.enabled,
+				...('offset' in currentStyle && typeof style.offset === 'number' ? { offset: style.offset } : {})
+			}
+			hasValidStyle = true
+		}
+	}
+
+	return hasValidStyle ? nextCardStyles : null
+}
 
 export function LayoutManager() {
 	const { cardStyles, setCardStyles, saveLayout, undoLayout } = useConfigStore()
@@ -34,14 +76,20 @@ export function LayoutManager() {
 		const previousCardStyles = cardStyles
 		try {
 			const layout = JSON.parse(importText)
-			setCardStyles(layout)
+			const sanitizedLayout = sanitizeCardStyles(layout, cardStyles)
+			if (!sanitizedLayout) {
+				toast.error('布局配置无效')
+				addLog('error', 'layout', '导入布局失败：布局配置无效')
+				return
+			}
+			setCardStyles(sanitizedLayout)
 
 			if (isDev) {
 				await saveLayout()
 				toast.success('布局已导入并保存')
 				addLog('success', 'layout', '导入布局（已保存到服务器）')
 			} else {
-				localStorage.setItem('custom-layout', importText)
+				localStorage.setItem('custom-layout', JSON.stringify(sanitizedLayout))
 				toast.success('布局已导入（仅本地生效）')
 				addLog('success', 'layout', '导入布局（仅本地）')
 			}

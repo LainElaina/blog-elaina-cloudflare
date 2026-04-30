@@ -2,7 +2,7 @@
 
 import { Upload } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useConfigStore } from '../app/(home)/stores/config-store'
+import { useConfigStore, type CardStyles } from '../app/(home)/stores/config-store'
 import { useLayoutEditStore } from '../app/(home)/stores/layout-edit-store'
 import { useCenterStore } from '@/hooks/use-center'
 import { toast } from 'sonner'
@@ -11,6 +11,44 @@ import { InfoDialog } from './info-dialog'
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isCardStyleLike(value: unknown): value is { width: number; height: number; order: number; offsetX: number | null; offsetY: number | null; enabled: boolean; offset?: unknown } {
+	if (!isObject(value)) return false
+
+	return typeof value.width === 'number' &&
+		typeof value.height === 'number' &&
+		typeof value.order === 'number' &&
+		(typeof value.offsetX === 'number' || value.offsetX === null) &&
+		(typeof value.offsetY === 'number' || value.offsetY === null) &&
+		typeof value.enabled === 'boolean'
+}
+
+function sanitizeCardStyles(value: unknown, currentCardStyles: CardStyles): CardStyles | null {
+	if (!isObject(value)) return null
+
+	const nextCardStyles = { ...currentCardStyles }
+	let hasValidStyle = false
+
+	for (const key of Object.keys(currentCardStyles) as Array<keyof CardStyles>) {
+		const style = value[key]
+		if (isCardStyleLike(style)) {
+			const currentStyle = currentCardStyles[key]
+			nextCardStyles[key] = {
+				...currentStyle,
+				width: style.width,
+				height: style.height,
+				order: style.order,
+				offsetX: style.offsetX,
+				offsetY: style.offsetY,
+				enabled: style.enabled,
+				...('offset' in currentStyle && typeof style.offset === 'number' ? { offset: style.offset } : {})
+			}
+			hasValidStyle = true
+		}
+	}
+
+	return hasValidStyle ? nextCardStyles : null
 }
 
 function isComponentLike(value: unknown): boolean {
@@ -113,6 +151,7 @@ export function ImportLayoutButton() {
 			try {
 				const text = await file.text()
 				const config = JSON.parse(text)
+				const sanitizedCardStyles = sanitizeCardStyles(config.cardStyles, useConfigStore.getState().cardStyles)
 				const customComponents = sanitizeCustomComponents(config.customComponents)
 				const componentFavorites = sanitizeComponentFavorites(config.componentFavorites)
 				const templates = sanitizeTemplates(config.templates)
@@ -122,7 +161,7 @@ export function ImportLayoutButton() {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({
-							...(config.cardStyles ? { cardStyles: config.cardStyles } : {}),
+							...(sanitizedCardStyles ? { cardStyles: sanitizedCardStyles } : {}),
 							...(customComponents ? { customComponents } : {})
 						})
 					})
@@ -131,8 +170,8 @@ export function ImportLayoutButton() {
 					}
 				}
 
-				if (config.cardStyles) {
-					useConfigStore.getState().setCardStyles(config.cardStyles)
+				if (sanitizedCardStyles) {
+					useConfigStore.getState().setCardStyles(sanitizedCardStyles)
 				}
 				if (customComponents) {
 					localStorage.setItem('custom-components', JSON.stringify(customComponents))

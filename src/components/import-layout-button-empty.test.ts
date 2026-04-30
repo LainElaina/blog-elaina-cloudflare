@@ -21,9 +21,21 @@ test('layout config import does not erase project components when config omits t
 
 	assert.match(
 		source,
-		/body: JSON\.stringify\(\{\n\s*\.\.\.\(config\.cardStyles \? \{ cardStyles: config\.cardStyles \} : \{\}\),\n\s*\.\.\.\(customComponents \? \{ customComponents \} : \{\}\)\n\s*\}\)/
+		/body: JSON\.stringify\(\{\n\s*\.\.\.\(sanitizedCardStyles \? \{ cardStyles: sanitizedCardStyles \} : \{\}\),\n\s*\.\.\.\(customComponents \? \{ customComponents \} : \{\}\)\n\s*\}\)/
 	)
+	assert.doesNotMatch(source, /cardStyles: config\.cardStyles/)
 	assert.doesNotMatch(source, /cardStyles: config\.cardStyles,\n\s*customComponents: config\.customComponents/)
+})
+
+test('layout config import sanitizes card styles before writing config', async () => {
+	const source = await fs.readFile(new URL('./import-layout-button.tsx', import.meta.url), 'utf-8')
+
+	assert.match(source, /function sanitizeCardStyles\(value: unknown, currentCardStyles: CardStyles\): CardStyles \| null \{/)
+	assert.match(source, /for \(const key of Object\.keys\(currentCardStyles\) as Array<keyof CardStyles>\)/)
+	assert.match(source, /if \(isCardStyleLike\(style\)\) \{[\s\S]*width: style\.width[\s\S]*enabled: style\.enabled[\s\S]*hasValidStyle = true/)
+	assert.match(source, /const sanitizedCardStyles = sanitizeCardStyles\(config\.cardStyles, useConfigStore\.getState\(\)\.cardStyles\)/)
+	assert.match(source, /if \(sanitizedCardStyles\) \{\n\s*useConfigStore\.getState\(\)\.setCardStyles\(sanitizedCardStyles\)/)
+	assert.doesNotMatch(source, /setCardStyles\(config\.cardStyles\)/)
 })
 
 test('layout config import filters invalid cached item arrays', async () => {
