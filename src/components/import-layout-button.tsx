@@ -9,6 +9,44 @@ import { toast } from 'sonner'
 import DraggerSVG from '@/svgs/dragger.svg'
 import { InfoDialog } from './info-dialog'
 
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isComponentLike(value: unknown): boolean {
+	if (!isObject(value)) return false
+
+	const style = value.style
+	const content = value.content
+	const type = value.type
+	return typeof value.name === 'string' &&
+		typeof value.templateId === 'string' &&
+		(type === 'text' || type === 'image' || type === 'link' || type === 'iframe' || type === 'custom') &&
+		isObject(style) &&
+		typeof style.width === 'number' &&
+		typeof style.height === 'number' &&
+		typeof style.order === 'number' &&
+		(typeof style.offsetX === 'number' || style.offsetX === null) &&
+		(typeof style.offsetY === 'number' || style.offsetY === null) &&
+		typeof style.enabled === 'boolean' &&
+		isObject(content)
+}
+
+function sanitizeCustomComponents(value: unknown): unknown[] | null {
+	if (!Array.isArray(value)) return null
+	return value.filter(component => isObject(component) && typeof component.id === 'string' && isComponentLike(component))
+}
+
+function sanitizeComponentFavorites(value: unknown): unknown[] | null {
+	if (!Array.isArray(value)) return null
+	return value.filter(favorite => isObject(favorite) && typeof favorite.name === 'string' && isComponentLike(favorite.component))
+}
+
+function sanitizeTemplates(value: unknown): unknown[] | null {
+	if (!Array.isArray(value)) return null
+	return value.filter(template => isObject(template) && typeof template.id === 'string' && typeof template.name === 'string' && isObject(template.styles))
+}
+
 export function ImportLayoutButton() {
 	const [mounted, setMounted] = useState(false)
 	const [showInfo, setShowInfo] = useState(false)
@@ -75,6 +113,9 @@ export function ImportLayoutButton() {
 			try {
 				const text = await file.text()
 				const config = JSON.parse(text)
+				const customComponents = sanitizeCustomComponents(config.customComponents)
+				const componentFavorites = sanitizeComponentFavorites(config.componentFavorites)
+				const templates = sanitizeTemplates(config.templates)
 
 				if (process.env.NODE_ENV === 'development') {
 					const response = await fetch('/api/config', {
@@ -82,7 +123,7 @@ export function ImportLayoutButton() {
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({
 							...(config.cardStyles ? { cardStyles: config.cardStyles } : {}),
-							...(Array.isArray(config.customComponents) ? { customComponents: config.customComponents } : {})
+							...(customComponents ? { customComponents } : {})
 						})
 					})
 					if (!response.ok) {
@@ -93,14 +134,14 @@ export function ImportLayoutButton() {
 				if (config.cardStyles) {
 					useConfigStore.getState().setCardStyles(config.cardStyles)
 				}
-				if (Array.isArray(config.customComponents)) {
-					localStorage.setItem('custom-components', JSON.stringify(config.customComponents))
+				if (customComponents) {
+					localStorage.setItem('custom-components', JSON.stringify(customComponents))
 				}
-				if (Array.isArray(config.componentFavorites)) {
-					localStorage.setItem('component-favorites', JSON.stringify(config.componentFavorites))
+				if (componentFavorites) {
+					localStorage.setItem('component-favorites', JSON.stringify(componentFavorites))
 				}
-				if (Array.isArray(config.templates)) {
-					localStorage.setItem('templates', JSON.stringify(config.templates))
+				if (templates) {
+					localStorage.setItem('templates', JSON.stringify(templates))
 				}
 
 				window.location.reload()
