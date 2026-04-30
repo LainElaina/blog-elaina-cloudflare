@@ -42,6 +42,7 @@ import { useConfigStore } from '@/app/(home)/stores/config-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
+import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 
 const assertOk = async (response: Response, actionName: string) => {
 	if (response.ok) {
@@ -269,6 +270,7 @@ export default function Page() {
 			if (logoItem && oldUrl && oldUrl !== currentUrl) {
 				next.delete(oldUrl)
 			}
+			revokeUnusedFilePreviewUrls(prev.values(), next.values())
 			return next
 		})
 	}
@@ -331,13 +333,15 @@ export default function Page() {
 		if (payload.oldUrl) {
 			handleEditSessionFinish(payload.oldUrl)
 		}
-		setLogoItems(prev =>
-			migratePendingShareLogoItems(new Map(prev), {
+		setLogoItems(prev => {
+			const next = migratePendingShareLogoItems(new Map(prev), {
 				oldUrl: payload.oldUrl,
 				currentUrl: payload.currentUrl,
 				logoItem: payload.logoItem
 			})
-		)
+			revokeUnusedFilePreviewUrls(prev.values(), next.values())
+			return next
+		})
 		setEditingShare(null)
 	}
 
@@ -374,16 +378,19 @@ export default function Page() {
 		}
 		setLogoItems(prev => {
 			if (params.initialLogoItem !== undefined) {
-				return migratePendingShareLogoItems(new Map(prev), {
+				const next = migratePendingShareLogoItems(new Map(prev), {
 					oldUrl: params.draftShare.url,
 					currentUrl: params.originalShare.url,
 					logoItem: params.initialLogoItem
 				})
+				revokeUnusedFilePreviewUrls(prev.values(), next.values())
+				return next
 			}
 
 			const next = new Map(prev)
 			next.delete(params.draftShare.url)
 			next.delete(params.originalShare.url)
+			revokeUnusedFilePreviewUrls(prev.values(), next.values())
 			return next
 		})
 	}
@@ -419,6 +426,7 @@ export default function Page() {
 		setLogoItems(prev => {
 			const next = new Map(prev)
 			next.delete(share.url)
+			revokeUnusedFilePreviewUrls(prev.values(), next.values())
 			return next
 		})
 		setRenamedUrls(prev => removePendingRenamedUrl(new Map(prev), share.url))
@@ -502,6 +510,7 @@ export default function Page() {
 			setOriginalArtifacts(nextArtifacts)
 			setEditingShare(null)
 			setIsCreateDialogOpen(false)
+			revokeFilePreviewUrls(logoItems.values())
 			setLogoItems(new Map())
 			setRenamedUrls(new Map())
 			resetEditingSessions()
@@ -518,6 +527,7 @@ export default function Page() {
 		setPageState(current => setSharePageEditMode(replaceArtifactsInState(current, originalArtifacts), false))
 		setEditingShare(null)
 		setIsCreateDialogOpen(false)
+		revokeFilePreviewUrls(logoItems.values())
 		setLogoItems(new Map())
 		setRenamedUrls(new Map())
 		resetEditingSessions()

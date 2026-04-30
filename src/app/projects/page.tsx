@@ -12,6 +12,7 @@ import initialList from './list.json'
 import type { ImageItem } from './components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
+import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 
 const assertOk = async (response: Response, actionName: string) => {
 	if (response.ok) {
@@ -42,6 +43,7 @@ export default function Page() {
 			setImageItems(prev => {
 				const newMap = new Map(prev)
 				newMap.set(updatedProject.url, imageItem)
+				revokeUnusedFilePreviewUrls(prev.values(), newMap.values())
 				return newMap
 			})
 		}
@@ -63,6 +65,7 @@ export default function Page() {
 			setImageItems(prev => {
 				const newMap = new Map(prev)
 				newMap.set(updatedProject.url, imageItem)
+				revokeUnusedFilePreviewUrls(prev.values(), newMap.values())
 				return newMap
 			})
 		}
@@ -71,6 +74,12 @@ export default function Page() {
 	const handleDelete = (project: Project) => {
 		if (confirm(`确定要删除 ${project.name} 吗？`)) {
 			setProjects(projects.filter(p => p.url !== project.url))
+			setImageItems(prev => {
+				const next = new Map(prev)
+				next.delete(project.url)
+				revokeUnusedFilePreviewUrls(prev.values(), next.values())
+				return next
+			})
 		}
 	}
 
@@ -131,6 +140,7 @@ export default function Page() {
 
 			setProjects(savedProjects)
 			setOriginalProjects(savedProjects)
+			revokeFilePreviewUrls(imageItems.values())
 			setImageItems(new Map())
 			setIsEditMode(false)
 			toast.success('保存成功！')
@@ -144,6 +154,7 @@ export default function Page() {
 
 	const handleCancel = () => {
 		setProjects(originalProjects)
+		revokeFilePreviewUrls(imageItems.values())
 		setImageItems(new Map())
 		setIsEditMode(false)
 	}

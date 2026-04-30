@@ -21,6 +21,7 @@ import { useSize, useSizeInit } from '@/hooks/use-size'
 import type { ImageItem } from '../projects/components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
+import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 import { useRouter } from 'next/navigation'
 
 const assertOk = async (response: Response, actionName: string) => {
@@ -87,6 +88,7 @@ export default function Page() {
 		})
 
 		setPictures(prev => [...prev, newPicture])
+		revokeUnusedFilePreviewUrls(imageItems.values(), newMap.values())
 		setImageItems(newMap)
 		setIsUploadDialogOpen(false)
 	}
@@ -160,6 +162,7 @@ export default function Page() {
 					}
 				}
 			}
+			revokeUnusedFilePreviewUrls(prev.values(), next.values())
 			return next
 		})
 	}
@@ -175,6 +178,7 @@ export default function Page() {
 					next.delete(key)
 				}
 			}
+			revokeUnusedFilePreviewUrls(prev.values(), next.values())
 			return next
 		})
 	}
@@ -260,6 +264,7 @@ export default function Page() {
 
 			setPictures(savedPictures)
 			setOriginalPictures(savedPictures)
+			revokeFilePreviewUrls(imageItems.values())
 			setImageItems(new Map())
 			setIsEditMode(false)
 			toast.success('保存成功！')
@@ -273,6 +278,7 @@ export default function Page() {
 
 	const handleCancel = () => {
 		setPictures(originalPictures)
+		revokeFilePreviewUrls(imageItems.values())
 		setImageItems(new Map())
 		setIsEditMode(false)
 	}
