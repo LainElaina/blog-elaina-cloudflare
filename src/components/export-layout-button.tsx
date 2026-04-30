@@ -9,6 +9,18 @@ import { toast } from 'sonner'
 import DraggerSVG from '@/svgs/dragger.svg'
 import { InfoDialog } from './info-dialog'
 
+function readCachedList(key: string): unknown[] {
+	try {
+		const saved = localStorage.getItem(key)
+		if (!saved) return []
+
+		const parsed = JSON.parse(saved)
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
 export function ExportLayoutButton() {
 	const [mounted, setMounted] = useState(false)
 	const [showInfo, setShowInfo] = useState(false)
@@ -66,9 +78,9 @@ export function ExportLayoutButton() {
 	}
 
 	const handleConfirmExport = () => {
-		const customComponents = JSON.parse(localStorage.getItem('custom-components') || '[]')
-		const componentFavorites = JSON.parse(localStorage.getItem('component-favorites') || '[]')
-		const templates = JSON.parse(localStorage.getItem('templates') || '[]')
+		const customComponents = readCachedList('custom-components')
+		const componentFavorites = readCachedList('component-favorites')
+		const templates = readCachedList('templates')
 		const config = {
 			siteContent: useConfigStore.getState().siteContent,
 			cardStyles,
