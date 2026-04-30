@@ -52,12 +52,19 @@ export default function Page() {
 		setIsCreateDialogOpen(true)
 	}
 
-	const handleSaveBlogger = (updatedBlogger: Blogger) => {
+	const handleSaveBlogger = (updatedBlogger: Blogger, avatarItem?: AvatarItem) => {
 		if (editingBlogger) {
 			const updated = bloggers.map(b => (b.url === editingBlogger.url ? updatedBlogger : b))
 			setBloggers(updated)
 		} else {
 			setBloggers([...bloggers, updatedBlogger])
+		}
+		if (avatarItem) {
+			setAvatarItems(prev => {
+				const newMap = new Map(prev)
+				newMap.set(updatedBlogger.url, avatarItem)
+				return newMap
+			})
 		}
 	}
 
