@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useSize } from '@/hooks/use-size'
+import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 import ImageUploadDialog, { type ImageItem } from './image-upload-dialog'
 
 export interface Project {
@@ -31,19 +32,40 @@ export function ProjectCard({ project, isEditMode = false, onUpdate, onDelete }:
 	const [localProject, setLocalProject] = useState(project)
 	const [showImageDialog, setShowImageDialog] = useState(false)
 	const [imageItem, setImageItem] = useState<ImageItem | null>(null)
+	const imageItemRef = useRef<ImageItem | null>(null)
+
+	const setDraftImageItem = useCallback((nextImageItem: ImageItem | null) => {
+		revokeUnusedFilePreviewUrls(imageItemRef.current ? [imageItemRef.current] : [], nextImageItem ? [nextImageItem] : [])
+		imageItemRef.current = nextImageItem
+		setImageItem(nextImageItem)
+	}, [])
+
+	useEffect(() => {
+		setLocalProject(project)
+		setDraftImageItem(null)
+	}, [project, setDraftImageItem])
+
+	useEffect(() => {
+		if (isEditMode) return
+		setLocalProject(project)
+		setIsEditing(false)
+		setDraftImageItem(null)
+	}, [isEditMode, project, setDraftImageItem])
+
+	useEffect(() => {
+		return () => {
+			revokeFilePreviewUrls(imageItemRef.current ? [imageItemRef.current] : [])
+		}
+	}, [])
 
 	const handleFieldChange = (field: keyof Project, value: any) => {
-		const updated = { ...localProject, [field]: value }
-		setLocalProject(updated)
-		onUpdate?.(updated, project, imageItem || undefined)
+		setLocalProject(current => ({ ...current, [field]: value }))
 	}
 
 	const handleImageSubmit = (image: ImageItem) => {
-		setImageItem(image)
+		setDraftImageItem(image)
 		const imageUrl = image.type === 'url' ? image.url : image.previewUrl
-		const updated = { ...localProject, image: imageUrl }
-		setLocalProject(updated)
-		onUpdate?.(updated, project, image)
+		setLocalProject(current => ({ ...current, image: imageUrl }))
 	}
 
 	const handleTagsChange = (tagsStr: string) => {
@@ -55,9 +77,16 @@ export function ProjectCard({ project, isEditMode = false, onUpdate, onDelete }:
 	}
 
 	const handleCancel = () => {
+		setDraftImageItem(null)
 		setLocalProject(project)
 		setIsEditing(false)
+	}
+
+	const handleComplete = () => {
+		onUpdate?.(localProject, project, imageItem || undefined)
+		imageItemRef.current = null
 		setImageItem(null)
+		setIsEditing(false)
 	}
 
 	const canEdit = isEditMode && isEditing
@@ -74,7 +103,7 @@ export function ProjectCard({ project, isEditMode = false, onUpdate, onDelete }:
 							<button onClick={handleCancel} className='rounded-lg px-2 py-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600'>
 								取消
 							</button>
-							<button onClick={() => setIsEditing(false)} className='rounded-lg px-2 py-1.5 text-xs text-blue-400 transition-colors hover:text-blue-600'>
+							<button onClick={handleComplete} className='rounded-lg px-2 py-1.5 text-xs text-blue-400 transition-colors hover:text-blue-600'>
 								完成
 							</button>
 						</>

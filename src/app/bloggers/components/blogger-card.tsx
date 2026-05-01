@@ -6,7 +6,8 @@ import { useSize } from '@/hooks/use-size'
 import { cn } from '@/lib/utils'
 import EditableStarRating from '@/components/editable-star-rating'
 import { Blogger, type BloggerStatus } from '../grid-view'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 import AvatarUploadDialog, { type AvatarItem } from './avatar-upload-dialog'
 
 interface BloggerCardProps {
@@ -23,25 +24,53 @@ export function BloggerCard({ blogger, isEditMode = false, onUpdate, onDelete }:
 	const [localBlogger, setLocalBlogger] = useState(blogger)
 	const [showAvatarDialog, setShowAvatarDialog] = useState(false)
 	const [avatarItem, setAvatarItem] = useState<AvatarItem | null>(null)
+	const avatarItemRef = useRef<AvatarItem | null>(null)
+
+	const setDraftAvatarItem = useCallback((nextAvatarItem: AvatarItem | null) => {
+		revokeUnusedFilePreviewUrls(avatarItemRef.current ? [avatarItemRef.current] : [], nextAvatarItem ? [nextAvatarItem] : [])
+		avatarItemRef.current = nextAvatarItem
+		setAvatarItem(nextAvatarItem)
+	}, [])
+
+	useEffect(() => {
+		setLocalBlogger(blogger)
+		setDraftAvatarItem(null)
+	}, [blogger, setDraftAvatarItem])
+
+	useEffect(() => {
+		if (isEditMode) return
+		setLocalBlogger(blogger)
+		setIsEditing(false)
+		setDraftAvatarItem(null)
+	}, [isEditMode, blogger, setDraftAvatarItem])
+
+	useEffect(() => {
+		return () => {
+			revokeFilePreviewUrls(avatarItemRef.current ? [avatarItemRef.current] : [])
+		}
+	}, [])
 
 	const handleFieldChange = (field: keyof Blogger, value: any) => {
-		const updated = { ...localBlogger, [field]: value }
-		setLocalBlogger(updated)
-		onUpdate?.(updated, blogger, avatarItem || undefined)
+		setLocalBlogger(current => ({ ...current, [field]: value }))
 	}
 
 	const handleAvatarSubmit = (avatar: AvatarItem) => {
-		setAvatarItem(avatar)
+		setDraftAvatarItem(avatar)
 		const avatarUrl = avatar.type === 'url' ? avatar.url : avatar.previewUrl
-		const updated = { ...localBlogger, avatar: avatarUrl }
-		setLocalBlogger(updated)
-		onUpdate?.(updated, blogger, avatar)
+		setLocalBlogger(current => ({ ...current, avatar: avatarUrl }))
 	}
 
 	const handleCancel = () => {
+		setDraftAvatarItem(null)
 		setLocalBlogger(blogger)
 		setIsEditing(false)
+	}
+
+	const handleComplete = () => {
+		onUpdate?.(localBlogger, blogger, avatarItem || undefined)
+		avatarItemRef.current = null
 		setAvatarItem(null)
+		setIsEditing(false)
 	}
 
 	const canEdit = isEditMode && isEditing
@@ -58,7 +87,7 @@ export function BloggerCard({ blogger, isEditMode = false, onUpdate, onDelete }:
 							<button onClick={handleCancel} className='rounded-lg px-2 py-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600'>
 								取消
 							</button>
-							<button onClick={() => setIsEditing(false)} className='rounded-lg px-2 py-1.5 text-xs text-blue-400 transition-colors hover:text-blue-600'>
+							<button onClick={handleComplete} className='rounded-lg px-2 py-1.5 text-xs text-blue-400 transition-colors hover:text-blue-600'>
 								完成
 							</button>
 						</>
