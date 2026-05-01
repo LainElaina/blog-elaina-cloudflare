@@ -3,7 +3,7 @@ import { rm } from 'fs/promises'
 import { resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isPathInsideDirectory } from '../local-path'
+import { isPathStrictlyInsideDirectory } from '../local-path'
 
 export async function handleDeleteDir(request: NextRequest) {
 	try {
@@ -13,11 +13,11 @@ export async function handleDeleteDir(request: NextRequest) {
 			return NextResponse.json({ error: '缺少目录路径' }, { status: 400 })
 		}
 
-		const publicDir = resolve(process.cwd(), 'public')
+		const blogDir = resolve(process.cwd(), 'public/blogs')
 		const fullPath = resolve(process.cwd(), dirPath)
 
-		if (!isPathInsideDirectory(publicDir, fullPath)) {
-			return NextResponse.json({ error: '路径不合法，只能删除 public 目录内的内容' }, { status: 403 })
+		if (!isPathStrictlyInsideDirectory(blogDir, fullPath)) {
+			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 目录内的子目录' }, { status: 403 })
 		}
 
 		if (existsSync(fullPath)) {
