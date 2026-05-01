@@ -121,6 +121,24 @@ export async function getRef(token: string, owner: string, repo: string, ref: st
 	return { sha: data.object.sha }
 }
 
+export async function getCommit(token: string, owner: string, repo: string, commitSha: string): Promise<{ sha: string; treeSha: string }> {
+	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/git/commits/${encodeURIComponent(commitSha)}`, {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: 'application/vnd.github+json',
+			'X-GitHub-Api-Version': '2022-11-28'
+		}
+	})
+	if (res.status === 401) handle401Error()
+	if (res.status === 422) handle422Error()
+	if (!res.ok) throw new Error(`get commit failed: ${res.status}`)
+	const data = await res.json()
+	if (typeof data?.sha !== 'string' || typeof data?.tree?.sha !== 'string') {
+		throw new Error('get commit failed: invalid response')
+	}
+	return { sha: data.sha, treeSha: data.tree.sha }
+}
+
 export type TreeItem = {
 	path: string
 	mode: '100644' | '100755' | '040000' | '160000' | '120000'
@@ -129,7 +147,8 @@ export type TreeItem = {
 	sha?: string | null
 }
 
-export async function createTree(token: string, owner: string, repo: string, tree: TreeItem[], baseTree?: string): Promise<{ sha: string }> {
+export async function createTree(token: string, owner: string, repo: string, tree: TreeItem[], baseTreeCommitSha?: string): Promise<{ sha: string }> {
+	const baseTree = baseTreeCommitSha ? (await getCommit(token, owner, repo, baseTreeCommitSha)).treeSha : undefined
 	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/git/trees`, {
 		method: 'POST',
 		headers: {
