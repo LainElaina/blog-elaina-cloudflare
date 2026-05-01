@@ -45,8 +45,7 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 			})
 		}
 
-		revokeImagePreviews(images)
-		setImages(nextImages)
+		setImages(current => [...current, ...nextImages])
 	}
 
 	const handleSubmit = () => {
