@@ -41,3 +41,10 @@ test('config dialog clears pending previews only after save, publish, or cancel'
 	assert.match(source, /const handleCancel = \(\) => \{\n\s*clearPendingAssetUploads\(\)/)
 	assert.doesNotMatch(source, /if \(action === 'draft'\) \{[\s\S]*?clearPendingAssetUploads\(\)/)
 })
+
+test('config dialog blocks local drafts that still own pending file uploads', async () => {
+	const source = (await fs.readFile(new URL('./index.tsx', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+	assert.match(source, /import \{ assertCanSaveLocalSiteConfigDraft, shouldClearLocalPendingAssetUploads \} from '\.\.\/services\/push-site-content-local-utils'/)
+	assert.match(source, /assertCanSaveLocalSiteConfigDraft\(action, \{\n\s*faviconItem,\n\s*avatarItem,\n\s*artImageUploads,\n\s*backgroundImageUploads,\n\s*socialButtonImageUploads\n\s*\}\)\n\n\s*\/\/ Calculate removed images/)
+})

@@ -11,7 +11,9 @@ const {
 	shouldSyncFormalAssets,
 	shouldRequestLocalConfigEndpoint,
 	resolveLocalSocialButtonImageUploadPath,
-	shouldClearLocalPendingAssetUploads
+	shouldClearLocalPendingAssetUploads,
+	hasPendingLocalFileAssetUploads,
+	assertCanSaveLocalSiteConfigDraft
 } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
 const { writeSiteConfigDraft, readSiteConfigDraft, clearSiteConfigDraft, publishSiteConfigDraft, canPublishSiteConfigDraft, resolveSiteConfigPublishPayload } =
 	await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
@@ -71,6 +73,21 @@ test('resolveLocalSocialButtonImageUploadPath uses the configured social button 
 test('shouldClearLocalPendingAssetUploads only clears after local publish', () => {
 	assert.equal(shouldClearLocalPendingAssetUploads('draft'), false)
 	assert.equal(shouldClearLocalPendingAssetUploads('publish'), true)
+})
+
+test('local site config draft rejects pending file assets that are not written to disk', () => {
+	const pendingUploads = {
+		faviconItem: { type: 'url', url: '/favicon.png' },
+		avatarItem: null,
+		artImageUploads: { art: { type: 'file' } },
+		backgroundImageUploads: {},
+		socialButtonImageUploads: {}
+	}
+
+	assert.equal(hasPendingLocalFileAssetUploads(pendingUploads), true)
+	assert.throws(() => assertCanSaveLocalSiteConfigDraft('draft', pendingUploads), /本地草稿不能包含尚未写入项目的图片文件/)
+	assert.doesNotThrow(() => assertCanSaveLocalSiteConfigDraft('publish', pendingUploads))
+	assert.equal(hasPendingLocalFileAssetUploads({ artImageUploads: { art: { type: 'url' } } }), false)
 })
 
 test('requestLocalEndpoint throws server error message for non-ok response', async () => {

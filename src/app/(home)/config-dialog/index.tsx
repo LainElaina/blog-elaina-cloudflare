@@ -8,7 +8,7 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '../stores/config-store'
 import { pushSiteContent } from '../services/push-site-content'
 import { pushSiteContentLocal } from '../services/push-site-content-local'
-import { shouldClearLocalPendingAssetUploads } from '../services/push-site-content-local-utils'
+import { assertCanSaveLocalSiteConfigDraft, shouldClearLocalPendingAssetUploads } from '../services/push-site-content-local-utils'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import { SiteSettings, type FileItem, type ArtImageUploads, type BackgroundImageUploads, type SocialButtonImageUploads } from './site-settings'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
@@ -255,6 +255,14 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const handleLocalSave = async (action: 'draft' | 'publish') => {
 		setIsSaving(true)
 		try {
+			assertCanSaveLocalSiteConfigDraft(action, {
+				faviconItem,
+				avatarItem,
+				artImageUploads,
+				backgroundImageUploads,
+				socialButtonImageUploads
+			})
+
 			// Calculate removed images
 			const originalArtImages = originalData.artImages ?? []
 			const currentArtImages = formData.artImages ?? []

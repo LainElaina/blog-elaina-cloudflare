@@ -34,6 +34,36 @@ export function shouldClearLocalPendingAssetUploads(action: 'draft' | 'publish')
 	return action === 'publish'
 }
 
+type PendingFileAssetItem = { type?: string } | null | undefined
+
+type PendingLocalAssetUploads = {
+	faviconItem?: PendingFileAssetItem
+	avatarItem?: PendingFileAssetItem
+	artImageUploads?: Record<string, PendingFileAssetItem> | null
+	backgroundImageUploads?: Record<string, PendingFileAssetItem> | null
+	socialButtonImageUploads?: Record<string, PendingFileAssetItem> | null
+}
+
+function isPendingFileAssetUpload(item: PendingFileAssetItem) {
+	return item?.type === 'file'
+}
+
+export function hasPendingLocalFileAssetUploads(uploads: PendingLocalAssetUploads) {
+	return (
+		isPendingFileAssetUpload(uploads.faviconItem) ||
+		isPendingFileAssetUpload(uploads.avatarItem) ||
+		Object.values(uploads.artImageUploads ?? {}).some(isPendingFileAssetUpload) ||
+		Object.values(uploads.backgroundImageUploads ?? {}).some(isPendingFileAssetUpload) ||
+		Object.values(uploads.socialButtonImageUploads ?? {}).some(isPendingFileAssetUpload)
+	)
+}
+
+export function assertCanSaveLocalSiteConfigDraft(action: 'draft' | 'publish', uploads: PendingLocalAssetUploads) {
+	if (action === 'draft' && hasPendingLocalFileAssetUploads(uploads)) {
+		throw new Error('本地草稿不能包含尚未写入项目的图片文件，请使用“正式保存”写入本地资源')
+	}
+}
+
 type SiteContentWithSocialButtons = {
 	socialButtons?: Array<{ id: string; value: string }> | null
 }
