@@ -9,6 +9,7 @@ import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
 import { buildPublishedWriteSnapshot, getWritePublishSafetyState, replaceLocalImagePlaceholders, type WriteSafetySnapshot } from '../write-safety'
 import { formatDateTimeLocal } from '../stores/write-store'
+import { assertSafeBlogSlug } from './blog-slug'
 
 export type PushBlogParams = {
 	form: {
@@ -73,6 +74,10 @@ export function assertPublishableBlog(params: Pick<PushBlogParams, 'form' | 'ima
 }
 
 export function assertEditableSlug(params: Pick<PushBlogParams, 'form' | 'mode' | 'originalSlug'>): void {
+	assertSafeBlogSlug(params.form.slug)
+	if (params.originalSlug) {
+		assertSafeBlogSlug(params.originalSlug)
+	}
 	if (params.mode === 'edit' && params.originalSlug && params.originalSlug !== params.form.slug) {
 		throw new Error('编辑模式下不支持修改 slug，请保持原 slug 不变')
 	}

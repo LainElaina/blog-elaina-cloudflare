@@ -15,6 +15,7 @@ import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
 import { useAuthStore } from '@/hooks/use-auth'
 import { buildLocalSaveFilePayloadsFromContents } from '@/app/blog/services/save-blog-edits-utils'
 import { buildPublishedWriteSnapshot } from '../write-safety'
+import { assertSafeBlogSlug } from '../services/blog-slug'
 
 const assertOk = async (response: Response, actionName: string): Promise<void> => {
 	if (response.ok) {
@@ -60,6 +61,7 @@ export function usePublish() {
 
 	const pushBlogLocal = useCallback(async () => {
 		if (!form?.slug) throw new Error('需要 slug')
+		assertSafeBlogSlug(form.slug)
 
 		const basePath = `public/blogs/${form.slug}`
 		let mdToUpload = form.md
@@ -182,6 +184,7 @@ export function usePublish() {
 		try {
 			setLoading(true)
 			if (process.env.NODE_ENV === 'development') {
+				assertSafeBlogSlug(targetSlug)
 				await assertOk(
 					await fetch('/api/delete-dir', {
 						method: 'POST',

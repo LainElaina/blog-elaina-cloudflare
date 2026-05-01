@@ -13,12 +13,14 @@ import {
 	updateRef
 } from '@/lib/github-client'
 import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
+import { assertSafeBlogSlug } from './blog-slug'
 
 export async function buildDeleteArtifactContents(params: {
 	slug: string
 	readStorageRaw: () => Promise<string | null>
 	fallbackReadIndexRaw: () => Promise<string | null>
 }): Promise<{ index: string; categories: string; folders: string; storage: string }> {
+	assertSafeBlogSlug(params.slug)
 	const artifacts = await prepareBlogStaticArtifacts({
 		readStorageRaw: params.readStorageRaw,
 		fallbackReadIndexRaw: params.fallbackReadIndexRaw,
@@ -35,6 +37,7 @@ export async function buildDeleteArtifactContents(params: {
 
 export async function deleteBlog(slug: string): Promise<void> {
 	if (!slug) throw new Error('需要 slug')
+	assertSafeBlogSlug(slug)
 
 	const token = await getAuthToken()
 
