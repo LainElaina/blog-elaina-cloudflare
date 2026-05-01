@@ -25,9 +25,12 @@ export function getFileExt(filename: string): string {
 	const lower = filename.toLowerCase()
 	if (lower.endsWith('.jpg')) return '.jpg'
 	if (lower.endsWith('.jpeg')) return '.jpeg'
-	if (lower.endsWith('.webp')) return '.webp'
 	if (lower.endsWith('.png')) return '.png'
+	if (lower.endsWith('.gif')) return '.gif'
+	if (lower.endsWith('.webp')) return '.webp'
 	if (lower.endsWith('.svg')) return '.svg'
+	if (lower.endsWith('.ico')) return '.ico'
+	if (lower.endsWith('.avif')) return '.avif'
 	return '.png'
 }
 
