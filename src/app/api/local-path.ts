@@ -15,3 +15,7 @@ export function isPathStrictlyInsideDirectory(baseDir: string, targetPath: strin
 
 	return relativePath !== '' && !relativePath.startsWith('..') && !isAbsolute(relativePath)
 }
+
+export function isPathMatchingFileOrInsideDirectory(baseDir: string, targetPath: string) {
+	return resolve(baseDir) === resolve(targetPath) || isPathStrictlyInsideDirectory(baseDir, targetPath)
+}

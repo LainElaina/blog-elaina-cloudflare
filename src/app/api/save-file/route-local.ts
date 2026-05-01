@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isPathInsideDirectory } from '../local-path'
+import { isAllowedSaveFilePath } from './local-save-file-path.ts'
 
 export async function handleSaveFile(request: NextRequest) {
 	try {
@@ -16,7 +16,7 @@ export async function handleSaveFile(request: NextRequest) {
 		const projectDir = resolve(process.cwd())
 		const fullPath = resolve(process.cwd(), filePath)
 
-		if (!isPathInsideDirectory(projectDir, fullPath)) {
+		if (!isAllowedSaveFilePath(projectDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 
