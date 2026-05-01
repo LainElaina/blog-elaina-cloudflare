@@ -1,4 +1,4 @@
-import { createInstallationToken, getInstallationId, signAppJwt } from './github-client'
+import { createInstallationToken, getInstallationId, signAppJwt, type InstallationToken } from './github-client'
 import { GITHUB_CONFIG } from '@/consts'
 import { useAuthStore } from '@/hooks/use-auth'
 import { toast } from 'sonner'
@@ -6,20 +6,34 @@ import { decrypt,encrypt } from './aes256-util'
 
 const GITHUB_TOKEN_CACHE_KEY = 'github_token'
 const GITHUB_PEM_CACHE_KEY = 'p_info'
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000
 
 function getTokenFromCache(): string | null {
 	if (typeof sessionStorage === 'undefined') return null
 	try {
-		return sessionStorage.getItem(GITHUB_TOKEN_CACHE_KEY)
+		const cachedValue = sessionStorage.getItem(GITHUB_TOKEN_CACHE_KEY)
+		if (!cachedValue) return null
+		const cachedToken = JSON.parse(cachedValue) as Partial<InstallationToken>
+		if (typeof cachedToken.token !== 'string' || typeof cachedToken.expiresAt !== 'string') {
+			clearTokenCache()
+			return null
+		}
+		const expiresAtMs = Date.parse(cachedToken.expiresAt)
+		if (!Number.isFinite(expiresAtMs) || expiresAtMs - Date.now() <= TOKEN_EXPIRY_BUFFER_MS) {
+			clearTokenCache()
+			return null
+		}
+		return cachedToken.token
 	} catch {
+		clearTokenCache()
 		return null
 	}
 }
 
-function saveTokenToCache(token: string): void {
+function saveTokenToCache(token: InstallationToken): void {
 	if (typeof sessionStorage === 'undefined') return
 	try {
-		sessionStorage.setItem(GITHUB_TOKEN_CACHE_KEY, token)
+		sessionStorage.setItem(GITHUB_TOKEN_CACHE_KEY, JSON.stringify(token))
 	} catch (error) {
 		console.error('Failed to save token to cache:', error)
 	}
@@ -101,9 +115,9 @@ export async function getAuthToken(): Promise<string> {
 	const installationId = await getInstallationId(jwt, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO)
 
 	toast.info('正在创建安装令牌...')
-	const token = await createInstallationToken(jwt, installationId)
+	const installationToken = await createInstallationToken(jwt, installationId)
 
-	saveTokenToCache(token)
+	saveTokenToCache(installationToken)
 
-	return token
+	return installationToken.token
 }
