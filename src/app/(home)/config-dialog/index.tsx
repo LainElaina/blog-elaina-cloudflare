@@ -82,8 +82,11 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	const { siteContent, setSiteContent, cardStyles, setCardStyles, regenerateBubbles } = useConfigStore()
 	const [formData, setFormData] = useState<SiteContent>(normalizeSiteContentCardStyle(siteContent))
 	const [cardStylesData, setCardStylesData] = useState<CardStyles>(cardStyles)
-	const [originalData, setOriginalData] = useState<SiteContent>(normalizeSiteContentCardStyle(siteContent))
-	const [originalCardStyles, setOriginalCardStyles] = useState<CardStyles>(cardStyles)
+	const savedSiteContentRef = useRef<SiteContent>(normalizeSiteContentCardStyle(siteContent))
+	const savedCardStylesRef = useRef<CardStyles>(cardStyles)
+	const previewingUnsavedConfigRef = useRef(false)
+	const [originalData, setOriginalData] = useState<SiteContent>(savedSiteContentRef.current)
+	const [originalCardStyles, setOriginalCardStyles] = useState<CardStyles>(savedCardStylesRef.current)
 	const [isSaving, setIsSaving] = useState(false)
 	const [activeTab, setActiveTab] = useState<TabType>('site')
 	const keyInputRef = useRef<HTMLInputElement>(null)
@@ -161,13 +164,20 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	}, [])
 
 	useEffect(() => {
+		if (!open && !previewingUnsavedConfigRef.current) {
+			savedSiteContentRef.current = normalizeSiteContentCardStyle({ ...siteContent })
+			savedCardStylesRef.current = { ...cardStyles }
+		}
+	}, [open, siteContent, cardStyles])
+
+	useEffect(() => {
 		if (open) {
 			const current = normalizeSiteContentCardStyle({ ...siteContent })
 			const currentCardStyles = { ...cardStyles }
 			setFormData(current)
 			setCardStylesData(currentCardStyles)
-			setOriginalData(current)
-			setOriginalCardStyles(currentCardStyles)
+			setOriginalData(savedSiteContentRef.current)
+			setOriginalCardStyles(savedCardStylesRef.current)
 			setActiveTab('site')
 		}
 	}, [open, siteContent, cardStyles])
@@ -239,6 +249,9 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			)
 			setSiteContent(formData)
 			setCardStyles(cardStylesData)
+			previewingUnsavedConfigRef.current = false
+			savedSiteContentRef.current = formData
+			savedCardStylesRef.current = cardStylesData
 			setOriginalData(formData)
 			setOriginalCardStyles(cardStylesData)
 			updateThemeVariables(formData.theme)
@@ -290,6 +303,9 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 			setSiteContent(formData)
 			setCardStyles(cardStylesData)
 			if (action === 'publish') {
+				previewingUnsavedConfigRef.current = false
+				savedSiteContentRef.current = formData
+				savedCardStylesRef.current = cardStylesData
 				setOriginalData(formData)
 				setOriginalCardStyles(cardStylesData)
 			}
@@ -353,19 +369,22 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 
 	const handleCancel = () => {
 		clearPendingAssetUploads()
-		// Restore to the state when dialog was opened
-		setSiteContent(originalData)
-		setCardStyles(originalCardStyles)
+		const savedSiteContent = savedSiteContentRef.current
+		const savedCardStyles = savedCardStylesRef.current
+		setOriginalData(savedSiteContent)
+		setOriginalCardStyles(savedCardStyles)
+		setSiteContent(savedSiteContent)
+		setCardStyles(savedCardStyles)
 		regenerateBubbles()
-		// Restore document title and meta if they were changed by preview
 		if (typeof document !== 'undefined') {
-			document.title = originalData.meta.title
+			document.title = savedSiteContent.meta.title
 			const metaDescription = document.querySelector('meta[name="description"]')
 			if (metaDescription) {
-				metaDescription.setAttribute('content', originalData.meta.description)
+				metaDescription.setAttribute('content', savedSiteContent.meta.description)
 			}
 		}
-		updateThemeVariables(originalData.theme)
+		updateThemeVariables(savedSiteContent.theme)
+		previewingUnsavedConfigRef.current = false
 		onClose()
 	}
 
@@ -387,6 +406,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 	}
 
 	const handlePreview = () => {
+		previewingUnsavedConfigRef.current = true
 		setSiteContent(formData)
 		setCardStyles(cardStylesData)
 		regenerateBubbles()
