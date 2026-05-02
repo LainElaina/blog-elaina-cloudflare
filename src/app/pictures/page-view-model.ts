@@ -1,4 +1,4 @@
-import { resolvePicturesEffectiveDisplayMode, type PicturesDisplayMode } from './display-mode'
+import { resolvePicturesEffectiveDisplayMode, type PicturesDisplayMode } from './display-mode.ts'
 
 export function buildPicturesPageDisplayModeState(params: {
 	preferredDisplayMode: PicturesDisplayMode

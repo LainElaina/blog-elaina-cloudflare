@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import fs from 'node:fs/promises'
 
-import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model'
+import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model.ts'
 
 describe('pictures page display mode wiring', () => {
 	it('keeps page-level onDisplayModeChange connected to preferred display mode state', () => {
@@ -108,6 +108,16 @@ describe('pictures save path replacement', () => {
 		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/save-file'/)
 		assert.match(pageSource, /'保存图床列表'/)
 		assert.match(pageSource, /savedPictures = updatedPictures/)
+	})
+
+	it('development save writes list.json before deleting orphaned picture files', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+		const saveListIndex = pageSource.indexOf("'保存图床列表'")
+		const deleteImageIndex = pageSource.indexOf("'删除图床旧图片'")
+
+		assert.notEqual(saveListIndex, -1)
+		assert.notEqual(deleteImageIndex, -1)
+		assert.ok(saveListIndex < deleteImageIndex)
 	})
 
 	it('development save reuses key-based replacements instead of treating imageItems keys as URLs', async () => {

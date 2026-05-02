@@ -234,6 +234,14 @@ export default function Page() {
 					if (p.image) currentUrls.add(p.image)
 					p.images?.forEach(u => currentUrls.add(u))
 				}
+				await assertOk(
+					await fetch('/api/save-file', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
+					}),
+					'保存图床列表'
+				)
 				for (const p of originalPictures) {
 					const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
 					for (const url of urls) {
@@ -249,14 +257,6 @@ export default function Page() {
 						}
 					}
 				}
-				await assertOk(
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
-					}),
-					'保存图床列表'
-				)
 				savedPictures = updatedPictures
 			} else {
 				savedPictures = await pushPictures({ pictures, imageItems })
