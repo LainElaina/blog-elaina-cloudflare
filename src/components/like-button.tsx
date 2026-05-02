@@ -6,6 +6,7 @@ import clsx from 'clsx'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { BLOG_SLUG_KEY } from '@/consts'
+import { LIKE_ENDPOINT, postLike } from './like-button-model'
 
 type LikeButtonProps = {
 	slug?: string
@@ -13,7 +14,7 @@ type LikeButtonProps = {
 	delay?: number
 }
 
-const ENDPOINT = 'https://blog-liker.yysuni1001.workers.dev/api/like'
+const ENDPOINT = LIKE_ENDPOINT
 
 export default function LikeButton({ slug = 'yysuni', delay, className }: LikeButtonProps) {
 	slug = BLOG_SLUG_KEY + slug
@@ -49,29 +50,27 @@ export default function LikeButton({ slug = 'yysuni', delay, className }: LikeBu
 
 	const handleLike = useCallback(async () => {
 		if (!slug) return
-		setLiked(true)
-		setJustLiked(true)
-
-		// Create particle effects
-		const newParticles = Array.from({ length: 6 }, (_, i) => ({
-			id: Date.now() + i,
-			x: Math.random() * 60 - 30,
-			y: Math.random() * 60 - 30
-		}))
-		setParticles(newParticles)
-
-		// Clear particles after animation
-		setTimeout(() => setParticles([]), 1000)
-
 		try {
-			const url = `${ENDPOINT}?slug=${encodeURIComponent(slug)}`
-			const res = await fetch(url, { method: 'POST' })
-			const data = await res.json().catch(() => ({}))
-			if (data.reason == 'rate_limited') toast('谢谢啦😘，今天已经不能再点赞啦💕')
-			const value = typeof data?.count === 'number' ? data.count : (fetchedCount ?? 0) + 1
-			await mutate(value, { revalidate: false })
+			const result = await postLike(slug)
+			if (!result.ok) {
+				if (result.reason === 'rate_limited') toast('谢谢啦😘，今天已经不能再点赞啦💕')
+				await mutate(undefined, { revalidate: true })
+				return
+			}
+
+			setLiked(true)
+			setJustLiked(true)
+
+			const newParticles = Array.from({ length: 6 }, (_, i) => ({
+				id: Date.now() + i,
+				x: Math.random() * 60 - 30,
+				y: Math.random() * 60 - 30
+			}))
+			setParticles(newParticles)
+			setTimeout(() => setParticles([]), 1000)
+			await mutate(result.count, { revalidate: false })
 		} catch {
-			// ignore
+			await mutate(undefined, { revalidate: true })
 		}
 	}, [slug, fetchedCount, mutate])
 
