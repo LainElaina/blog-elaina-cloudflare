@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import type { LocalSiteAssetUploadBackup } from './push-site-content-local-utils.ts'
 
 const {
 	buildLocalConfigPayload,
@@ -13,6 +14,8 @@ const {
 	resolveLocalSocialButtonImageUploadPath,
 	shouldClearLocalPendingAssetUploads,
 	hasPendingLocalFileAssetUploads,
+	rollbackLocalSiteAssetUploads,
+	uploadLocalSiteAsset,
 	assertCanSaveLocalSiteConfigDraft
 } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
 const { writeSiteConfigDraft, readSiteConfigDraft, clearSiteConfigDraft, publishSiteConfigDraft, canPublishSiteConfigDraft, resolveSiteConfigPublishPayload } =
@@ -116,6 +119,49 @@ test('requestLocalEndpoint aborts hung request with timeout message', async () =
 			5
 		),
 		/本地保存超时/
+	)
+})
+
+test('local site asset upload records binary backup before overwriting', async () => {
+	const calls: Array<{ input: string; init?: RequestInit }> = []
+	const uploadedFiles: LocalSiteAssetUploadBackup[] = []
+	const image = new File(['new'], 'new.png', { type: 'image/png' })
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/favicon.png') {
+			return new Response(new Blob(['old'], { type: 'image/png' }))
+		}
+		return new Response('{"success":true}')
+	}
+
+	await uploadLocalSiteAsset(image, 'public/favicon.png', uploadedFiles, fetchLocal)
+
+	assert.equal(calls[0].input, '/favicon.png')
+	assert.equal(calls[1].input, '/api/upload-image')
+	assert.equal(uploadedFiles[0].path, 'public/favicon.png')
+	assert.equal(uploadedFiles[0].existed, true)
+	assert.equal(await uploadedFiles[0].file?.text(), 'old')
+})
+
+test('local site asset rollback restores overwritten assets and deletes new uploads', async () => {
+	const calls: Array<{ input: string; init?: RequestInit }> = []
+	const uploadedFiles: LocalSiteAssetUploadBackup[] = [
+		{ path: 'public/favicon.png', existed: true, file: new File(['old icon'], 'favicon.png', { type: 'image/png' }) },
+		{ path: 'public/images/art/new.png', existed: false }
+	]
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		return new Response('{"success":true}')
+	}
+
+	await rollbackLocalSiteAssetUploads(uploadedFiles, fetchLocal)
+
+	assert.deepEqual(
+		calls.map(call => [call.input, call.init?.method, call.init?.body instanceof FormData ? call.init.body.get('path') : call.init?.body]),
+		[
+			['/api/delete-image', 'POST', JSON.stringify({ path: 'public/images/art/new.png' })],
+			['/api/upload-image', 'POST', 'public/favicon.png']
+		]
 	)
 })
 

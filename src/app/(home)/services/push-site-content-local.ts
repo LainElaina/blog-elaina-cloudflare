@@ -7,7 +7,10 @@ import {
 	getLocalSiteConfigEndpoint,
 	shouldSyncFormalAssets,
 	shouldRequestLocalConfigEndpoint,
-	resolveLocalSocialButtonImageUploadPath
+	resolveLocalSocialButtonImageUploadPath,
+	uploadLocalSiteAsset,
+	rollbackLocalSiteAssetUploads,
+	type LocalSiteAssetUploadBackup
 } from './push-site-content-local-utils'
 
 type ArtImageConfig = SiteContent['artImages'][number]
@@ -30,18 +33,19 @@ export async function pushSiteContentLocal(
 ): Promise<void> {
 	toast.info(action === 'draft' ? '正在保存本地草稿...' : '正在正式保存到本地...')
 
-	const uploadPromises: Promise<void>[] = []
+	const uploadTasks: Array<() => Promise<void>> = []
+	const uploadedFiles: LocalSiteAssetUploadBackup[] = []
 	const deleteTasks: Array<() => Promise<void>> = []
 	const syncFormalAssets = shouldSyncFormalAssets(action)
 
 	// Upload favicon
 	if (syncFormalAssets && faviconItem?.type === 'file') {
-		uploadPromises.push(uploadFile(faviconItem.file, 'public/favicon.png'))
+		uploadTasks.push(() => uploadLocalSiteAsset(faviconItem.file, 'public/favicon.png', uploadedFiles))
 	}
 
 	// Upload avatar
 	if (syncFormalAssets && avatarItem?.type === 'file') {
-		uploadPromises.push(uploadFile(avatarItem.file, 'public/images/avatar.png'))
+		uploadTasks.push(() => uploadLocalSiteAsset(avatarItem.file, 'public/images/avatar.png', uploadedFiles))
 	}
 
 	// Upload art images
@@ -49,7 +53,7 @@ export async function pushSiteContentLocal(
 		for (const [id, item] of Object.entries(artImageUploads)) {
 			if (item.type === 'file') {
 				const ext = item.file.name.split('.').pop() || 'png'
-				uploadPromises.push(uploadFile(item.file, `public/images/art/${id}.${ext}`))
+				uploadTasks.push(() => uploadLocalSiteAsset(item.file, `public/images/art/${id}.${ext}`, uploadedFiles))
 			}
 		}
 	}
@@ -69,7 +73,7 @@ export async function pushSiteContentLocal(
 		for (const [id, item] of Object.entries(backgroundImageUploads)) {
 			if (item.type === 'file') {
 				const ext = item.file.name.split('.').pop() || 'png'
-				uploadPromises.push(uploadFile(item.file, `public/images/background/${id}.${ext}`))
+				uploadTasks.push(() => uploadLocalSiteAsset(item.file, `public/images/background/${id}.${ext}`, uploadedFiles))
 			}
 		}
 	}
@@ -89,44 +93,36 @@ export async function pushSiteContentLocal(
 			if (item.type !== 'file') continue
 			const uploadPath = resolveLocalSocialButtonImageUploadPath(siteContent, id)
 			if (!uploadPath) continue
-			uploadPromises.push(uploadFile(item.file, uploadPath))
+			uploadTasks.push(() => uploadLocalSiteAsset(item.file, uploadPath, uploadedFiles))
 		}
 	}
 
-	await Promise.all(uploadPromises)
+	try {
+		for (const uploadTask of uploadTasks) {
+			await uploadTask()
+		}
 
-	const configPayload = buildLocalConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
-	if (shouldRequestLocalConfigEndpoint(action, configPayload, publishExistingDraft)) {
-		await requestLocalEndpoint(
-			fetch,
-			getLocalSiteConfigEndpoint(action),
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(configPayload)
-			},
-			10000
-		)
+		const configPayload = buildLocalConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
+		if (shouldRequestLocalConfigEndpoint(action, configPayload, publishExistingDraft)) {
+			await requestLocalEndpoint(
+				fetch,
+				getLocalSiteConfigEndpoint(action),
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(configPayload)
+				},
+				10000
+			)
+		}
+	} catch (error) {
+		await rollbackLocalSiteAssetUploads(uploadedFiles)
+		throw error
 	}
 
 	await Promise.all(deleteTasks.map(deleteTask => deleteTask()))
 
 	toast.success(action === 'draft' ? '本地草稿已保存' : '已正式保存到本地文件')
-}
-
-async function uploadFile(file: File, path: string): Promise<void> {
-	const formData = new FormData()
-	formData.append('file', file)
-	formData.append('path', path)
-
-	const response = await fetch('/api/upload-image', {
-		method: 'POST',
-		body: formData
-	})
-
-	if (!response.ok) {
-		throw new Error(`上传 ${path} 失败`)
-	}
 }
 
 async function deleteFile(path: string): Promise<void> {

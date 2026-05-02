@@ -68,12 +68,93 @@ type SiteContentWithSocialButtons = {
 	socialButtons?: Array<{ id: string; value: string }> | null
 }
 
+type LocalSiteAssetFetch = (input: string, init?: RequestInit) => Promise<Response>
+
+export type LocalSiteAssetUploadBackup = {
+	path: string
+	existed: boolean
+	file?: File
+}
+
 export function resolveLocalSocialButtonImageUploadPath(siteContent: SiteContentWithSocialButtons, buttonId: string) {
 	const value = siteContent.socialButtons?.find(button => button.id === buttonId)?.value
 	if (!value?.startsWith('/images/social-buttons/')) {
 		return null
 	}
 	return `public${value}`
+}
+
+function toPublicAssetUrl(filePath: string) {
+	if (!filePath.startsWith('public/')) {
+		throw new Error('本地站点资源回滚只支持 public 目录文件')
+	}
+	return `/${filePath.slice('public/'.length)}`
+}
+
+function getLocalSiteAssetFileName(filePath: string) {
+	return filePath.split('/').pop() || 'asset'
+}
+
+async function assertLocalSiteAssetOk(response: Response, actionName: string) {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
+
+export async function readLocalSiteAssetUploadBackup(path: string, fetchLocal: LocalSiteAssetFetch = fetch): Promise<LocalSiteAssetUploadBackup> {
+	const response = await fetchLocal(toPublicAssetUrl(path), { cache: 'no-store' })
+	if (!response.ok) {
+		return { path, existed: false }
+	}
+
+	const blob = await response.blob()
+	return {
+		path,
+		existed: true,
+		file: new File([blob], getLocalSiteAssetFileName(path), { type: blob.type || 'application/octet-stream' })
+	}
+}
+
+async function writeLocalSiteAsset(file: File, path: string, actionName: string, fetchLocal: LocalSiteAssetFetch) {
+	const formData = new FormData()
+	formData.append('file', file)
+	formData.append('path', path)
+	await assertLocalSiteAssetOk(await fetchLocal('/api/upload-image', { method: 'POST', body: formData }), actionName)
+}
+
+async function deleteLocalSiteAsset(path: string, fetchLocal: LocalSiteAssetFetch) {
+	await assertLocalSiteAssetOk(
+		await fetchLocal('/api/delete-image', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ path })
+		}),
+		`删除 ${path}`
+	)
+}
+
+export async function uploadLocalSiteAsset(
+	file: File,
+	path: string,
+	uploadedFiles: LocalSiteAssetUploadBackup[],
+	fetchLocal: LocalSiteAssetFetch = fetch
+) {
+	const backup = await readLocalSiteAssetUploadBackup(path, fetchLocal)
+	uploadedFiles.push(backup)
+	await writeLocalSiteAsset(file, path, `上传 ${path}`, fetchLocal)
+}
+
+export async function rollbackLocalSiteAssetUploads(uploadedFiles: LocalSiteAssetUploadBackup[], fetchLocal: LocalSiteAssetFetch = fetch) {
+	for (const backup of [...uploadedFiles].reverse()) {
+		if (backup.existed && backup.file) {
+			await writeLocalSiteAsset(backup.file, backup.path, `恢复 ${backup.path}`, fetchLocal).catch(() => undefined)
+		} else if (!backup.existed) {
+			await deleteLocalSiteAsset(backup.path, fetchLocal).catch(() => undefined)
+		}
+	}
 }
 
 export async function requestLocalEndpoint(
