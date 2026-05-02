@@ -31,6 +31,7 @@ export async function pushSiteContentLocal(
 	toast.info(action === 'draft' ? '正在保存本地草稿...' : '正在正式保存到本地...')
 
 	const uploadPromises: Promise<void>[] = []
+	const deleteTasks: Array<() => Promise<void>> = []
 	const syncFormalAssets = shouldSyncFormalAssets(action)
 
 	// Upload favicon
@@ -59,7 +60,7 @@ export async function pushSiteContentLocal(
 			if (!art.url.startsWith('/images/art/')) continue
 
 			const normalizedUrl = art.url.startsWith('/') ? art.url : `/${art.url}`
-			uploadPromises.push(deleteFile(`public${normalizedUrl}`))
+			deleteTasks.push(() => deleteFile(`public${normalizedUrl}`))
 		}
 	}
 
@@ -78,7 +79,7 @@ export async function pushSiteContentLocal(
 		for (const bg of removedBackgroundImages) {
 			if (!bg.url.startsWith('/images/background/')) continue
 			const normalizedUrl = bg.url.startsWith('/') ? bg.url : `/${bg.url}`
-			uploadPromises.push(deleteFile(`public${normalizedUrl}`))
+			deleteTasks.push(() => deleteFile(`public${normalizedUrl}`))
 		}
 	}
 
@@ -107,6 +108,8 @@ export async function pushSiteContentLocal(
 			10000
 		)
 	}
+
+	await Promise.all(deleteTasks.map(deleteTask => deleteTask()))
 
 	toast.success(action === 'draft' ? '本地草稿已保存' : '已正式保存到本地文件')
 }
