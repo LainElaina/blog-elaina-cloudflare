@@ -1,4 +1,3 @@
-import { existsSync } from 'fs'
 import { rm } from 'fs/promises'
 import { resolve } from 'path'
 import type { NextRequest } from 'next/server'
@@ -20,9 +19,7 @@ export async function handleDeleteDir(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 目录内的子目录' }, { status: 403 })
 		}
 
-		if (existsSync(fullPath)) {
-			await rm(fullPath, { recursive: true })
-		}
+		await rm(fullPath, { recursive: true, force: true })
 
 		return NextResponse.json({ success: true })
 	} catch (error: any) {

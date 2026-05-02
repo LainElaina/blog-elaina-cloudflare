@@ -1,4 +1,3 @@
-import { existsSync } from 'fs'
 import { unlink } from 'fs/promises'
 import { resolve } from 'path'
 import type { NextRequest } from 'next/server'
@@ -20,11 +19,11 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public 目录内的文件' }, { status: 403 })
 		}
 
-		if (!existsSync(fullPath)) {
-			return NextResponse.json({ success: true, message: '文件不存在，无需删除' })
-		}
-
-		await unlink(fullPath)
+		await unlink(fullPath).catch(error => {
+			if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+				throw error
+			}
+		})
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
 		console.error('Delete error:', error)
