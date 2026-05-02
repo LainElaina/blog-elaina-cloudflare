@@ -81,6 +81,63 @@ export async function resolveSiteConfigPublishPayload(baseDir: string, payload: 
 	return draft
 }
 
+type SiteConfigFormalWrite = {
+	fileName: string
+	content: string
+}
+
+type SiteConfigFormalBackup = {
+	filePath: string
+	existed: boolean
+	content: string
+}
+
+function isFileNotFoundError(error: unknown) {
+	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+}
+
+function buildSiteConfigFormalWrites(draft: SiteConfigDraftPayload): SiteConfigFormalWrite[] {
+	const writes: SiteConfigFormalWrite[] = []
+	if (draft.siteContent) {
+		writes.push({ fileName: 'site-content.json', content: JSON.stringify(draft.siteContent, null, '\t') })
+	}
+	if (draft.cardStyles) {
+		writes.push({ fileName: 'card-styles.json', content: JSON.stringify(draft.cardStyles, null, '\t') })
+	}
+	if (draft.customComponents) {
+		writes.push({ fileName: 'custom-components.json', content: JSON.stringify(draft.customComponents, null, '\t') })
+	}
+	if (draft.colorPresets) {
+		writes.push({ fileName: 'color-presets.json', content: JSON.stringify(draft.colorPresets, null, '\t') })
+	}
+	return writes
+}
+
+async function readSiteConfigFormalBackup(filePath: string): Promise<SiteConfigFormalBackup> {
+	try {
+		return {
+			filePath,
+			existed: true,
+			content: await fs.readFile(filePath, 'utf-8')
+		}
+	} catch (error) {
+		if (isFileNotFoundError(error)) {
+			return { filePath, existed: false, content: '' }
+		}
+		throw error
+	}
+}
+
+async function rollbackSiteConfigFormalWrites(backups: SiteConfigFormalBackup[]) {
+	for (const backup of backups.reverse()) {
+		if (backup.existed) {
+			await fs.writeFile(backup.filePath, backup.content).catch(() => undefined)
+		} else {
+			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
+		}
+	}
+}
+
 export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
 	if (!draft || Object.keys(draft).length === 0) {
 		throw new Error('没有可发布的草稿')
@@ -89,30 +146,24 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 	await assertSiteConfigDraftLocalAssetsExist(baseDir, draft)
 
 	const configDir = path.join(baseDir, 'src/config')
+	const writes = buildSiteConfigFormalWrites(draft)
 	const touchedFormal: string[] = []
+	const backups: SiteConfigFormalBackup[] = []
 
-	if (draft.siteContent) {
-		await fs.writeFile(path.join(configDir, 'site-content.json'), JSON.stringify(draft.siteContent, null, '\t'))
-		touchedFormal.push('site-content.json')
+	try {
+		for (const write of writes) {
+			const filePath = path.join(configDir, write.fileName)
+			backups.push(await readSiteConfigFormalBackup(filePath))
+			await fs.writeFile(filePath, write.content)
+			touchedFormal.push(write.fileName)
+		}
+
+		await clearSiteConfigDraft(baseDir)
+		return touchedFormal
+	} catch (error) {
+		await rollbackSiteConfigFormalWrites(backups)
+		throw error
 	}
-
-	if (draft.cardStyles) {
-		await fs.writeFile(path.join(configDir, 'card-styles.json'), JSON.stringify(draft.cardStyles, null, '\t'))
-		touchedFormal.push('card-styles.json')
-	}
-
-	if (draft.customComponents) {
-		await fs.writeFile(path.join(configDir, 'custom-components.json'), JSON.stringify(draft.customComponents, null, '\t'))
-		touchedFormal.push('custom-components.json')
-	}
-
-	if (draft.colorPresets) {
-		await fs.writeFile(path.join(configDir, 'color-presets.json'), JSON.stringify(draft.colorPresets, null, '\t'))
-		touchedFormal.push('color-presets.json')
-	}
-
-	await clearSiteConfigDraft(baseDir)
-	return touchedFormal
 }
 
 function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): LocalAssetReference[] {

@@ -150,6 +150,31 @@ test('正式保存会写正式源并清理草稿', async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
+test('正式保存失败时会回滚已写入的正式源并保留草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-rollback-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		const siteContentPath = path.join(tmpDir, 'src/config/site-content.json')
+		const cardStylesPath = path.join(tmpDir, 'src/config/card-styles.json')
+		const originalSiteContent = JSON.stringify({ meta: { title: 'formal' } }, null, '\t')
+		const draft = {
+			siteContent: { meta: { title: 'draft' } },
+			cardStyles: { musicCard: { width: 120 } }
+		}
+
+		await fs.writeFile(siteContentPath, originalSiteContent)
+		await fs.mkdir(cardStylesPath)
+		await writeSiteConfigDraft(tmpDir, draft)
+
+		await assert.rejects(() => publishSiteConfigDraft(tmpDir, draft))
+
+		assert.equal(await fs.readFile(siteContentPath, 'utf-8'), originalSiteContent)
+		assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('正式保存前必须先存在草稿', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-no-draft-'))
 	await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
