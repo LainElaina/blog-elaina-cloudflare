@@ -55,6 +55,7 @@ export default function Page() {
 	const [isSaving, setIsSaving] = useState(false)
 	const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
 	const [imageItems, setImageItems] = useState<Map<string, ImageItem>>(new Map())
+	const imageItemsRef = useRef(imageItems)
 	const keyInputRef = useRef<HTMLInputElement>(null)
 	const router = useRouter()
 
@@ -301,6 +302,16 @@ export default function Page() {
 		isMobile,
 		onDisplayModeChange: setPreferredDisplayMode
 	})
+
+	useEffect(() => {
+		imageItemsRef.current = imageItems
+	}, [imageItems])
+
+	useEffect(() => {
+		return () => {
+			revokeFilePreviewUrls(imageItemsRef.current.values())
+		}
+	}, [])
 
 	useEffect(() => {
 		setPreferredDisplayMode(readPicturesDisplayModeFromSessionStorage(getPicturesDisplayModeSessionStorage(typeof window === 'undefined' ? null : window)))

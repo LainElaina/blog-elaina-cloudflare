@@ -36,6 +36,7 @@ export default function Page() {
 	const [editingProject, setEditingProject] = useState<Project | null>(null)
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 	const [imageItems, setImageItems] = useState<Map<string, ImageItem>>(new Map())
+	const imageItemsRef = useRef(imageItems)
 	const keyInputRef = useRef<HTMLInputElement>(null)
 
 	const { isAuth, setPrivateKey } = useAuthStore()
@@ -171,6 +172,16 @@ export default function Page() {
 
 	const isDev = process.env.NODE_ENV === 'development'
 	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
+
+	useEffect(() => {
+		imageItemsRef.current = imageItems
+	}, [imageItems])
+
+	useEffect(() => {
+		return () => {
+			revokeFilePreviewUrls(imageItemsRef.current.values())
+		}
+	}, [])
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
