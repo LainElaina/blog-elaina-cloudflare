@@ -51,6 +51,17 @@ test('blog publish and delete paths validate slug before composing repository pa
 	assert.match(localPublishSource, /assertSafeBlogSlug\(targetSlug\)[\s\S]*body: JSON\.stringify\(\{ path: `public\/blogs\/\$\{targetSlug\}` \}\)/)
 })
 
+test('local blog publish rolls back written files and uploaded images after a later failure', async () => {
+	const localPublishSource = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+	assert.match(localPublishSource, /const writtenFiles: LocalBlogPublishFileBackup\[\] = \[\]/)
+	assert.match(localPublishSource, /const uploadedFiles: LocalBlogPublishUploadBackup\[\] = \[\]/)
+	assert.match(localPublishSource, /await uploadLocalBlogPublishImage\(\{ file: img\.file, path: filePath, actionName: '上传图片', uploadedFiles \}\)/)
+	assert.match(localPublishSource, /await saveLocalBlogPublishFile\(\{ path: `\$\{basePath\}\/index\.md`, content: mdToUpload \}, '保存 Markdown', writtenFiles\)/)
+	assert.match(localPublishSource, /for \(const payload of payloads\) \{\n\s*await saveLocalBlogPublishFile\(payload, '保存索引产物', writtenFiles\)/)
+	assert.match(localPublishSource, /catch \(error\) \{\n\s*await rollbackLocalBlogPublish\(writtenFiles, uploadedFiles\)\n\s*throw error\n\s*\}/)
+})
+
 test('local blog delete writes delete artifacts before deleting the article directory', async () => {
 	const localPublishSource = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 	const saveArtifactsIndex = localPublishSource.indexOf("'保存删除索引产物'")

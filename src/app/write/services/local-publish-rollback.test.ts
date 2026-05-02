@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import {
+	rollbackLocalBlogPublish,
+	saveLocalBlogPublishFile,
+	uploadLocalBlogPublishImage,
+	type LocalBlogPublishFileBackup,
+	type LocalBlogPublishUploadBackup
+} from './local-publish-rollback.ts'
+
+type FetchCall = {
+	input: string
+	init?: RequestInit
+}
+
+function textResponse(body: string, ok = true) {
+	return new Response(body, { status: ok ? 200 : 404 })
+}
+
+test('local publish file saves record previous content before writing', async () => {
+	const calls: FetchCall[] = []
+	const writtenFiles: LocalBlogPublishFileBackup[] = []
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/blogs/post-a/index.md') {
+			return textResponse('old markdown')
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await saveLocalBlogPublishFile({ path: 'public/blogs/post-a/index.md', content: 'new markdown' }, '保存 Markdown', writtenFiles, fetchLocal)
+
+	assert.deepEqual(writtenFiles, [{ path: 'public/blogs/post-a/index.md', existed: true, content: 'old markdown' }])
+	assert.equal(calls[0].input, '/blogs/post-a/index.md')
+	assert.equal(calls[1].input, '/api/save-file')
+	assert.equal(calls[1].init?.body, JSON.stringify({ path: 'public/blogs/post-a/index.md', content: 'new markdown' }))
+})
+
+test('local publish rollback restores previous files and deletes newly created files and images', async () => {
+	const calls: FetchCall[] = []
+	const writtenFiles: LocalBlogPublishFileBackup[] = [
+		{ path: 'public/blogs/post-a/index.md', existed: true, content: 'old markdown' },
+		{ path: 'public/blogs/index.json', existed: false, content: '' }
+	]
+	const uploadedFiles: LocalBlogPublishUploadBackup[] = [{ path: 'public/blogs/post-a/new.png', existed: false }]
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		return textResponse('{"success":true}')
+	}
+
+	await rollbackLocalBlogPublish(writtenFiles, uploadedFiles, fetchLocal)
+
+	assert.deepEqual(
+		calls.map(call => [call.input, call.init?.body]),
+		[
+			['/api/delete-image', JSON.stringify({ path: 'public/blogs/index.json' })],
+			['/api/save-file', JSON.stringify({ path: 'public/blogs/post-a/index.md', content: 'old markdown' })],
+			['/api/delete-image', JSON.stringify({ path: 'public/blogs/post-a/new.png' })]
+		]
+	)
+})
+
+test('local publish upload tracks newly created image paths for rollback', async () => {
+	const calls: FetchCall[] = []
+	const uploadedFiles: LocalBlogPublishUploadBackup[] = []
+	const image = new File(['image'], 'cover.png', { type: 'image/png' })
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/blogs/post-a/cover.png') {
+			return textResponse('', false)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await uploadLocalBlogPublishImage({ file: image, path: 'public/blogs/post-a/cover.png', actionName: '上传图片', uploadedFiles }, fetchLocal)
+
+	assert.deepEqual(uploadedFiles, [{ path: 'public/blogs/post-a/cover.png', existed: false }])
+	assert.equal(calls[0].input, '/blogs/post-a/cover.png')
+	assert.equal(calls[1].input, '/api/upload-image')
+	assert.equal(calls[1].init?.method, 'POST')
+})

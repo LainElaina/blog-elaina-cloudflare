@@ -16,6 +16,13 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { buildLocalSaveFilePayloadsFromContents } from '@/app/blog/services/save-blog-edits-utils'
 import { buildPublishedWriteSnapshot } from '../write-safety'
 import { assertSafeBlogSlug } from '../services/blog-slug'
+import {
+	rollbackLocalBlogPublish,
+	saveLocalBlogPublishFile,
+	uploadLocalBlogPublishImage,
+	type LocalBlogPublishFileBackup,
+	type LocalBlogPublishUploadBackup
+} from '../services/local-publish-rollback'
 
 const assertOk = async (response: Response, actionName: string): Promise<void> => {
 	if (response.ok) {
@@ -61,115 +68,99 @@ export function usePublish() {
 		assertSafeBlogSlug(form.slug)
 
 		const basePath = `public/blogs/${form.slug}`
+		const writtenFiles: LocalBlogPublishFileBackup[] = []
+		const uploadedFiles: LocalBlogPublishUploadBackup[] = []
 		let mdToUpload = form.md
 		let coverPath: string | undefined
 
-		const allLocalImages: Array<{ file: File; id: string; hash?: string }> = []
-		for (const img of images || []) {
-			if (img.type === 'file') {
-				allLocalImages.push({ file: img.file, id: img.id, hash: img.hash })
+		try {
+			const allLocalImages: Array<{ file: File; id: string; hash?: string }> = []
+			for (const img of images || []) {
+				if (img.type === 'file') {
+					allLocalImages.push({ file: img.file, id: img.id, hash: img.hash })
+				}
 			}
-		}
-		if (cover?.type === 'file') {
-			allLocalImages.push({ file: cover.file, id: cover.id, hash: cover.hash })
-		}
-
-		const placeholderReplacements = new Map<string, string>()
-		const imagePaths = new Map<string, string>()
-		for (const img of allLocalImages) {
-			const hash = img.hash || (await hashFileSHA256(img.file))
-			const ext = getFileExt(img.file.name)
-			const filename = `${hash}${ext}`
-			const publicPath = `/blogs/${form.slug}/${filename}`
-
-			const formData = new FormData()
-			formData.append('file', img.file)
-			formData.append('path', `${basePath}/${filename}`)
-			await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传图片')
-
-			placeholderReplacements.set(img.id, publicPath)
-			imagePaths.set(img.id, publicPath)
-
-			if (cover?.type === 'file' && cover.id === img.id) {
-				coverPath = publicPath
+			if (cover?.type === 'file') {
+				allLocalImages.push({ file: cover.file, id: cover.id, hash: cover.hash })
 			}
-		}
 
-		mdToUpload = replacePublishLocalImagePlaceholders(mdToUpload, placeholderReplacements)
+			const placeholderReplacements = new Map<string, string>()
+			const imagePaths = new Map<string, string>()
+			for (const img of allLocalImages) {
+				const hash = img.hash || (await hashFileSHA256(img.file))
+				const ext = getFileExt(img.file.name)
+				const filename = `${hash}${ext}`
+				const publicPath = `/blogs/${form.slug}/${filename}`
+				const filePath = `${basePath}/${filename}`
 
-		if (cover?.type === 'url') {
-			coverPath = cover.url
-		}
+				await uploadLocalBlogPublishImage({ file: img.file, path: filePath, actionName: '上传图片', uploadedFiles })
 
-		assertPublishableOutput({ form: { ...form, md: mdToUpload }, images: [] })
+				placeholderReplacements.set(img.id, publicPath)
+				imagePaths.set(img.id, publicPath)
 
-		await assertOk(
-			await fetch('/api/save-file', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ path: `${basePath}/index.md`, content: mdToUpload })
-			}),
-			'保存 Markdown'
-		)
-
-		const dateStr = form.date || formatDateTimeLocal()
-		const config = {
-			title: form.title,
-			tags: form.tags,
-			date: dateStr,
-			summary: form.summary,
-			cover: coverPath,
-			hidden: form.hidden,
-			category: form.category,
-			folderPath: form.folderPath,
-			favorite: form.favorite
-		}
-		await assertOk(
-			await fetch('/api/save-file', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ path: `${basePath}/config.json`, content: JSON.stringify(config, null, 2) })
-			}),
-			'保存配置'
-		)
-
-		const artifactContents = await buildRemoteArtifactContents({
-			form,
-			dateStr,
-			coverPath,
-			readStorageRaw: async () => {
-				const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
-				return response.ok ? response.text() : null
-			},
-			fallbackReadIndexRaw: async () => {
-				const response = await fetch('/blogs/index.json', { cache: 'no-store' })
-				return response.ok ? response.text() : null
+				if (cover?.type === 'file' && cover.id === img.id) {
+					coverPath = publicPath
+				}
 			}
-		})
 
-		const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
-		for (const payload of payloads) {
-			await assertOk(
-				await fetch('/api/save-file', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(payload)
-				}),
-				'保存索引产物'
-			)
+			mdToUpload = replacePublishLocalImagePlaceholders(mdToUpload, placeholderReplacements)
+
+			if (cover?.type === 'url') {
+				coverPath = cover.url
+			}
+
+			assertPublishableOutput({ form: { ...form, md: mdToUpload }, images: [] })
+
+			await saveLocalBlogPublishFile({ path: `${basePath}/index.md`, content: mdToUpload }, '保存 Markdown', writtenFiles)
+
+			const dateStr = form.date || formatDateTimeLocal()
+			const config = {
+				title: form.title,
+				tags: form.tags,
+				date: dateStr,
+				summary: form.summary,
+				cover: coverPath,
+				hidden: form.hidden,
+				category: form.category,
+				folderPath: form.folderPath,
+				favorite: form.favorite
+			}
+			await saveLocalBlogPublishFile({ path: `${basePath}/config.json`, content: JSON.stringify(config, null, 2) }, '保存配置', writtenFiles)
+
+			const artifactContents = await buildRemoteArtifactContents({
+				form,
+				dateStr,
+				coverPath,
+				readStorageRaw: async () => {
+					const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
+					return response.ok ? response.text() : null
+				},
+				fallbackReadIndexRaw: async () => {
+					const response = await fetch('/blogs/index.json', { cache: 'no-store' })
+					return response.ok ? response.text() : null
+				}
+			})
+
+			const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
+			for (const payload of payloads) {
+				await saveLocalBlogPublishFile(payload, '保存索引产物', writtenFiles)
+			}
+
+			return buildPublishedWriteSnapshot({
+				form,
+				cover,
+				images,
+				mode,
+				originalSlug,
+				markdown: mdToUpload,
+				dateStr,
+				coverPath,
+				imagePaths
+			})
+		} catch (error) {
+			await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
+			throw error
 		}
-
-		return buildPublishedWriteSnapshot({
-			form,
-			cover,
-			images,
-			mode,
-			originalSlug,
-			markdown: mdToUpload,
-			dateStr,
-			coverPath,
-			imagePaths
-		})
 	}, [form, cover, images, mode, originalSlug])
 
 	const onDelete = useCallback(async () => {
