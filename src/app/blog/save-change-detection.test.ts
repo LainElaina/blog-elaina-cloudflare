@@ -104,4 +104,14 @@ describe('buildBlogSaveBaseline', () => {
 		assert.match(pageSource, /'保存博客产物'/)
 		assert.match(pageSource, /const savedBaseline = buildBlogSaveBaseline\(savedArtifacts\)/)
 	})
+
+	it('blog page local save deletes removed article directories only after artifact writes succeed', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+		const saveFileIndex = pageSource.indexOf("await fetch('/api/save-file'")
+		const deleteDirIndex = pageSource.indexOf("await fetch('/api/delete-dir'")
+
+		assert.notEqual(saveFileIndex, -1)
+		assert.notEqual(deleteDirIndex, -1)
+		assert.ok(saveFileIndex < deleteDirIndex)
+	})
 })

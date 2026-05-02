@@ -338,17 +338,6 @@ export default function BlogPage() {
 			let savedArtifacts: SaveBlogEditsArtifacts
 			if (process.env.NODE_ENV === 'development') {
 				const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
-				for (const slug of uniqueRemoved) {
-					await assertOk(
-						await fetch('/api/delete-dir', {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ path: `public/blogs/${slug}` })
-						}),
-						'删除文章目录'
-					)
-				}
-
 				let existingStorageRaw: string | null = null
 				try {
 					const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
@@ -381,6 +370,17 @@ export default function BlogPage() {
 						'保存博客产物'
 					)
 				}
+				for (const slug of uniqueRemoved) {
+					await assertOk(
+						await fetch('/api/delete-dir', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: `public/blogs/${slug}` })
+						}),
+						'删除文章目录'
+					)
+				}
+
 				toast.success('保存成功！')
 			} else {
 				savedArtifacts = await saveBlogEdits(items, editableItems, normalizedCategoryList)
