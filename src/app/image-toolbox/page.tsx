@@ -44,33 +44,37 @@ function formatBytes(bytes: number) {
 
 async function fileToWebp(file: File, quality: number, maxWidth?: number) {
 	const bitmap = await createImageBitmap(file)
-	const canvas = document.createElement('canvas')
+	try {
+		const canvas = document.createElement('canvas')
 
-	let width = bitmap.width
-	let height = bitmap.height
+		let width = bitmap.width
+		let height = bitmap.height
 
-	if (maxWidth && width > maxWidth) {
-		const ratio = maxWidth / width
-		width = maxWidth
-		height = Math.round(height * ratio)
+		if (maxWidth && width > maxWidth) {
+			const ratio = maxWidth / width
+			width = maxWidth
+			height = Math.round(height * ratio)
+		}
+
+		canvas.width = width
+		canvas.height = height
+		const ctx = canvas.getContext('2d')
+		if (!ctx) throw new Error('无法初始化画布')
+		ctx.drawImage(bitmap, 0, 0, width, height)
+		const blob = await new Promise<Blob>((resolve, reject) => {
+			canvas.toBlob(
+				result => {
+					if (result) resolve(result)
+					else reject(new Error('无法生成 WEBP 文件'))
+				},
+				'image/webp',
+				quality
+			)
+		})
+		return blob
+	} finally {
+		bitmap.close()
 	}
-
-	canvas.width = width
-	canvas.height = height
-	const ctx = canvas.getContext('2d')
-	if (!ctx) throw new Error('无法初始化画布')
-	ctx.drawImage(bitmap, 0, 0, width, height)
-	const blob = await new Promise<Blob>((resolve, reject) => {
-		canvas.toBlob(
-			result => {
-				if (result) resolve(result)
-				else reject(new Error('无法生成 WEBP 文件'))
-			},
-			'image/webp',
-			quality
-		)
-	})
-	return blob
 }
 
 export default function Page() {
@@ -100,11 +104,15 @@ export default function Page() {
 			files.map(async file => {
 				const preview = URL.createObjectURL(file)
 				const bitmap = await createImageBitmap(file)
-				return {
-					file,
-					preview,
-					width: bitmap.width,
-					height: bitmap.height
+				try {
+					return {
+						file,
+						preview,
+						width: bitmap.width,
+						height: bitmap.height
+					}
+				} finally {
+					bitmap.close()
 				}
 			})
 		)
