@@ -98,20 +98,20 @@ describe('buildBlogSaveBaseline', () => {
 	it('blog page local save checks delete-dir and save-file responses before marking artifacts as saved', async () => {
 		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 
+		assert.match(pageSource, /await saveLocalBlogPublishFile\(payload, '保存博客产物', writtenFiles\)/)
+		assert.match(pageSource, /catch \(error\) \{\n\s*await rollbackLocalBlogPublish\(writtenFiles, uploadedFiles\)\n\s*throw error\n\s*\}/)
 		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/delete-dir'/)
 		assert.match(pageSource, /'删除文章目录'/)
-		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/save-file'/)
-		assert.match(pageSource, /'保存博客产物'/)
 		assert.match(pageSource, /const savedBaseline = buildBlogSaveBaseline\(savedArtifacts\)/)
 	})
 
 	it('blog page local save deletes removed article directories only after artifact writes succeed', async () => {
 		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
-		const saveFileIndex = pageSource.indexOf("await fetch('/api/save-file'")
+		const saveArtifactsIndex = pageSource.indexOf("await saveLocalBlogPublishFile(payload, '保存博客产物', writtenFiles)")
 		const deleteDirIndex = pageSource.indexOf("await fetch('/api/delete-dir'")
 
-		assert.notEqual(saveFileIndex, -1)
+		assert.notEqual(saveArtifactsIndex, -1)
 		assert.notEqual(deleteDirIndex, -1)
-		assert.ok(saveFileIndex < deleteDirIndex)
+		assert.ok(saveArtifactsIndex < deleteDirIndex)
 	})
 })

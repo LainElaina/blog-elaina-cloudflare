@@ -62,12 +62,11 @@ test('local blog publish rolls back written files and uploaded images after a la
 	assert.match(localPublishSource, /catch \(error\) \{\n\s*await rollbackLocalBlogPublish\(writtenFiles, uploadedFiles\)\n\s*throw error\n\s*\}/)
 })
 
-test('local blog delete writes delete artifacts before deleting the article directory', async () => {
+test('local blog delete rolls back index artifacts when artifact saving fails', async () => {
 	const localPublishSource = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
-	const saveArtifactsIndex = localPublishSource.indexOf("'保存删除索引产物'")
-	const deleteDirectoryIndex = localPublishSource.indexOf("'删除文章目录'")
 
-	assert.notEqual(saveArtifactsIndex, -1)
-	assert.notEqual(deleteDirectoryIndex, -1)
-	assert.ok(saveArtifactsIndex < deleteDirectoryIndex)
+	assert.match(localPublishSource, /const writtenFiles: LocalBlogPublishFileBackup\[\] = \[\]/)
+	assert.match(localPublishSource, /const uploadedFiles: LocalBlogPublishUploadBackup\[\] = \[\]/)
+	assert.match(localPublishSource, /for \(const payload of payloads\) \{\n\s*await saveLocalBlogPublishFile\(payload, '保存删除索引产物', writtenFiles\)/)
+	assert.match(localPublishSource, /catch \(error\) \{\n\s*await rollbackLocalBlogPublish\(writtenFiles, uploadedFiles\)\n\s*throw error\n\s*\}/)
 })

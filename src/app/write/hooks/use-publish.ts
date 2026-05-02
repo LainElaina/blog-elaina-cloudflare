@@ -185,16 +185,16 @@ export function usePublish() {
 					}
 				})
 
+				const writtenFiles: LocalBlogPublishFileBackup[] = []
+				const uploadedFiles: LocalBlogPublishUploadBackup[] = []
 				const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
-				for (const payload of payloads) {
-					await assertOk(
-						await fetch('/api/save-file', {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(payload)
-						}),
-						'保存删除索引产物'
-					)
+				try {
+					for (const payload of payloads) {
+						await saveLocalBlogPublishFile(payload, '保存删除索引产物', writtenFiles)
+					}
+				} catch (error) {
+					await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
+					throw error
 				}
 				await assertOk(
 					await fetch('/api/delete-dir', {

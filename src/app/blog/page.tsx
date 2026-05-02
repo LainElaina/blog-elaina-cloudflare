@@ -35,6 +35,12 @@ import {
 } from './blog-filters'
 import { getAssignFolderActionState, getClearFolderActionState } from './folder-edit-actions'
 import { buildClearFolderDialogCopy } from './folder-interactions'
+import {
+	saveLocalBlogPublishFile,
+	rollbackLocalBlogPublish,
+	type LocalBlogPublishFileBackup,
+	type LocalBlogPublishUploadBackup
+} from '../write/services/local-publish-rollback'
 
 const assertOk = async (response: Response, actionName: string) => {
 	if (response.ok) {
@@ -360,15 +366,16 @@ export default function BlogPage() {
 					categories: normalizedCategoryList,
 					existingStorageRaw
 				})
-				for (const payload of payloads) {
-					await assertOk(
-						await fetch('/api/save-file', {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(payload)
-						}),
-						'保存博客产物'
-					)
+				const writtenFiles: LocalBlogPublishFileBackup[] = []
+				const uploadedFiles: LocalBlogPublishUploadBackup[] = []
+
+				try {
+					for (const payload of payloads) {
+						await saveLocalBlogPublishFile(payload, '保存博客产物', writtenFiles)
+					}
+				} catch (error) {
+					await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
+					throw error
 				}
 				for (const slug of uniqueRemoved) {
 					await assertOk(
