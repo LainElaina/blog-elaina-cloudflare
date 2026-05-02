@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import type { SiteContent } from '../../stores/config-store'
 import { Select } from '@/components/select'
@@ -42,6 +42,16 @@ interface SocialButtonsSectionProps {
 export function SocialButtonsSection({ formData, setFormData, socialButtonImageUploads, setSocialButtonImageUploads }: SocialButtonsSectionProps) {
 	const buttons = (formData.socialButtons || []) as SocialButtonConfig[]
 	const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+	const imageSelectionRefs = useRef<Record<string, number>>({})
+	const mountedRef = useRef(true)
+
+	useEffect(() => {
+		mountedRef.current = true
+		return () => {
+			mountedRef.current = false
+			imageSelectionRefs.current = {}
+		}
+	}, [])
 
 	const handleAddButton = () => {
 		const newId = `button-${Date.now()}`
@@ -66,6 +76,8 @@ export function SocialButtonsSection({ formData, setFormData, socialButtonImageU
 	}
 
 	const handleRemoveButton = (id: string) => {
+		imageSelectionRefs.current[id] = (imageSelectionRefs.current[id] || 0) + 1
+
 		setSocialButtonImageUploads(prev => {
 			const next = { ...prev }
 			delete next[id]
@@ -109,7 +121,10 @@ export function SocialButtonsSection({ formData, setFormData, socialButtonImageU
 			return
 		}
 
+		const selectionId = (imageSelectionRefs.current[buttonId] || 0) + 1
+		imageSelectionRefs.current[buttonId] = selectionId
 		const hash = await hashFileSHA256(file)
+		if (!mountedRef.current || selectionId !== imageSelectionRefs.current[buttonId]) return
 		const ext = file.name.split('.').pop() || 'png'
 		const targetPath = `/images/social-buttons/${hash}.${ext}`
 		const previewUrl = URL.createObjectURL(file)
@@ -128,6 +143,8 @@ export function SocialButtonsSection({ formData, setFormData, socialButtonImageU
 	}
 
 	const handleRemoveImage = (buttonId: string) => {
+		imageSelectionRefs.current[buttonId] = (imageSelectionRefs.current[buttonId] || 0) + 1
+
 		const uploadItem = socialButtonImageUploads[buttonId]
 		if (uploadItem?.type === 'file') {
 			URL.revokeObjectURL(uploadItem.previewUrl)

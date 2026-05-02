@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import type { SiteContent } from '../../stores/config-store'
@@ -15,7 +15,17 @@ interface BackgroundImagesSectionProps {
 
 export function BackgroundImagesSection({ formData, setFormData, backgroundImageUploads, setBackgroundImageUploads }: BackgroundImagesSectionProps) {
 	const backgroundInputRef = useRef<HTMLInputElement>(null)
+	const backgroundSelectionRef = useRef(0)
+	const mountedRef = useRef(true)
 	const [backgroundUrlInput, setBackgroundUrlInput] = useState('')
+
+	useEffect(() => {
+		mountedRef.current = true
+		return () => {
+			mountedRef.current = false
+			backgroundSelectionRef.current += 1
+		}
+	}, [])
 
 	const handleBackgroundFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0]
@@ -26,7 +36,9 @@ export function BackgroundImagesSection({ formData, setFormData, backgroundImage
 			return
 		}
 
+		const selectionId = (backgroundSelectionRef.current += 1)
 		const hash = await hashFileSHA256(file)
+		if (!mountedRef.current || selectionId !== backgroundSelectionRef.current) return
 		const ext = file.name.split('.').pop() || 'png'
 		const id = hash
 		const targetPath = `/images/background/${id}.${ext}`

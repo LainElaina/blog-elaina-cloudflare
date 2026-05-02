@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import type { FileItem } from './types'
@@ -15,6 +15,18 @@ interface FaviconAvatarUploadProps {
 export function FaviconAvatarUpload({ faviconItem, setFaviconItem, avatarItem, setAvatarItem }: FaviconAvatarUploadProps) {
 	const faviconInputRef = useRef<HTMLInputElement>(null)
 	const avatarInputRef = useRef<HTMLInputElement>(null)
+	const mountedRef = useRef(true)
+	const faviconSelectionRef = useRef(0)
+	const avatarSelectionRef = useRef(0)
+
+	useEffect(() => {
+		mountedRef.current = true
+		return () => {
+			mountedRef.current = false
+			faviconSelectionRef.current += 1
+			avatarSelectionRef.current += 1
+		}
+	}, [])
 
 	const handleFaviconFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0]
@@ -25,7 +37,9 @@ export function FaviconAvatarUpload({ faviconItem, setFaviconItem, avatarItem, s
 			return
 		}
 
+		const selectionId = (faviconSelectionRef.current += 1)
 		const hash = await hashFileSHA256(file)
+		if (!mountedRef.current || selectionId !== faviconSelectionRef.current) return
 		const previewUrl = URL.createObjectURL(file)
 		setFaviconItem({ type: 'file', file, previewUrl, hash })
 		if (e.currentTarget) e.currentTarget.value = ''
@@ -40,7 +54,9 @@ export function FaviconAvatarUpload({ faviconItem, setFaviconItem, avatarItem, s
 			return
 		}
 
+		const selectionId = (avatarSelectionRef.current += 1)
 		const hash = await hashFileSHA256(file)
+		if (!mountedRef.current || selectionId !== avatarSelectionRef.current) return
 		const previewUrl = URL.createObjectURL(file)
 		setAvatarItem({ type: 'file', file, previewUrl, hash })
 		if (e.currentTarget) e.currentTarget.value = ''

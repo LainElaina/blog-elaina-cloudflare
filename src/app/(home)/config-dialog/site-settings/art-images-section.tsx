@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import type { SiteContent } from '../../stores/config-store'
@@ -15,11 +15,23 @@ interface ArtImagesSectionProps {
 
 export function ArtImagesSection({ formData, setFormData, artImageUploads, setArtImageUploads }: ArtImagesSectionProps) {
 	const artInputRef = useRef<HTMLInputElement>(null)
+	const artSelectionRef = useRef(0)
+	const mountedRef = useRef(true)
 	const [artUrlInput, setArtUrlInput] = useState('')
+
+	useEffect(() => {
+		mountedRef.current = true
+		return () => {
+			mountedRef.current = false
+			artSelectionRef.current += 1
+		}
+	}, [])
 
 	const handleArtFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files || [])
 		if (!files.length) return
+
+		const selectionId = (artSelectionRef.current += 1)
 
 		for (const file of files) {
 			if (!file.type.startsWith('image/')) {
@@ -28,6 +40,7 @@ export function ArtImagesSection({ formData, setFormData, artImageUploads, setAr
 			}
 
 			const hash = await hashFileSHA256(file)
+			if (!mountedRef.current || selectionId !== artSelectionRef.current) return
 			const ext = file.name.split('.').pop() || 'png'
 			const id = hash
 			const targetPath = `/images/art/${id}.${ext}`
