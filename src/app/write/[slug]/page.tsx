@@ -36,7 +36,7 @@ const buildWriteSnapshot = (params: {
 export default function EditBlogPage() {
 	const params = useParams() as { slug?: string }
 	const slug = params?.slug || ''
-	const { form, cover, images, originalSlug, replaceWithSnapshot } = useWriteStore()
+	const { form, cover, images, originalSlug, replaceWithSnapshot, disposeLocalFilePreviews } = useWriteStore()
 	const { isPreview, closePreview } = usePreviewStore()
 	const { loading, hasLoadedBlog, loadFailed } = useLoadBlog(slug)
 	const [baseline, setBaseline] = useState<WriteSafetySnapshot | null>(null)
@@ -79,6 +79,12 @@ export default function EditBlogPage() {
 		markdown: form.md,
 		images
 	})
+
+	useEffect(() => {
+		return () => {
+			disposeLocalFilePreviews()
+		}
+	}, [disposeLocalFilePreviews])
 
 	useEffect(() => {
 		setBaseline(null)

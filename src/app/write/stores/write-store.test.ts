@@ -115,3 +115,65 @@ describe('useWriteStore.loadBlogForEdit', () => {
 		assert.equal(loading, false)
 	})
 })
+
+describe('useWriteStore.disposeLocalFilePreviews', () => {
+	const originalRevokeObjectURL = URL.revokeObjectURL
+
+	beforeEach(() => {
+		useWriteStore.getState().reset()
+	})
+
+	afterEach(() => {
+		URL.revokeObjectURL = originalRevokeObjectURL
+		useWriteStore.getState().reset()
+	})
+
+	it('释放并移除本地文件预览，同时保留 URL 资源', () => {
+		const revokedUrls: string[] = []
+		URL.revokeObjectURL = (url: string) => {
+			revokedUrls.push(url)
+		}
+
+		const localFile = new File(['local'], 'local.png', { type: 'image/png' })
+		const localImage = {
+			id: 'local-image',
+			type: 'file' as const,
+			file: localFile,
+			previewUrl: 'blob:local-image',
+			filename: 'local.png'
+		}
+		const localCover = {
+			id: 'local-cover',
+			type: 'file' as const,
+			file: localFile,
+			previewUrl: 'blob:local-cover',
+			filename: 'cover.png'
+		}
+		const urlImage = { id: 'url-image', type: 'url' as const, url: 'https://example.com/image.png' }
+
+		useWriteStore.getState().replaceWithSnapshot({
+			mode: 'create',
+			originalSlug: null,
+			form: {
+				slug: '',
+				title: '',
+				md: '',
+				tags: [],
+				date: '2026-05-02T12:00',
+				summary: '',
+				hidden: false,
+				category: '',
+				folderPath: '',
+				favorite: false
+			},
+			images: [localImage, urlImage],
+			cover: localCover
+		})
+
+		useWriteStore.getState().disposeLocalFilePreviews()
+
+		assert.deepEqual(revokedUrls.sort(), ['blob:local-cover', 'blob:local-image'])
+		assert.deepEqual(useWriteStore.getState().images, [urlImage])
+		assert.equal(useWriteStore.getState().cover, null)
+	})
+})

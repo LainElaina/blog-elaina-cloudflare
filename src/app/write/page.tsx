@@ -32,7 +32,7 @@ const buildWriteSnapshot = (params: {
 })
 
 export default function WritePage() {
-	const { form, cover, images, replaceWithSnapshot } = useWriteStore()
+	const { form, cover, images, replaceWithSnapshot, disposeLocalFilePreviews } = useWriteStore()
 	const { isPreview, closePreview } = usePreviewStore()
 	const [baseline, setBaseline] = useState<WriteSafetySnapshot | null>(null)
 	const [hasHydratedDraft, setHasHydratedDraft] = useState(false)
@@ -62,6 +62,12 @@ export default function WritePage() {
 		markdown: form.md,
 		images
 	})
+
+	useEffect(() => {
+		return () => {
+			disposeLocalFilePreviews()
+		}
+	}, [disposeLocalFilePreviews])
 
 	useEffect(() => {
 		const emptyBaseline = createEmptyWriteBaseline()

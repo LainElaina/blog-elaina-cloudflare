@@ -33,6 +33,7 @@ type WriteStore = {
 	setLoading: (loading: boolean) => void
 	invalidateBlogLoad: () => void
 	loadBlogForEdit: (slug: string) => Promise<boolean>
+	disposeLocalFilePreviews: () => void
 	reset: () => void
 }
 
@@ -181,6 +182,15 @@ export const useWriteStore = create<WriteStore>((set, get) => ({
 			return {
 				images: state.images.filter(image => image.id !== id),
 				cover: nextCover
+			}
+		}),
+	disposeLocalFilePreviews: () =>
+		set(state => {
+			revokePreviewUrls(state.images, state.cover)
+
+			return {
+				images: state.images.filter(image => image.type !== 'file'),
+				cover: state.cover?.type === 'file' ? null : state.cover
 			}
 		}),
 	cover: null,
