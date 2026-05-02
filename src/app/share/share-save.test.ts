@@ -5,9 +5,8 @@ import fs from 'node:fs/promises'
 test('share local save checks upload and save-file responses before applying saved artifacts', async () => {
 	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 
-	assert.match(pageSource, /await assertOk\(await fetch\('\/api\/upload-image', \{ method: 'POST', body: formData \}\), '上传分享图标'\)/)
-	assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/save-file'/)
-	assert.match(pageSource, /'保存分享产物'/)
+	assert.match(pageSource, /await uploadLocalShareLogo\(\{ file: logoItem\.file, path: `public\$\{publicPath\}`, actionName: '上传分享图标', uploadedFiles \}\)/)
+	assert.match(pageSource, /for \(const payload of payloads\) \{\n\s*await saveLocalShareFile\(payload, '保存分享产物', writtenFiles\)/)
 	assert.match(pageSource, /nextArtifacts = parseSavedArtifacts\(payloads, buildArtifactsFromList\(updatedShares\)\)/)
 })
 
@@ -19,4 +18,14 @@ test('share local save falls back when saved artifact JSON is invalid', async ()
 	assert.match(pageSource, /categories: parseJsonWithFallback<ShareCategoriesArtifact>\(categoriesPayload, fallback\.categories\)/)
 	assert.match(pageSource, /folders: parseJsonWithFallback<ShareFolderNode\[\]>\(foldersPayload, fallback\.folders\)/)
 	assert.doesNotMatch(pageSource, /listPayload \? \(JSON\.parse\(listPayload\.content\) as Share\[\]\) : fallback\.list/)
+})
+
+test('share local save rolls back written artifacts and uploaded logos after a later failure', async () => {
+	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+	assert.match(pageSource, /const writtenFiles: LocalShareSaveFileBackup\[\] = \[\]/)
+	assert.match(pageSource, /const uploadedFiles: LocalShareSaveUploadBackup\[\] = \[\]/)
+	assert.match(pageSource, /await uploadLocalShareLogo\(\{ file: logoItem\.file, path: `public\$\{publicPath\}`, actionName: '上传分享图标', uploadedFiles \}\)/)
+	assert.match(pageSource, /for \(const payload of payloads\) \{\n\s*await saveLocalShareFile\(payload, '保存分享产物', writtenFiles\)/)
+	assert.match(pageSource, /catch \(error: any\) \{\n\s*await rollbackLocalShareSave\(writtenFiles, uploadedFiles\)/)
 })

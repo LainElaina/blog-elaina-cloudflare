@@ -21,6 +21,13 @@ import {
 import { pushShares } from './services/push-shares'
 import { LOCAL_SHARE_SAVE_PATHS, applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, type ShareSaveFilePayload } from './services/share-artifacts'
 import {
+	rollbackLocalShareSave,
+	saveLocalShareFile,
+	uploadLocalShareLogo,
+	type LocalShareSaveFileBackup,
+	type LocalShareSaveUploadBackup
+} from './services/local-share-save-rollback'
+import {
 	createSharePageState,
 	finishShareEditSession,
 	mergeEditingSharesIntoVisibleItems,
@@ -43,15 +50,6 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
-
-const assertOk = async (response: Response, actionName: string) => {
-	if (response.ok) {
-		return
-	}
-
-	const detail = await response.text().catch(() => '')
-	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
-}
 
 type SharePageArtifacts = {
 	list: Share[]
@@ -457,6 +455,8 @@ export default function Page() {
 		setIsSaving(true)
 
 		const currentShares = pageState.artifacts.list
+		const writtenFiles: LocalShareSaveFileBackup[] = []
+		const uploadedFiles: LocalShareSaveUploadBackup[] = []
 
 		try {
 			let nextArtifacts: SharePageArtifacts = buildArtifactsFromList(currentShares)
@@ -469,10 +469,7 @@ export default function Page() {
 						const ext = getFileExt(logoItem.file.name)
 						const filename = `${hash}${ext}`
 						const publicPath = `/images/share/${filename}`
-						const formData = new FormData()
-						formData.append('file', logoItem.file)
-						formData.append('path', `public${publicPath}`)
-						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传分享图标')
+						await uploadLocalShareLogo({ file: logoItem.file, path: `public${publicPath}`, actionName: '上传分享图标', uploadedFiles })
 						nextLogoPaths.set(url, publicPath)
 					}
 				}
@@ -482,14 +479,7 @@ export default function Page() {
 				const updatedShares = applyShareLogoPathUpdates(currentShares, nextLogoPaths)
 				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls)
 				for (const payload of payloads) {
-					await assertOk(
-						await fetch('/api/save-file', {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ path: payload.path, content: payload.content })
-						}),
-						'保存分享产物'
-					)
+					await saveLocalShareFile(payload, '保存分享产物', writtenFiles)
 				}
 
 				nextArtifacts = parseSavedArtifacts(payloads, buildArtifactsFromList(updatedShares))
@@ -516,6 +506,7 @@ export default function Page() {
 			resetEditingSessions()
 			toast.success('保存成功！')
 		} catch (error: any) {
+			await rollbackLocalShareSave(writtenFiles, uploadedFiles)
 			console.error('Failed to save:', error)
 			toast.error(`保存失败: ${error?.message || '未知错误'}`)
 		} finally {
