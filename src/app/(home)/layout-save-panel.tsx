@@ -23,7 +23,7 @@ export function LayoutSavePanel() {
 	const editing = useLayoutEditStore(state => state.editing)
 	const stopEditing = useLayoutEditStore(state => state.stopEditing)
 	const cancelEditing = useLayoutEditStore(state => state.cancelEditing)
-	const { cardStyles, saveLayout } = useConfigStore()
+	const { cardStyles } = useConfigStore()
 	const { components: customComponents } = useCustomComponentStore()
 	const { isAuth } = useAuthStore()
 	const addLog = useLogStore(state => state.addLog)
@@ -41,18 +41,17 @@ export function LayoutSavePanel() {
 				data: cardStyles,
 				customComponents
 			}
-			localStorage.setItem('layout-snapshots', JSON.stringify([newSnapshot, ...snapshots]))
 
 			if (process.env.NODE_ENV === 'development') {
-				await saveLayout()
 				const response = await fetch('/api/config', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ customComponents })
+					body: JSON.stringify({ cardStyles, customComponents })
 				})
 				if (!response.ok) {
-					throw new Error('保存自定义组件失败')
+					throw new Error('保存布局和自定义组件失败')
 				}
+				localStorage.setItem('layout-snapshots', JSON.stringify([newSnapshot, ...snapshots]))
 				localStorage.setItem('custom-components', JSON.stringify(customComponents))
 				stopEditing()
 				addLog('success', 'layout', '布局和自定义组件已保存到本地', { cardStyles, customComponents })
@@ -79,6 +78,7 @@ export function LayoutSavePanel() {
 				const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '保存布局和自定义组件', tree.sha, [ref.sha])
 				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
 
+				localStorage.setItem('layout-snapshots', JSON.stringify([newSnapshot, ...snapshots]))
 				stopEditing()
 				addLog('success', 'layout', '布局和自定义组件已推送到 GitHub', { cardStyles, customComponents })
 				toast.success('布局和自定义组件已推送到 GitHub')

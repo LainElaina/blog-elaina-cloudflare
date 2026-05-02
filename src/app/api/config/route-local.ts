@@ -3,26 +3,93 @@ import path from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
+const CARD_STYLES_FILE_NAME = 'card-styles.json'
+const LAYOUT_BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
+
+type ConfigWrite = {
+	fileName: string
+	content: string
+}
+
+type ConfigBackup = {
+	filePath: string
+	existed: boolean
+	content: string
+}
+
+function isFileNotFoundError(error: unknown) {
+	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+}
+
+async function readConfigBackup(filePath: string): Promise<ConfigBackup> {
+	try {
+		return {
+			filePath,
+			existed: true,
+			content: await fs.readFile(filePath, 'utf-8')
+		}
+	} catch (error) {
+		if (isFileNotFoundError(error)) {
+			return { filePath, existed: false, content: '' }
+		}
+		throw error
+	}
+}
+
+async function rollbackConfigWrites(backups: ConfigBackup[]) {
+	for (const backup of backups.reverse()) {
+		if (backup.existed) {
+			await fs.writeFile(backup.filePath, backup.content).catch(() => undefined)
+		} else {
+			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
+		}
+	}
+}
+
+function buildConfigWrites(payload: { siteContent?: unknown; cardStyles?: unknown; customComponents?: unknown; colorPresets?: unknown }): ConfigWrite[] {
+	const writes: ConfigWrite[] = []
+	if (payload.siteContent) {
+		writes.push({ fileName: 'site-content.json', content: JSON.stringify(payload.siteContent, null, '\t') })
+	}
+	if (payload.cardStyles) {
+		writes.push({ fileName: CARD_STYLES_FILE_NAME, content: JSON.stringify(payload.cardStyles, null, '\t') })
+	}
+	if (payload.customComponents !== undefined) {
+		writes.push({ fileName: 'custom-components.json', content: JSON.stringify(payload.customComponents, null, '\t') })
+	}
+	if (payload.colorPresets !== undefined) {
+		writes.push({ fileName: 'color-presets.json', content: JSON.stringify(payload.colorPresets, null, '\t') })
+	}
+	return writes
+}
+
+async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigBackup[]) {
+	const cardStylesBackup = backups.find(backup => path.basename(backup.filePath) === CARD_STYLES_FILE_NAME)
+	if (!cardStylesBackup || !cardStylesBackup.existed || !writes.some(write => write.fileName === CARD_STYLES_FILE_NAME)) {
+		return
+	}
+
+	await fs.mkdir(path.dirname(LAYOUT_BACKUP_PATH), { recursive: true })
+	await fs.writeFile(LAYOUT_BACKUP_PATH, cardStylesBackup.content)
+}
+
 export async function handleConfigPost(request: NextRequest) {
 	try {
-		const { siteContent, cardStyles, customComponents, colorPresets } = await request.json()
-
+		const payload = await request.json()
 		const configDir = path.join(process.cwd(), 'src/config')
+		const writes = buildConfigWrites(payload)
+		const backups: ConfigBackup[] = []
 
-		if (siteContent) {
-			await fs.writeFile(path.join(configDir, 'site-content.json'), JSON.stringify(siteContent, null, '\t'))
-		}
-
-		if (cardStyles) {
-			await fs.writeFile(path.join(configDir, 'card-styles.json'), JSON.stringify(cardStyles, null, '\t'))
-		}
-
-		if (customComponents !== undefined) {
-			await fs.writeFile(path.join(configDir, 'custom-components.json'), JSON.stringify(customComponents, null, '\t'))
-		}
-
-		if (colorPresets !== undefined) {
-			await fs.writeFile(path.join(configDir, 'color-presets.json'), JSON.stringify(colorPresets, null, '\t'))
+		try {
+			for (const write of writes) {
+				const filePath = path.join(configDir, write.fileName)
+				backups.push(await readConfigBackup(filePath))
+				await fs.writeFile(filePath, write.content)
+			}
+			await writeLayoutBackupIfNeeded(writes, backups)
+		} catch (error) {
+			await rollbackConfigWrites(backups)
+			throw error
 		}
 
 		return NextResponse.json({ success: true })
