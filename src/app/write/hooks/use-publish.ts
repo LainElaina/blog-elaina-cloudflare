@@ -43,10 +43,7 @@ export function usePublish() {
 			setLoading(true)
 			assertPublishableBlog({ form, images })
 			assertEditableSlug({ form, mode, originalSlug })
-			const publishedSnapshot =
-				process.env.NODE_ENV === 'development'
-					? await pushBlogLocal()
-					: await pushBlog({ form, cover, images, mode, originalSlug })
+			const publishedSnapshot = process.env.NODE_ENV === 'development' ? await pushBlogLocal() : await pushBlog({ form, cover, images, mode, originalSlug })
 			const successMsg = mode === 'edit' ? '更新成功' : '发布成功'
 			toast.success(successMsg)
 			return publishedSnapshot
@@ -185,15 +182,6 @@ export function usePublish() {
 			setLoading(true)
 			if (process.env.NODE_ENV === 'development') {
 				assertSafeBlogSlug(targetSlug)
-				await assertOk(
-					await fetch('/api/delete-dir', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
-					}),
-					'删除文章目录'
-				)
-
 				const artifactContents = await buildDeleteArtifactContents({
 					slug: targetSlug,
 					readStorageRaw: async () => {
@@ -217,6 +205,15 @@ export function usePublish() {
 						'保存删除索引产物'
 					)
 				}
+				await assertOk(
+					await fetch('/api/delete-dir', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
+					}),
+					'删除文章目录'
+				)
+
 				toast.success('删除成功！')
 			} else {
 				await deleteBlog(targetSlug)

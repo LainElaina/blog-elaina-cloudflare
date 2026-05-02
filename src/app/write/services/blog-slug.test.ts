@@ -8,7 +8,21 @@ test('assertSafeBlogSlug accepts only a single safe blog path segment', () => {
 		assert.doesNotThrow(() => assertSafeBlogSlug(slug), slug)
 	}
 
-	for (const slug of ['', ' Hello', 'hello ', 'Hello', 'hello_world', 'hello/world', 'hello\\world', '../post', 'post..name', 'post%2Fname', '-post', 'post-', 'post--name']) {
+	for (const slug of [
+		'',
+		' Hello',
+		'hello ',
+		'Hello',
+		'hello_world',
+		'hello/world',
+		'hello\\world',
+		'../post',
+		'post..name',
+		'post%2Fname',
+		'-post',
+		'post-',
+		'post--name'
+	]) {
 		assert.throws(() => assertSafeBlogSlug(slug), /slug 只能使用/)
 	}
 })
@@ -19,7 +33,10 @@ test('blog publish and delete paths validate slug before composing repository pa
 	const localPublishSource = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(publishSource, /import \{ assertSafeBlogSlug \} from '\.\/blog-slug'/)
-	assert.match(publishSource, /export function assertEditableSlug[\s\S]*assertSafeBlogSlug\(params\.form\.slug\)[\s\S]*assertSafeBlogSlug\(params\.originalSlug\)/)
+	assert.match(
+		publishSource,
+		/export function assertEditableSlug[\s\S]*assertSafeBlogSlug\(params\.form\.slug\)[\s\S]*assertSafeBlogSlug\(params\.originalSlug\)/
+	)
 	assert.match(publishSource, /assertEditableSlug\(\{ form, mode, originalSlug \}\)[\s\S]*const basePath = `public\/blogs\/\$\{form\.slug\}`/)
 
 	assert.match(deleteSource, /import \{ assertSafeBlogSlug \} from '\.\/blog-slug'/)
@@ -27,6 +44,19 @@ test('blog publish and delete paths validate slug before composing repository pa
 	assert.match(deleteSource, /if \(!slug\) throw new Error\('需要 slug'\)\n\s*assertSafeBlogSlug\(slug\)[\s\S]*const basePath = `public\/blogs\/\$\{slug\}`/)
 
 	assert.match(localPublishSource, /import \{ assertSafeBlogSlug \} from '\.\.\/services\/blog-slug'/)
-	assert.match(localPublishSource, /if \(!form\?\.slug\) throw new Error\('需要 slug'\)\n\s*assertSafeBlogSlug\(form\.slug\)[\s\S]*const basePath = `public\/blogs\/\$\{form\.slug\}`/)
+	assert.match(
+		localPublishSource,
+		/if \(!form\?\.slug\) throw new Error\('需要 slug'\)\n\s*assertSafeBlogSlug\(form\.slug\)[\s\S]*const basePath = `public\/blogs\/\$\{form\.slug\}`/
+	)
 	assert.match(localPublishSource, /assertSafeBlogSlug\(targetSlug\)[\s\S]*body: JSON\.stringify\(\{ path: `public\/blogs\/\$\{targetSlug\}` \}\)/)
+})
+
+test('local blog delete writes delete artifacts before deleting the article directory', async () => {
+	const localPublishSource = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const saveArtifactsIndex = localPublishSource.indexOf("'保存删除索引产物'")
+	const deleteDirectoryIndex = localPublishSource.indexOf("'删除文章目录'")
+
+	assert.notEqual(saveArtifactsIndex, -1)
+	assert.notEqual(deleteDirectoryIndex, -1)
+	assert.ok(saveArtifactsIndex < deleteDirectoryIndex)
 })
