@@ -45,10 +45,28 @@ interface LogStore {
 	exportLogs: () => string
 }
 
+function readLocalStorageFlag(key: string) {
+	if (typeof window === 'undefined') return false
+	try {
+		return localStorage.getItem(key) === 'true'
+	} catch {
+		return false
+	}
+}
+
+function writeLocalStorageFlag(key: string, value: boolean) {
+	if (typeof window === 'undefined') return
+	try {
+		localStorage.setItem(key, String(value))
+	} catch {
+		return
+	}
+}
+
 export const useLogStore = create<LogStore>((set, get) => ({
 	logs: [],
-	enabled: typeof window !== 'undefined' ? localStorage.getItem('log-enabled') === 'true' : false,
-	visible: typeof window !== 'undefined' ? localStorage.getItem('log-visible') === 'true' : false,
+	enabled: readLocalStorageFlag('log-enabled'),
+	visible: readLocalStorageFlag('log-visible'),
 	enabledCategories: new Set<LogCategory>(['layout', 'history', 'music', 'config', 'blog', 'image', 'network', 'error']),
 	logCounter: 0,
 	hasUnreadError: false,
@@ -73,15 +91,11 @@ export const useLogStore = create<LogStore>((set, get) => ({
 	},
 	clearLogs: () => set({ logs: [] }),
 	setEnabled: (enabled) => {
-		if (typeof window !== 'undefined') {
-			localStorage.setItem('log-enabled', String(enabled))
-		}
+		writeLocalStorageFlag('log-enabled', enabled)
 		set({ enabled })
 	},
 	setVisible: (visible) => {
-		if (typeof window !== 'undefined') {
-			localStorage.setItem('log-visible', String(visible))
-		}
+		writeLocalStorageFlag('log-visible', visible)
 		set({ visible, ...(visible ? { hasUnreadError: false } : {}) })
 	},
 	toggleCategory: (category) => set(state => {
