@@ -286,11 +286,16 @@ describe('share migration route handlers', () => {
     }
   })
 
-  it('execute returns WRITE_FAILED with partial write details on injected mid-write failure', async () => {
+  it('execute rolls back already written artifacts on injected mid-write failure', async () => {
     const context = await setupShareArtifactsRepo()
     const writeOrder: string[] = []
 
     try {
+      const originalListRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8')
+      const originalCategoriesRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8')
+      const originalFoldersRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8')
+      const originalStorageRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8')
+
       const response = await executeRoute({
         nodeEnv: 'development',
         confirmed: true,
@@ -310,7 +315,9 @@ describe('share migration route handlers', () => {
       assert.deepEqual(writeOrder, [
         SHARE_ARTIFACT_PATHS.list,
         SHARE_ARTIFACT_PATHS.categories,
-        SHARE_ARTIFACT_PATHS.folders
+        SHARE_ARTIFACT_PATHS.folders,
+        SHARE_ARTIFACT_PATHS.categories,
+        SHARE_ARTIFACT_PATHS.list
       ])
       assert.equal(response.status, 500)
       assert.deepEqual(response.body, {
@@ -318,25 +325,17 @@ describe('share migration route handlers', () => {
         operation: 'execute',
         code: 'WRITE_FAILED',
         message: '写入 share 正式产物失败：public/share/folders.json',
-        writtenArtifactsPartial: [
-          SHARE_ARTIFACT_PATHS.list,
-          SHARE_ARTIFACT_PATHS.categories
-        ],
+        writtenArtifactsPartial: [],
         shouldRepreview: true,
         details: {
           artifact: SHARE_ARTIFACT_PATHS.folders
         }
       })
 
-      const listRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8')
-      const categoriesRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8')
-      const foldersRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8')
-      const storageRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8')
-
-      assert.equal(JSON.parse(listRaw)[0].folderPath, '/收藏/工具')
-      assert.deepEqual(JSON.parse(categoriesRaw), { categories: ['设计'] })
-      assert.deepEqual(JSON.parse(foldersRaw), [])
-      assert.deepEqual(JSON.parse(storageRaw).shares, {})
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8'), originalListRaw)
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8'), originalCategoriesRaw)
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8'), originalFoldersRaw)
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8'), originalStorageRaw)
     } finally {
       await context.cleanup()
     }

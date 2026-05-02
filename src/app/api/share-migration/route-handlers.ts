@@ -23,24 +23,25 @@ const PREVIEW_NOTICE = '只处理 share 正式产物，不会修改 logo 图片�
 const EXECUTE_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。执行结果已基于写回后的磁盘状态复检。'
 
 class ShareArtifactError extends Error {
-  constructor(
-    readonly failureCode: ShareArtifactFailureCode,
-    readonly artifactPath: string,
-    message: string
-  ) {
+  readonly failureCode: ShareArtifactFailureCode
+  readonly artifactPath: string
+
+  constructor(failureCode: ShareArtifactFailureCode, artifactPath: string, message: string) {
     super(message)
     this.name = 'ShareArtifactError'
+    this.failureCode = failureCode
+    this.artifactPath = artifactPath
   }
 }
 
 class ShareArtifactWriteError extends Error {
-  constructor(
-    readonly artifactPath: string,
-    cause: unknown
-  ) {
+  readonly artifactPath: string
+
+  constructor(artifactPath: string, cause: unknown) {
     const details = cause instanceof Error ? cause.message : String(cause)
     super(`写入 share 正式产物失败：${artifactPath}${details ? ` (${details})` : ''}`)
     this.name = 'ShareArtifactWriteError'
+    this.artifactPath = artifactPath
   }
 }
 
@@ -216,6 +217,7 @@ async function writeShareArtifactsInOrder(params: {
   baseDir: string
   artifacts: ShareRuntimeArtifactsText
   writtenArtifacts: string[]
+  readText: ReadText
   writeText: WriteText
 }) {
   const artifactEntries = [
@@ -224,12 +226,21 @@ async function writeShareArtifactsInOrder(params: {
     [LOCAL_SHARE_SAVE_PATHS.folders, params.artifacts.folders],
     [LOCAL_SHARE_SAVE_PATHS.storage, params.artifacts.storage]
   ] as const
+  const writtenBackups: Array<{ artifactPath: string; filePath: string; content: string }> = []
 
   for (const [artifactPath, content] of artifactEntries) {
+    const filePath = resolve(params.baseDir, artifactPath)
+
     try {
-      await params.writeText(resolve(params.baseDir, artifactPath), content)
+      const previousContent = await params.readText(filePath)
+      await params.writeText(filePath, content)
+      writtenBackups.push({ artifactPath, filePath, content: previousContent })
       params.writtenArtifacts.push(artifactPath)
     } catch (error) {
+      for (const backup of writtenBackups.reverse()) {
+        await params.writeText(backup.filePath, backup.content).catch(() => undefined)
+      }
+      params.writtenArtifacts.length = 0
       throw new ShareArtifactWriteError(artifactPath, error)
     }
   }
@@ -329,6 +340,7 @@ export async function executeRoute(params: {
         baseDir,
         artifacts: rebuilt.artifacts,
         writtenArtifacts,
+        readText,
         writeText
       })
     } catch (error) {
