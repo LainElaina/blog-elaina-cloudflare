@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import { DialogModal } from '@/components/dialog-modal'
@@ -22,7 +22,18 @@ function revokeImagePreviews(items: ImageItem[]) {
 export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 	const [description, setDescription] = useState('')
 	const [images, setImages] = useState<ImageItem[]>([])
+	const imagesRef = useRef(images)
 	const fileInputRef = useRef<HTMLInputElement>(null)
+
+	useEffect(() => {
+		imagesRef.current = images
+	}, [images])
+
+	useEffect(() => {
+		return () => {
+			revokeImagePreviews(imagesRef.current)
+		}
+	}, [])
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files || [])
@@ -45,7 +56,11 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 			})
 		}
 
-		setImages(current => [...current, ...nextImages])
+		setImages(current => {
+			const updatedImages = [...current, ...nextImages]
+			imagesRef.current = updatedImages
+			return updatedImages
+		})
 	}
 
 	const handleSubmit = () => {
@@ -60,6 +75,7 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 		})
 
 		setImages([])
+		imagesRef.current = []
 		setDescription('')
 		onClose()
 	}
@@ -67,6 +83,7 @@ export default function UploadDialog({ onClose, onSubmit }: UploadDialogProps) {
 	const handleClose = () => {
 		revokeImagePreviews(images)
 		setImages([])
+		imagesRef.current = []
 		setDescription('')
 		onClose()
 	}

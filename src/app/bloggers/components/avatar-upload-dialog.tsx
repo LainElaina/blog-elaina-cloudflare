@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import { DialogModal } from '@/components/dialog-modal'
@@ -16,7 +16,20 @@ interface AvatarUploadDialogProps {
 export default function AvatarUploadDialog({ currentAvatar, onClose, onSubmit }: AvatarUploadDialogProps) {
 	const [urlInput, setUrlInput] = useState(currentAvatar || '')
 	const [previewFile, setPreviewFile] = useState<{ file: File; previewUrl: string } | null>(null)
+	const previewFileRef = useRef(previewFile)
 	const fileInputRef = useRef<HTMLInputElement>(null)
+
+	useEffect(() => {
+		previewFileRef.current = previewFile
+	}, [previewFile])
+
+	useEffect(() => {
+		return () => {
+			if (previewFileRef.current) {
+				URL.revokeObjectURL(previewFileRef.current.previewUrl)
+			}
+		}
+	}, [])
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0]
@@ -28,10 +41,12 @@ export default function AvatarUploadDialog({ currentAvatar, onClose, onSubmit }:
 		}
 
 		const previewUrl = URL.createObjectURL(file)
-		if (previewFile) {
-			URL.revokeObjectURL(previewFile.previewUrl)
+		if (previewFileRef.current) {
+			URL.revokeObjectURL(previewFileRef.current.previewUrl)
 		}
-		setPreviewFile({ file, previewUrl })
+		const nextPreviewFile = { file, previewUrl }
+		previewFileRef.current = nextPreviewFile
+		setPreviewFile(nextPreviewFile)
 		setUrlInput('')
 	}
 
@@ -55,15 +70,17 @@ export default function AvatarUploadDialog({ currentAvatar, onClose, onSubmit }:
 		}
 
 		setPreviewFile(null)
+		previewFileRef.current = null
 		setUrlInput(currentAvatar || '')
 		onClose()
 	}
 
 	const handleClose = () => {
-		if (previewFile) {
-			URL.revokeObjectURL(previewFile.previewUrl)
+		if (previewFileRef.current) {
+			URL.revokeObjectURL(previewFileRef.current.previewUrl)
 		}
 		setPreviewFile(null)
+		previewFileRef.current = null
 		setUrlInput(currentAvatar || '')
 		onClose()
 	}
@@ -106,8 +123,9 @@ export default function AvatarUploadDialog({ currentAvatar, onClose, onSubmit }:
 						value={urlInput}
 						onChange={e => {
 							setUrlInput(e.target.value)
-							if (previewFile) {
-								URL.revokeObjectURL(previewFile.previewUrl)
+							if (previewFileRef.current) {
+								URL.revokeObjectURL(previewFileRef.current.previewUrl)
+								previewFileRef.current = null
 								setPreviewFile(null)
 							}
 						}}
