@@ -233,8 +233,8 @@ async function writeShareArtifactsInOrder(params: {
 
     try {
       const previousContent = await params.readText(filePath)
-      await params.writeText(filePath, content)
       writtenBackups.push({ artifactPath, filePath, content: previousContent })
+      await params.writeText(filePath, content)
       params.writtenArtifacts.push(artifactPath)
     } catch (error) {
       for (const backup of writtenBackups.reverse()) {

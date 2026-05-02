@@ -316,6 +316,7 @@ describe('share migration route handlers', () => {
         SHARE_ARTIFACT_PATHS.list,
         SHARE_ARTIFACT_PATHS.categories,
         SHARE_ARTIFACT_PATHS.folders,
+        SHARE_ARTIFACT_PATHS.folders,
         SHARE_ARTIFACT_PATHS.categories,
         SHARE_ARTIFACT_PATHS.list
       ])
@@ -332,6 +333,41 @@ describe('share migration route handlers', () => {
         }
       })
 
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8'), originalListRaw)
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8'), originalCategoriesRaw)
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8'), originalFoldersRaw)
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8'), originalStorageRaw)
+    } finally {
+      await context.cleanup()
+    }
+  })
+
+  it('execute rolls back the current artifact when write fails after mutating it', async () => {
+    const context = await setupShareArtifactsRepo()
+
+    try {
+      const originalListRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8')
+      const originalCategoriesRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8')
+      const originalFoldersRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8')
+      const originalStorageRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8')
+
+      const response = await executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        baseDir: context.repoDir,
+        writeText: async (filePath, content) => {
+          const artifactPath = relative(context.repoDir, filePath)
+          await writeFile(filePath, content)
+
+          if (artifactPath === SHARE_ARTIFACT_PATHS.folders) {
+            throw new Error('simulated folders post-write failure')
+          }
+        }
+      })
+
+      assert.equal(response.status, 500)
+      assert.equal(response.body.code, 'WRITE_FAILED')
+      assert.deepEqual(response.body.writtenArtifactsPartial, [])
       assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8'), originalListRaw)
       assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8'), originalCategoriesRaw)
       assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8'), originalFoldersRaw)
