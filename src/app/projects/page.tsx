@@ -13,6 +13,11 @@ import type { ImageItem } from './components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
+import {
+	uploadLocalSiteAsset,
+	rollbackLocalSiteAssetUploads,
+	type LocalSiteAssetUploadBackup
+} from '@/app/(home)/services/push-site-content-local-utils'
 
 const assertOk = async (response: Response, actionName: string) => {
 	if (response.ok) {
@@ -112,27 +117,32 @@ export default function Page() {
 
 			if (process.env.NODE_ENV === 'development') {
 				let updatedProjects = [...projects]
-				for (const [url, imageItem] of imageItems.entries()) {
-					if (imageItem.type === 'file') {
-						const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
-						const ext = getFileExt(imageItem.file.name)
-						const filename = `${hash}${ext}`
-						const publicPath = `/images/project/${filename}`
-						const formData = new FormData()
-						formData.append('file', imageItem.file)
-						formData.append('path', `public${publicPath}`)
-						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传项目图片')
-						updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: publicPath } : p))
+				const uploadedFiles: LocalSiteAssetUploadBackup[] = []
+
+				try {
+					for (const [url, imageItem] of imageItems.entries()) {
+						if (imageItem.type === 'file') {
+							const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
+							const ext = getFileExt(imageItem.file.name)
+							const filename = `${hash}${ext}`
+							const publicPath = `/images/project/${filename}`
+							await uploadLocalSiteAsset(imageItem.file, `public${publicPath}`, uploadedFiles)
+							updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: publicPath } : p))
+						}
 					}
+					await assertOk(
+						await fetch('/api/save-file', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: 'src/app/projects/list.json', content: JSON.stringify(updatedProjects, null, '\t') })
+						}),
+						'保存项目列表'
+					)
+				} catch (error) {
+					await rollbackLocalSiteAssetUploads(uploadedFiles)
+					throw error
 				}
-				await assertOk(
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: 'src/app/projects/list.json', content: JSON.stringify(updatedProjects, null, '\t') })
-					}),
-					'保存项目列表'
-				)
+
 				savedProjects = updatedProjects
 			} else {
 				savedProjects = await pushProjects({ projects, imageItems })

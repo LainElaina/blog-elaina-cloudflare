@@ -13,6 +13,11 @@ import type { AvatarItem } from './components/avatar-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
+import {
+	uploadLocalSiteAsset,
+	rollbackLocalSiteAssetUploads,
+	type LocalSiteAssetUploadBackup
+} from '@/app/(home)/services/push-site-content-local-utils'
 
 const assertOk = async (response: Response, actionName: string) => {
 	if (response.ok) {
@@ -113,28 +118,32 @@ export default function Page() {
 
 			if (process.env.NODE_ENV === 'development') {
 				let updatedBloggers = [...bloggers]
-				// Upload avatar files locally
-				for (const [url, avatarItem] of avatarItems.entries()) {
-					if (avatarItem.type === 'file') {
-						const hash = avatarItem.hash || (await hashFileSHA256(avatarItem.file))
-						const ext = getFileExt(avatarItem.file.name)
-						const filename = `${hash}${ext}`
-						const publicPath = `/images/blogger/${filename}`
-						const formData = new FormData()
-						formData.append('file', avatarItem.file)
-						formData.append('path', `public${publicPath}`)
-						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传友链头像')
-						updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: publicPath } : b))
+				const uploadedFiles: LocalSiteAssetUploadBackup[] = []
+
+				try {
+					for (const [url, avatarItem] of avatarItems.entries()) {
+						if (avatarItem.type === 'file') {
+							const hash = avatarItem.hash || (await hashFileSHA256(avatarItem.file))
+							const ext = getFileExt(avatarItem.file.name)
+							const filename = `${hash}${ext}`
+							const publicPath = `/images/blogger/${filename}`
+							await uploadLocalSiteAsset(avatarItem.file, `public${publicPath}`, uploadedFiles)
+							updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: publicPath } : b))
+						}
 					}
+					await assertOk(
+						await fetch('/api/save-file', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: 'src/app/bloggers/list.json', content: JSON.stringify(updatedBloggers, null, '\t') })
+						}),
+						'保存友链列表'
+					)
+				} catch (error) {
+					await rollbackLocalSiteAssetUploads(uploadedFiles)
+					throw error
 				}
-				await assertOk(
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: 'src/app/bloggers/list.json', content: JSON.stringify(updatedBloggers, null, '\t') })
-					}),
-					'保存友链列表'
-				)
+
 				savedBloggers = updatedBloggers
 			} else {
 				savedBloggers = await pushBloggers({ bloggers, avatarItems })

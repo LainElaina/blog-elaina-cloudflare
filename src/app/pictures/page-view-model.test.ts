@@ -99,13 +99,12 @@ describe('pictures save path replacement', () => {
 		])
 	})
 
-	it('development save checks local upload delete and save-file responses before marking pictures as saved', async () => {
+	it('development save rolls back uploaded picture files when list saving fails', async () => {
 		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 
-		assert.match(pageSource, /await assertOk\(await fetch\('\/api\/upload-image', \{ method: 'POST', body: formData \}\), '上传图床图片'\)/)
-		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/delete-image'/)
-		assert.match(pageSource, /'删除图床旧图片'/)
-		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/save-file'/)
+		assert.match(pageSource, /const uploadedFiles: LocalSiteAssetUploadBackup\[\] = \[\]/)
+		assert.match(pageSource, /await uploadLocalSiteAsset\(imageItem\.file, `public\$\{publicPath\}`, uploadedFiles\)/)
+		assert.match(pageSource, /catch \(error\) \{\n\s*await rollbackLocalSiteAssetUploads\(uploadedFiles\)\n\s*throw error\n\s*\}/)
 		assert.match(pageSource, /'保存图床列表'/)
 		assert.match(pageSource, /savedPictures = updatedPictures/)
 	})

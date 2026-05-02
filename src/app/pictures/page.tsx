@@ -22,6 +22,11 @@ import type { ImageItem } from '../projects/components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
+import {
+	uploadLocalSiteAsset,
+	rollbackLocalSiteAssetUploads,
+	type LocalSiteAssetUploadBackup
+} from '@/app/(home)/services/push-site-content-local-utils'
 import { useRouter } from 'next/navigation'
 
 const assertOk = async (response: Response, actionName: string) => {
@@ -213,35 +218,39 @@ export default function Page() {
 			if (process.env.NODE_ENV === 'development') {
 				let updatedPictures = [...pictures]
 				const pathReplacements = new Map<string, string>()
-				// Upload new images
-				for (const [key, imageItem] of imageItems.entries()) {
-					if (imageItem.type === 'file') {
-						const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
-						const ext = getFileExt(imageItem.file.name)
-						const filename = `${hash}${ext}`
-						const publicPath = `/images/pictures/${filename}`
-						const formData = new FormData()
-						formData.append('file', imageItem.file)
-						formData.append('path', `public${publicPath}`)
-						await assertOk(await fetch('/api/upload-image', { method: 'POST', body: formData }), '上传图床图片')
-						pathReplacements.set(key, publicPath)
+				const uploadedFiles: LocalSiteAssetUploadBackup[] = []
+				let currentUrls = new Set<string>()
+
+				try {
+					for (const [key, imageItem] of imageItems.entries()) {
+						if (imageItem.type === 'file') {
+							const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
+							const ext = getFileExt(imageItem.file.name)
+							const filename = `${hash}${ext}`
+							const publicPath = `/images/pictures/${filename}`
+							await uploadLocalSiteAsset(imageItem.file, `public${publicPath}`, uploadedFiles)
+							pathReplacements.set(key, publicPath)
+						}
 					}
+					updatedPictures = applyPictureImagePathReplacements(updatedPictures, pathReplacements)
+					currentUrls = new Set<string>()
+					for (const p of updatedPictures) {
+						if (p.image) currentUrls.add(p.image)
+						p.images?.forEach(u => currentUrls.add(u))
+					}
+					await assertOk(
+						await fetch('/api/save-file', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
+						}),
+						'保存图床列表'
+					)
+				} catch (error) {
+					await rollbackLocalSiteAssetUploads(uploadedFiles)
+					throw error
 				}
-				updatedPictures = applyPictureImagePathReplacements(updatedPictures, pathReplacements)
-				// Find orphaned images (in original but not in current)
-				const currentUrls = new Set<string>()
-				for (const p of updatedPictures) {
-					if (p.image) currentUrls.add(p.image)
-					p.images?.forEach(u => currentUrls.add(u))
-				}
-				await assertOk(
-					await fetch('/api/save-file', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: 'src/app/pictures/list.json', content: JSON.stringify(updatedPictures, null, '\t') })
-					}),
-					'保存图床列表'
-				)
+
 				for (const p of originalPictures) {
 					const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
 					for (const url of urls) {
@@ -257,6 +266,7 @@ export default function Page() {
 						}
 					}
 				}
+
 				savedPictures = updatedPictures
 			} else {
 				savedPictures = await pushPictures({ pictures, imageItems })
