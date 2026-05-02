@@ -66,6 +66,12 @@ export function SocialButtonsSection({ formData, setFormData, socialButtonImageU
 	}
 
 	const handleRemoveButton = (id: string) => {
+		setSocialButtonImageUploads(prev => {
+			const next = { ...prev }
+			delete next[id]
+			return next
+		})
+
 		setFormData(prev => ({
 			...prev,
 			socialButtons: (prev.socialButtons || []).filter(btn => btn.id !== id)
