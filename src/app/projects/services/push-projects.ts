@@ -63,7 +63,6 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 		}
 	}
 
-	toast.info('正在检查需要删除的文件...')
 	const previousListJson = await readTextFileFromRepo(
 		token,
 		GITHUB_CONFIG.OWNER,
