@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -53,6 +53,51 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 
 				updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: publicPath } : p))
 			}
+		}
+	}
+
+	const currentImageUrls = new Set<string>()
+	for (const project of updatedProjects) {
+		if (project.image) {
+			currentImageUrls.add(project.image)
+		}
+	}
+
+	toast.info('正在检查需要删除的文件...')
+	const previousListJson = await readTextFileFromRepo(
+		token,
+		GITHUB_CONFIG.OWNER,
+		GITHUB_CONFIG.REPO,
+		'src/app/projects/list.json',
+		GITHUB_CONFIG.BRANCH
+	)
+
+	if (previousListJson) {
+		try {
+			const previousProjects: Project[] = JSON.parse(previousListJson)
+			const previousImageUrls = new Set<string>()
+
+			for (const project of previousProjects) {
+				if (project.image) {
+					previousImageUrls.add(project.image)
+				}
+			}
+
+			for (const url of previousImageUrls) {
+				if (!currentImageUrls.has(url) && url.startsWith('/images/project/')) {
+					const filename = url.replace('/images/project/', '')
+					const path = `public/images/project/${filename}`
+					treeItems.push({
+						path,
+						mode: '100644',
+						type: 'blob',
+						sha: null
+					})
+				}
+			}
+		} catch (error) {
+			console.error('Failed to parse previous projects list.json:', error)
+			throw new Error('远程项目列表解析失败，请修复 src/app/projects/list.json 后重试')
 		}
 	}
 
