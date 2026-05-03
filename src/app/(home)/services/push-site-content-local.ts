@@ -3,6 +3,7 @@ import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
 import {
 	buildLocalConfigPayload,
+	buildLocalDraftConfigPayload,
 	requestLocalEndpoint,
 	getLocalSiteConfigEndpoint,
 	shouldSyncFormalAssets,
@@ -102,7 +103,10 @@ export async function pushSiteContentLocal(
 			await uploadTask()
 		}
 
-		const configPayload = buildLocalConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
+		const configPayload =
+			action === 'draft'
+				? buildLocalDraftConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
+				: buildLocalConfigPayload(siteContent, originalSiteContent, cardStyles, originalCardStyles)
 		if (shouldRequestLocalConfigEndpoint(action, configPayload, publishExistingDraft)) {
 			await requestLocalEndpoint(
 				fetch,

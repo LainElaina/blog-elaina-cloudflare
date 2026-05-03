@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
 	try {
 		const payload = await request.json()
 		const draft = await writeSiteConfigDraft(process.cwd(), payload)
-		return NextResponse.json({ success: true, hasDraft: true, items: buildSiteConfigDraftItems(draft) })
+		const items = buildSiteConfigDraftItems(draft)
+		return NextResponse.json({ success: true, hasDraft: items.length > 0, items })
 	} catch (error: any) {
 		return NextResponse.json({ error: error.message }, { status: 500 })
 	}

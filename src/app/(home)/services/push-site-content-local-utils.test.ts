@@ -7,6 +7,7 @@ import type { LocalSiteAssetUploadBackup } from './push-site-content-local-utils
 
 const {
 	buildLocalConfigPayload,
+	buildLocalDraftConfigPayload,
 	requestLocalEndpoint,
 	getLocalSiteConfigEndpoint,
 	shouldSyncFormalAssets,
@@ -40,6 +41,18 @@ test('buildLocalConfigPayload only includes changed card styles', () => {
 
 	assert.deepEqual(buildLocalConfigPayload(currentSiteContent, originalSiteContent, currentCardStyles, originalCardStyles), {
 		cardStyles: currentCardStyles
+	})
+})
+
+test('buildLocalDraftConfigPayload marks reverted site content for removal', () => {
+	const originalSiteContent = { meta: { title: 'A' } }
+	const currentSiteContent = { meta: { title: 'A' } }
+	const originalCardStyles = { musicCard: { width: 100 } }
+	const currentCardStyles = { musicCard: { width: 120 } }
+
+	assert.deepEqual(buildLocalDraftConfigPayload(currentSiteContent, originalSiteContent, currentCardStyles, originalCardStyles), {
+		cardStyles: currentCardStyles,
+		siteContent: null
 	})
 })
 
@@ -177,6 +190,24 @@ test('保存草稿不直接触碰正式源', async () => {
 
 	await clearSiteConfigDraft(tmpDir)
 	await fs.rm(tmpDir, { recursive: true, force: true })
+})
+
+test('保存草稿可清除已回到正式值的站点设置并保留布局草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-clear-'))
+	const layoutDraft = { musicCard: { width: 120 } }
+	try {
+		await writeSiteConfigDraft(tmpDir, {
+			siteContent: { meta: { title: 'old draft' } },
+			cardStyles: layoutDraft
+		})
+
+		const draft = await writeSiteConfigDraft(tmpDir, { siteContent: null })
+
+		assert.deepEqual(draft, { cardStyles: layoutDraft })
+		assert.deepEqual(await readSiteConfigDraft(tmpDir), { cardStyles: layoutDraft })
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
 })
 
 test('正式保存会写正式源并清理草稿', async () => {

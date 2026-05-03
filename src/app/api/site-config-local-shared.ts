@@ -14,6 +14,7 @@ type LocalAssetReference = {
 }
 
 const DRAFT_FILE_RELATIVE_PATH = path.join('data', 'site-config.draft.json')
+const SITE_CONFIG_DRAFT_KEYS = ['siteContent', 'cardStyles', 'customComponents', 'colorPresets'] as const
 
 export function resolveSiteConfigDraftPath(baseDir: string) {
 	return path.join(baseDir, DRAFT_FILE_RELATIVE_PATH)
@@ -45,7 +46,18 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 		current = {}
 	}
 
-	const merged = { ...current, ...payload }
+	const merged: SiteConfigDraftPayload = { ...current, ...payload }
+	for (const key of SITE_CONFIG_DRAFT_KEYS) {
+		if (merged[key] === null) {
+			delete merged[key]
+		}
+	}
+
+	if (Object.keys(merged).length === 0) {
+		await fs.rm(draftPath, { force: true })
+		return merged
+	}
+
 	await fs.writeFile(draftPath, JSON.stringify(merged, null, '\t'))
 
 	return merged

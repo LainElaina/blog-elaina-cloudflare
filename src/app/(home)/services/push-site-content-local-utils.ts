@@ -17,6 +17,26 @@ export function buildLocalConfigPayload<TSiteContent, TCardStyles>(
 	return payload
 }
 
+export function buildLocalDraftConfigPayload<TSiteContent, TCardStyles>(
+	siteContent: TSiteContent,
+	originalSiteContent: TSiteContent,
+	cardStyles: TCardStyles,
+	originalCardStyles: TCardStyles
+) {
+	const payload: { siteContent?: TSiteContent | null; cardStyles?: TCardStyles } = buildLocalConfigPayload(
+		siteContent,
+		originalSiteContent,
+		cardStyles,
+		originalCardStyles
+	)
+
+	if (!('siteContent' in payload)) {
+		payload.siteContent = null
+	}
+
+	return payload
+}
+
 export function getLocalSiteConfigEndpoint(action: 'draft' | 'publish') {
 	return action === 'draft' ? '/api/drafts/site-config' : '/api/publish/site-config'
 }
