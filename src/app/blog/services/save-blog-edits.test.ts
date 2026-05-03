@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave } from './save-blog-edits-utils.ts'
@@ -33,5 +34,14 @@ describe('buildLocalSaveFilePayloadsFromContents', () => {
 				'public/blogs/storage.json'
 			]
 		)
+	})
+})
+
+describe('saveBlogEdits remote storage read', () => {
+	it('远程 storage 读取失败时不应回退为空快照继续保存', async () => {
+		const source = (await fs.readFile(new URL('./save-blog-edits.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+		assert.match(source, /const storageRaw = await readTextFileFromRepo\([^\n]*storagePath, latestCommitSha\)/)
+		assert.doesNotMatch(source, /catch\s*\{\s*storageRaw = null\s*\}/)
 	})
 })

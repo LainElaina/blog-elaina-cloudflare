@@ -73,12 +73,7 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 
 	const treeItems: TreeItem[] = []
 	const storagePath = 'public/blogs/storage.json'
-	let storageRaw: string | null = null
-	try {
-		storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, storagePath, latestCommitSha)
-	} catch {
-		storageRaw = null
-	}
+	const storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, storagePath, latestCommitSha)
 
 	const artifacts = buildArtifactsForSaveBlogEdits({
 		originalItems,
