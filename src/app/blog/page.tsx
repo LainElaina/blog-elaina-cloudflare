@@ -373,19 +373,19 @@ export default function BlogPage() {
 					for (const payload of payloads) {
 						await saveLocalBlogPublishFile(payload, '保存博客产物', writtenFiles)
 					}
+					for (const slug of uniqueRemoved) {
+						await assertOk(
+							await fetch('/api/delete-dir', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ path: `public/blogs/${slug}` })
+							}),
+							'删除文章目录'
+						)
+					}
 				} catch (error) {
 					await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
 					throw error
-				}
-				for (const slug of uniqueRemoved) {
-					await assertOk(
-						await fetch('/api/delete-dir', {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ path: `public/blogs/${slug}` })
-						}),
-						'删除文章目录'
-					)
 				}
 
 				toast.success('保存成功！')
