@@ -36,6 +36,7 @@ export default function Page() {
 	const [editingBlogger, setEditingBlogger] = useState<Blogger | null>(null)
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 	const [avatarItems, setAvatarItems] = useState<Map<string, AvatarItem>>(new Map())
+	const avatarItemsRef = useRef(avatarItems)
 	const keyInputRef = useRef<HTMLInputElement>(null)
 
 	const { isAuth, setPrivateKey } = useAuthStore()
@@ -172,6 +173,16 @@ export default function Page() {
 
 	const isDev = process.env.NODE_ENV === 'development'
 	const buttonText = isDev || isAuth ? '保存' : '导入密钥'
+
+	useEffect(() => {
+		avatarItemsRef.current = avatarItems
+	}, [avatarItems])
+
+	useEffect(() => {
+		return () => {
+			revokeFilePreviewUrls(avatarItemsRef.current.values())
+		}
+	}, [])
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
