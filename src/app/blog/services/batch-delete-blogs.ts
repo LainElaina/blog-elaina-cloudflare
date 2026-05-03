@@ -21,7 +21,7 @@ export async function batchDeleteBlogs(slugs: string[]): Promise<void> {
 	for (const slug of uniqueSlugs) {
 		toast.info(`正在收集 ${slug} 文件...`)
 		const basePath = `public/blogs/${slug}`
-		const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, GITHUB_CONFIG.BRANCH)
+		const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, latestCommitSha)
 
 		for (const path of files) {
 			treeItems.push({
@@ -34,7 +34,7 @@ export async function batchDeleteBlogs(slugs: string[]): Promise<void> {
 	}
 
 	toast.info('正在更新索引...')
-	const indexJson = await removeBlogsFromIndex(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, uniqueSlugs, GITHUB_CONFIG.BRANCH)
+	const indexJson = await removeBlogsFromIndex(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, uniqueSlugs, latestCommitSha)
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(indexJson), 'base64')
 	treeItems.push({
 		path: 'public/blogs/index.json',

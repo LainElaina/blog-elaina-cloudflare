@@ -71,7 +71,7 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 		GITHUB_CONFIG.OWNER,
 		GITHUB_CONFIG.REPO,
 		'src/app/bloggers/list.json',
-		GITHUB_CONFIG.BRANCH
+		latestCommitSha
 	)
 
 	if (previousListJson) {

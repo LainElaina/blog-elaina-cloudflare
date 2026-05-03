@@ -48,7 +48,7 @@ export async function deleteBlog(slug: string): Promise<void> {
 	const basePath = `public/blogs/${slug}`
 
 	toast.info('正在收集文章文件...')
-	const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, GITHUB_CONFIG.BRANCH)
+	const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, latestCommitSha)
 	if (files.length === 0) {
 		throw new Error('文章不存在或已删除')
 	}
@@ -63,8 +63,8 @@ export async function deleteBlog(slug: string): Promise<void> {
 	toast.info('正在更新正式产物...')
 	const artifacts = await buildDeleteArtifactContents({
 		slug,
-		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', GITHUB_CONFIG.BRANCH),
-		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH)
+		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha),
+		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha)
 	})
 
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifacts.index), 'base64')

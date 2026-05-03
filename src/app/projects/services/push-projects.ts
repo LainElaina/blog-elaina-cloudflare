@@ -68,7 +68,7 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 		GITHUB_CONFIG.OWNER,
 		GITHUB_CONFIG.REPO,
 		'src/app/projects/list.json',
-		GITHUB_CONFIG.BRANCH
+		latestCommitSha
 	)
 
 	if (previousListJson) {

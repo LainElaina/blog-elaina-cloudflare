@@ -89,7 +89,7 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 		GITHUB_CONFIG.OWNER,
 		GITHUB_CONFIG.REPO,
 		'src/app/pictures/list.json',
-		GITHUB_CONFIG.BRANCH
+		latestCommitSha
 	)
 
 	if (previousListJson) {

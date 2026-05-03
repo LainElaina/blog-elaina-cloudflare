@@ -199,8 +199,8 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 		form,
 		dateStr,
 		coverPath,
-		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', GITHUB_CONFIG.BRANCH),
-		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', GITHUB_CONFIG.BRANCH)
+		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha),
+		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha)
 	})
 
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.index), 'base64')

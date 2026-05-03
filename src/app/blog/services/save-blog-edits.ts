@@ -75,7 +75,7 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 	const storagePath = 'public/blogs/storage.json'
 	let storageRaw: string | null = null
 	try {
-		storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, storagePath, GITHUB_CONFIG.BRANCH)
+		storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, storagePath, latestCommitSha)
 	} catch {
 		storageRaw = null
 	}
@@ -90,7 +90,7 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 	for (const slug of artifacts.removedSlugs) {
 		toast.info(`正在收集 ${slug} 文件...`)
 		const basePath = `public/blogs/${slug}`
-		const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, GITHUB_CONFIG.BRANCH)
+		const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, latestCommitSha)
 
 		for (const path of files) {
 			treeItems.push({

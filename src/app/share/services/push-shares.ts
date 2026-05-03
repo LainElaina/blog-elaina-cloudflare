@@ -104,7 +104,7 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	}
 
 	const updatedShares = applyShareLogoPathUpdates(shares, nextLogoPaths)
-	const existingStorageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/storage.json', GITHUB_CONFIG.BRANCH)
+	const existingStorageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/storage.json', latestCommitSha)
 	const artifactContents = buildRemoteShareArtifactContents({
 		shares: updatedShares,
 		existingStorageRaw,
