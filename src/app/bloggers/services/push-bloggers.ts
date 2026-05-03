@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -56,6 +56,50 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 				// Update blogger avatar URL
 				updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: publicPath } : b))
 			}
+		}
+	}
+
+	const currentAvatarUrls = new Set<string>()
+	for (const blogger of updatedBloggers) {
+		if (blogger.avatar) {
+			currentAvatarUrls.add(blogger.avatar)
+		}
+	}
+
+	const previousListJson = await readTextFileFromRepo(
+		token,
+		GITHUB_CONFIG.OWNER,
+		GITHUB_CONFIG.REPO,
+		'src/app/bloggers/list.json',
+		GITHUB_CONFIG.BRANCH
+	)
+
+	if (previousListJson) {
+		try {
+			const previousBloggers: Blogger[] = JSON.parse(previousListJson)
+			const previousAvatarUrls = new Set<string>()
+
+			for (const blogger of previousBloggers) {
+				if (blogger.avatar) {
+					previousAvatarUrls.add(blogger.avatar)
+				}
+			}
+
+			for (const url of previousAvatarUrls) {
+				if (!currentAvatarUrls.has(url) && url.startsWith('/images/blogger/')) {
+					const filename = url.replace('/images/blogger/', '')
+					const path = `public/images/blogger/${filename}`
+					treeItems.push({
+						path,
+						mode: '100644',
+						type: 'blob',
+						sha: null
+					})
+				}
+			}
+		} catch (error) {
+			console.error('Failed to parse previous bloggers list.json:', error)
+			throw new Error('远程友链列表解析失败，请修复 src/app/bloggers/list.json 后重试')
 		}
 	}
 
