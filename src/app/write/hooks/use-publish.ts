@@ -192,18 +192,18 @@ export function usePublish() {
 					for (const payload of payloads) {
 						await saveLocalBlogPublishFile(payload, '保存删除索引产物', writtenFiles)
 					}
+					await assertOk(
+						await fetch('/api/delete-dir', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
+						}),
+						'删除文章目录'
+					)
 				} catch (error) {
 					await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
 					throw error
 				}
-				await assertOk(
-					await fetch('/api/delete-dir', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ path: `public/blogs/${targetSlug}` })
-					}),
-					'删除文章目录'
-				)
 
 				toast.success('删除成功！')
 			} else {
