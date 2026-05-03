@@ -73,7 +73,7 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	toast.info('正在准备文件...')
 
 	const treeItems: TreeItem[] = []
-	const uploadedHashes = new Set<string>()
+	const uploadedLogoPaths = new Map<string, string>()
 	const nextLogoPaths = new Map<string, string>()
 
 	if (logoItems && logoItems.size > 0) {
@@ -85,7 +85,7 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/share/${filename}`
 
-				if (!uploadedHashes.has(hash)) {
+				if (!uploadedLogoPaths.has(hash)) {
 					const path = `public/images/share/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(logoItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -95,10 +95,10 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedHashes.add(hash)
+					uploadedLogoPaths.set(hash, publicPath)
 				}
 
-				nextLogoPaths.set(url, publicPath)
+				nextLogoPaths.set(url, uploadedLogoPaths.get(hash)!)
 			}
 		}
 	}
