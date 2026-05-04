@@ -131,9 +131,15 @@ export async function pushSiteContentLocal(
 		throw error
 	}
 
-	await Promise.all(deleteTasks.map(deleteTask => deleteTask()))
+	await cleanupLocalSiteAssets(deleteTasks)
 
 	toast.success(action === 'draft' ? '本地草稿已保存' : '已正式保存到本地文件')
+}
+
+async function cleanupLocalSiteAssets(deleteTasks: Array<() => Promise<void>>) {
+	for (const deleteTask of deleteTasks) {
+		await deleteTask().catch(error => console.warn('删除未使用的站点资源失败:', error))
+	}
 }
 
 async function deleteFile(path: string): Promise<void> {

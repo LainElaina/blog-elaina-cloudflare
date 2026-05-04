@@ -6,7 +6,7 @@ test('local site config publish deletes removed assets only after writing config
 	const source = await fs.readFile(new URL('./push-site-content-local.ts', import.meta.url), 'utf-8')
 	const configWriteIndex = source.indexOf('await requestLocalEndpoint(\n\t\t\t\tfetch,\n\t\t\t\tgetLocalSiteConfigEndpoint(action)')
 	const rollbackIndex = source.indexOf('await rollbackLocalSiteAssetUploads(uploadedFiles)')
-	const deleteAssetsIndex = source.indexOf('await Promise.all(deleteTasks.map(deleteTask => deleteTask()))')
+	const deleteAssetsIndex = source.indexOf('await cleanupLocalSiteAssets(deleteTasks)')
 
 	assert.notEqual(configWriteIndex, -1)
 	assert.notEqual(deleteAssetsIndex, -1)
@@ -19,5 +19,6 @@ test('local site config publish deletes removed assets only after writing config
 	assert.match(source, /catch \(error\) \{\n\s*await rollbackLocalSiteAssetUploads\(uploadedFiles\)\n\s*throw error\n\s*\}/)
 	assert.match(source, /const deleteTasks: Array<\(\) => Promise<void>> = \[\]/)
 	assert.match(source, /deleteTasks\.push\(\(\) => deleteFile\(`public\$\{normalizedUrl\}`\)\)/)
+	assert.match(source, /async function cleanupLocalSiteAssets\(deleteTasks: Array<\(\) => Promise<void>>\) \{\n\s*for \(const deleteTask of deleteTasks\) \{\n\s*await deleteTask\(\)\.catch\(error => console\.warn\('删除未使用的站点资源失败:', error\)\)/)
 	assert.doesNotMatch(source, /uploadPromises\.push\(deleteFile/)
 })
