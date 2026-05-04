@@ -1,7 +1,7 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem, readTextFileFromRepo } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem, readTextFileFromRepo, listRepoFilesRecursive } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
-import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
-import type { BlogIndexItem } from '@/lib/blog-index'
+import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
+import { prepareBlogStaticArtifacts, serializeCategoriesConfig, type BlogIndexItem } from '@/lib/blog-index'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
@@ -83,6 +83,35 @@ export function assertEditableSlug(params: Pick<PushBlogParams, 'form' | 'mode' 
 	}
 }
 
+export function hasExistingBlogSlug(params: { slug: string; storageRaw: string | null; indexRaw: string | null }): boolean {
+	assertSafeBlogSlug(params.slug)
+	const storage = parseBlogStorageDB(params.storageRaw)
+	if (storage.blogs[params.slug]) {
+		return true
+	}
+	if (!params.indexRaw) {
+		return false
+	}
+	try {
+		const index = JSON.parse(params.indexRaw)
+		return Array.isArray(index) && index.some(item => item?.slug === params.slug)
+	} catch {
+		return false
+	}
+}
+
+export function assertCreateBlogSlugAvailable(params: {
+	slug: string
+	storageRaw: string | null
+	indexRaw: string | null
+	hasExistingFiles?: boolean
+}): void {
+	assertSafeBlogSlug(params.slug)
+	if (params.hasExistingFiles === true || hasExistingBlogSlug(params)) {
+		throw new Error('slug 已存在，请更换 slug 或进入编辑模式')
+	}
+}
+
 export function assertPublishableOutput(params: Pick<PushBlogParams, 'form' | 'images'>): void {
 	assertPublishableBlog(params)
 }
@@ -107,6 +136,17 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 
 	const basePath = `public/blogs/${form.slug}`
 	const commitMessage = mode === 'edit' ? `更新文章: ${form.slug}` : `新增文章: ${form.slug}`
+	const storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha)
+	const indexRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha)
+	if (mode === 'create') {
+		const existingFiles = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, latestCommitSha)
+		assertCreateBlogSlugAvailable({
+			slug: form.slug,
+			storageRaw,
+			indexRaw,
+			hasExistingFiles: existingFiles.length > 0
+		})
+	}
 
 	const allLocalImages: Array<{ img: Extract<ImageItem, { type: 'file' }>; id: string }> = []
 	for (const img of images || []) {
@@ -200,8 +240,8 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 		form,
 		dateStr,
 		coverPath,
-		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha),
-		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha)
+		readStorageRaw: async () => storageRaw,
+		fallbackReadIndexRaw: async () => indexRaw
 	})
 
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.index), 'base64')

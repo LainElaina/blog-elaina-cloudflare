@@ -8,7 +8,8 @@ import {
 	assertEditableSlug,
 	assertPublishableOutput,
 	buildRemoteArtifactContents,
-	replacePublishLocalImagePlaceholders
+	replacePublishLocalImagePlaceholders,
+	assertCreateBlogSlugAvailable
 } from '../services/push-blog'
 import { deleteBlog, buildDeleteArtifactContents } from '../services/delete-blog'
 import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
@@ -74,6 +75,21 @@ export function usePublish() {
 		let coverPath: string | undefined
 
 		try {
+			if (mode === 'create') {
+				const [storageResponse, indexResponse, mdResponse, configResponse] = await Promise.all([
+					fetch('/blogs/storage.json', { cache: 'no-store' }),
+					fetch('/blogs/index.json', { cache: 'no-store' }),
+					fetch(`/blogs/${form.slug}/index.md`, { cache: 'no-store' }),
+					fetch(`/blogs/${form.slug}/config.json`, { cache: 'no-store' })
+				])
+				assertCreateBlogSlugAvailable({
+					slug: form.slug,
+					storageRaw: storageResponse.ok ? await storageResponse.text() : null,
+					indexRaw: indexResponse.ok ? await indexResponse.text() : null,
+					hasExistingFiles: mdResponse.ok || configResponse.ok
+				})
+			}
+
 			const allLocalImages: Array<{ file: File; id: string; hash?: string }> = []
 			for (const img of images || []) {
 				if (img.type === 'file') {

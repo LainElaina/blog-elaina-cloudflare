@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
-import { assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, type PushBlogParams } from './push-blog'
+import { assertCreateBlogSlugAvailable, assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, hasExistingBlogSlug, type PushBlogParams } from './push-blog'
 
 describe('assertPublishableBlog', () => {
 	it('阻止失效本地图片占位符进入正式发布链路', () => {
@@ -43,6 +43,57 @@ describe('assertPublishableBlog', () => {
 		)
 	})
 })
+describe('create blog slug availability', () => {
+	it('识别 storage 与 index 中已存在的 slug', () => {
+		assert.equal(
+			hasExistingBlogSlug({
+				slug: 'post-1',
+				storageRaw: JSON.stringify({
+					version: 1,
+					updatedAt: '2026-03-27T10:00:00.000Z',
+					blogs: {
+						'post-1': {
+							slug: 'post-1',
+							title: '标题',
+							tags: [],
+							date: '2026-03-27T10:00:00.000Z',
+							status: 'published'
+						}
+					}
+				}),
+				indexRaw: null
+			}),
+			true
+		)
+		assert.equal(
+			hasExistingBlogSlug({
+				slug: 'post-2',
+				storageRaw: null,
+				indexRaw: JSON.stringify([{ slug: 'post-2', title: '标题', tags: [], date: '2026-03-27T10:00:00.000Z' }])
+			}),
+			true
+		)
+		assert.equal(hasExistingBlogSlug({ slug: 'post-3', storageRaw: null, indexRaw: '[]' }), false)
+	})
+
+	it('创建模式发现既有文章文件或元数据时应阻止发布', () => {
+		assert.throws(
+			() => assertCreateBlogSlugAvailable({ slug: 'post-1', storageRaw: null, indexRaw: null, hasExistingFiles: true }),
+			/slug 已存在/
+		)
+		assert.throws(
+			() =>
+				assertCreateBlogSlugAvailable({
+					slug: 'post-2',
+					storageRaw: null,
+					indexRaw: JSON.stringify([{ slug: 'post-2', title: '标题', tags: [], date: '2026-03-27T10:00:00.000Z' }])
+				}),
+			/slug 已存在/
+		)
+		assert.doesNotThrow(() => assertCreateBlogSlugAvailable({ slug: 'post-3', storageRaw: null, indexRaw: '[]', hasExistingFiles: false }))
+	})
+})
+
 describe('buildBlogUpsertItem', () => {
 	it('将 folderPath 与 favorite 透传到 upsertItem', () => {
 		const form: PushBlogParams['form'] = {
@@ -91,6 +142,38 @@ describe('buildRemoteArtifactContents', () => {
 		assert.equal(folders[0].path, '/写作')
 		assert.equal(folders[0].children?.[0]?.path, '/写作/技术')
 		assert.equal(JSON.parse(artifacts.storage).blogs['post-1'].favorite, true)
+	})
+})
+
+describe('pushBlog create slug checks', () => {
+	it('远端创建模式应在上传图片和创建文件前检查重复 slug', async () => {
+		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const checkIndex = source.indexOf("if (mode === 'create')")
+		const uploadIndex = source.indexOf("toast.info('正在上传图片...')")
+		const createFileIndex = source.indexOf("toast.info('正在创建文件...')")
+
+		assert.notEqual(checkIndex, -1)
+		assert.notEqual(uploadIndex, -1)
+		assert.notEqual(createFileIndex, -1)
+		assert.ok(checkIndex < uploadIndex)
+		assert.ok(checkIndex < createFileIndex)
+		assert.match(source, /listRepoFilesRecursive\([\s\S]*?basePath,[^\n]*latestCommitSha\)/)
+		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw,\n\s*indexRaw,\n\s*hasExistingFiles: existingFiles\.length > 0\n\s*\}\)/)
+		assert.match(source, /readStorageRaw: async \(\) => storageRaw/)
+		assert.match(source, /fallbackReadIndexRaw: async \(\) => indexRaw/)
+	})
+
+	it('本地创建模式应在图片上传前检查重复 slug', async () => {
+		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const checkIndex = source.indexOf("if (mode === 'create')")
+		const uploadIndex = source.indexOf('await uploadLocalBlogPublishImage')
+
+		assert.notEqual(checkIndex, -1)
+		assert.notEqual(uploadIndex, -1)
+		assert.ok(checkIndex < uploadIndex)
+		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/index\.md`, \{ cache: 'no-store' \}\)/)
+		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/config\.json`, \{ cache: 'no-store' \}\)/)
+		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null,\n\s*indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null,\n\s*hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok\n\s*\}\)/)
 	})
 })
 
