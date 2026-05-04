@@ -13,3 +13,13 @@ test('remote bloggers save removes avatar files no longer referenced by list', a
 	assert.match(source, /throw new Error\('远程友链列表解析失败，请修复 src\/app\/bloggers\/list\.json 后重试'\)/)
 	assert.doesNotMatch(source, /正在检查需要删除的文件/)
 })
+
+test('remote bloggers save reuses first uploaded avatar path for duplicate hashes', async () => {
+	const source = (await fs.readFile(new URL('./services/push-bloggers.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+	assert.match(source, /const uploadedAvatarPaths = new Map<string, string>\(\)/)
+	assert.match(source, /const publicPath = `\/images\/blogger\/\$\{filename\}`/)
+	assert.match(source, /if \(!uploadedAvatarPaths\.has\(hash\)\) \{[\s\S]*?uploadedAvatarPaths\.set\(hash, publicPath\)[\s\S]*?\}/)
+	assert.match(source, /const uploadedPath = uploadedAvatarPaths\.get\(hash\)!\n\s*updatedBloggers = updatedBloggers\.map\(b => \(b\.url === url \? \{ \.\.\.b, avatar: uploadedPath \} : b\)\)/)
+	assert.doesNotMatch(source, /uploadedHashes/)
+})

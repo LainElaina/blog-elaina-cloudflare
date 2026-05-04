@@ -27,7 +27,7 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 	toast.info('正在准备文件...')
 
 	const treeItems: TreeItem[] = []
-	const uploadedHashes = new Set<string>()
+	const uploadedAvatarPaths = new Map<string, string>()
 	let updatedBloggers = [...bloggers]
 
 	// Process avatar uploads
@@ -40,7 +40,7 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/blogger/${filename}`
 
-				if (!uploadedHashes.has(hash)) {
+				if (!uploadedAvatarPaths.has(hash)) {
 					const path = `public/images/blogger/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(avatarItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -50,11 +50,11 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedHashes.add(hash)
+					uploadedAvatarPaths.set(hash, publicPath)
 				}
 
-				// Update blogger avatar URL
-				updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: publicPath } : b))
+				const uploadedPath = uploadedAvatarPaths.get(hash)!
+				updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: uploadedPath } : b))
 			}
 		}
 	}
