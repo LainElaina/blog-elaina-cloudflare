@@ -319,6 +319,28 @@ describe('blog storage model', () => {
 		)
 	})
 
+	it('storage 缺失但 index 损坏时会失败而不是重建空库', async () => {
+		await assert.rejects(
+			() =>
+				prepareBlogStaticArtifacts({
+					readStorageRaw: async () => null,
+					fallbackReadIndexRaw: async () => '{invalid json'
+				}),
+			/博客 index\.json 解析失败/
+		)
+	})
+
+	it('storage 缺失但 index 不是数组时会失败而不是重建空库', async () => {
+		await assert.rejects(
+			() =>
+				prepareBlogStaticArtifacts({
+					readStorageRaw: async () => null,
+					fallbackReadIndexRaw: async () => JSON.stringify({ blogs: [] })
+				}),
+			/博客 index\.json 格式错误/
+		)
+	})
+
 	it('博客列表保存时遇到损坏 storage 会失败而不是重建空库', () => {
 		assert.throws(
 			() =>

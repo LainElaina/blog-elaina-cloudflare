@@ -3,7 +3,6 @@
 import type { BlogIndexItem } from '@/app/blog/types'
 import {
 	buildBlogStorageFromIndex,
-	createEmptyBlogStorageDB,
 	exportStaticBlogArtifacts,
 	parseBlogStorageDB,
 	parseRequiredBlogStorageDB,
@@ -52,14 +51,16 @@ export async function prepareBlogStaticArtifacts(params: {
 	if (!storageRaw && params.fallbackReadIndexRaw) {
 		const fallbackRaw = await params.fallbackReadIndexRaw()
 		if (fallbackRaw) {
+			let parsed: unknown
 			try {
-				const parsed = JSON.parse(fallbackRaw)
-				if (Array.isArray(parsed)) {
-					db = buildBlogStorageFromIndex(parsed as BlogIndexItem[], now)
-				}
+				parsed = JSON.parse(fallbackRaw)
 			} catch {
-				db = createEmptyBlogStorageDB(now)
+				throw new Error('博客 index.json 解析失败，请修复 public/blogs/index.json 后重试')
 			}
+			if (!Array.isArray(parsed)) {
+				throw new Error('博客 index.json 格式错误，请修复 public/blogs/index.json 后重试')
+			}
+			db = buildBlogStorageFromIndex(parsed as BlogIndexItem[], now)
 		}
 	}
 
