@@ -26,7 +26,7 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 	toast.info('正在准备文件...')
 
 	const treeItems: TreeItem[] = []
-	const uploadedHashes = new Set<string>()
+	const uploadedProjectImagePaths = new Map<string, string>()
 	let updatedProjects = [...projects]
 
 	if (imageItems && imageItems.size > 0) {
@@ -38,7 +38,7 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/project/${filename}`
 
-				if (!uploadedHashes.has(hash)) {
+				if (!uploadedProjectImagePaths.has(hash)) {
 					const path = `public/images/project/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(imageItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -48,10 +48,11 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedHashes.add(hash)
+					uploadedProjectImagePaths.set(hash, publicPath)
 				}
 
-				updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: publicPath } : p))
+				const uploadedPath = uploadedProjectImagePaths.get(hash)!
+				updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: uploadedPath } : p))
 			}
 		}
 	}

@@ -12,3 +12,13 @@ test('remote projects save removes image files no longer referenced by list', as
 	assert.match(source, /if \(!currentImageUrls\.has\(url\) && url\.startsWith\('\/images\/project\/'\)\) \{\n\s*const filename = url\.replace\('\/images\/project\/', ''\)\n\s*const path = `public\/images\/project\/\$\{filename\}`[\s\S]*?sha: null/)
 	assert.match(source, /throw new Error\('远程项目列表解析失败，请修复 src\/app\/projects\/list\.json 后重试'\)/)
 })
+
+test('remote projects save reuses first uploaded image path for duplicate hashes', async () => {
+	const source = (await fs.readFile(new URL('./services/push-projects.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+	assert.match(source, /const uploadedProjectImagePaths = new Map<string, string>\(\)/)
+	assert.match(source, /const publicPath = `\/images\/project\/\$\{filename\}`/)
+	assert.match(source, /if \(!uploadedProjectImagePaths\.has\(hash\)\) \{[\s\S]*?uploadedProjectImagePaths\.set\(hash, publicPath\)[\s\S]*?\}/)
+	assert.match(source, /const uploadedPath = uploadedProjectImagePaths\.get\(hash\)!\n\s*updatedProjects = updatedProjects\.map\(p => \(p\.url === url \? \{ \.\.\.p, image: uploadedPath \} : p\)\)/)
+	assert.doesNotMatch(source, /uploadedHashes/)
+})
