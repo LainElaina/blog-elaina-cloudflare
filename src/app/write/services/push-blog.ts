@@ -120,7 +120,7 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 
 	toast.info('正在准备文件...')
 
-	const uploadedHashes = new Set<string>()
+	const uploadedImagePaths = new Map<string, string>()
 	const imagePaths = new Map<string, string>()
 	let mdToUpload = form.md
 	let coverPath: string | undefined
@@ -135,7 +135,7 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 			const filename = `${hash}${ext}`
 			const publicPath = `/blogs/${form.slug}/${filename}`
 
-			if (!uploadedHashes.has(hash)) {
+			if (!uploadedImagePaths.has(hash)) {
 				const path = `${basePath}/${filename}`
 				const contentBase64 = await fileToBase64NoPrefix(img.file)
 				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -145,14 +145,15 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 					type: 'blob',
 					sha: blobData.sha
 				})
-				uploadedHashes.add(hash)
+				uploadedImagePaths.set(hash, publicPath)
 			}
 
-			placeholderReplacements.set(id, publicPath)
-			imagePaths.set(id, publicPath)
+			const uploadedPath = uploadedImagePaths.get(hash)!
+			placeholderReplacements.set(id, uploadedPath)
+			imagePaths.set(id, uploadedPath)
 
 			if (cover?.type === 'file' && cover.id === id) {
-				coverPath = publicPath
+				coverPath = uploadedPath
 			}
 		}
 		mdToUpload = replacePublishLocalImagePlaceholders(mdToUpload, placeholderReplacements)

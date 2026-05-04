@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, type PushBlogParams } from './push-blog'
@@ -90,5 +91,18 @@ describe('buildRemoteArtifactContents', () => {
 		assert.equal(folders[0].path, '/写作')
 		assert.equal(folders[0].children?.[0]?.path, '/写作/技术')
 		assert.equal(JSON.parse(artifacts.storage).blogs['post-1'].favorite, true)
+	})
+})
+
+describe('pushBlog image upload de-duplication', () => {
+	it('同 hash 图片应复用首次上传的实际路径', async () => {
+		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+		assert.match(source, /const uploadedImagePaths = new Map<string, string>\(\)/)
+		assert.match(source, /const publicPath = `\/blogs\/\$\{form\.slug\}\/\$\{filename\}`/)
+		assert.match(source, /if \(!uploadedImagePaths\.has\(hash\)\) \{[\s\S]*?uploadedImagePaths\.set\(hash, publicPath\)[\s\S]*?\}/)
+		assert.match(source, /const uploadedPath = uploadedImagePaths\.get\(hash\)!\n\s*placeholderReplacements\.set\(id, uploadedPath\)\n\s*imagePaths\.set\(id, uploadedPath\)/)
+		assert.match(source, /coverPath = uploadedPath/)
+		assert.doesNotMatch(source, /uploadedHashes/)
 	})
 })
