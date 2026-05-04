@@ -10,8 +10,16 @@ export async function POST(request: NextRequest) {
 
 	try {
 		const cwd = process.cwd()
-		const payload = await request.json().catch(() => ({}))
-		const publishPayload = await resolveSiteConfigPublishPayload(cwd, payload)
+		let payload: unknown
+		try {
+			payload = await request.json()
+		} catch {
+			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
+		}
+		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
+		}
+		const publishPayload = await resolveSiteConfigPublishPayload(cwd, payload as Record<string, unknown>)
 		const touchedFormal = await publishSiteConfigDraft(cwd, publishPayload)
 		return NextResponse.json({ success: true, touchedFormal, clearedDraft: resolveSiteConfigDraftPath(cwd) })
 	} catch (error: any) {
