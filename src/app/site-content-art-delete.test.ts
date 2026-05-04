@@ -12,7 +12,15 @@ test('site config art image deletion skips external urls', async () => {
 
 	assert.match(
 		remoteSource,
-		/for \(const art of removedArtImages\) \{\n\s*if \(!art\.url\.startsWith\('\/images\/art\/'\)\) continue\n\n\s*const normalizedUrlPath = art\.url\.startsWith\('\/'\) \? art\.url : `\/\$\{art\.url\}`\n\s*const path = `public\$\{normalizedUrlPath\}`/
+		/for \(const art of removedArtImages\) \{\n\s*if \(!art\.url\.startsWith\('\/images\/art\/'\)\) continue\n\n\s*const normalizedUrlPath = art\.url\.startsWith\('\/'\) \? art\.url : `\/\$\{art\.url\}`\n\s*removedArtImagePaths\.push\(`public\$\{normalizedUrlPath\}`\)/
+	)
+	assert.match(
+		remoteSource,
+		/const removedArtImagePaths: string\[\] = \[\][\s\S]*?removedArtImagePaths\.push\(`public\$\{normalizedUrlPath\}`\)[\s\S]*?listRepoFilesRecursive\(token, GITHUB_CONFIG\.OWNER, GITHUB_CONFIG\.REPO, 'public\/images\/art', latestCommitSha\)[\s\S]*?for \(const path of removedArtImagePaths\) \{\n\s*if \(!existingRepoFiles\.has\(path\)\) continue[\s\S]*?sha: null/
+	)
+	assert.match(
+		remoteSource,
+		/const removedBackgroundImagePaths: string\[\] = \[\][\s\S]*?removedBackgroundImagePaths\.push\(`public\$\{normalizedUrlPath\}`\)[\s\S]*?listRepoFilesRecursive\(token, GITHUB_CONFIG\.OWNER, GITHUB_CONFIG\.REPO, 'public\/images\/background', latestCommitSha\)[\s\S]*?for \(const path of removedBackgroundImagePaths\) \{\n\s*if \(!existingRepoFiles\.has\(path\)\) continue[\s\S]*?sha: null/
 	)
 	assert.match(
 		localSource,

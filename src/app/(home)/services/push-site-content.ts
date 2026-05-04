@@ -87,17 +87,25 @@ export async function pushSiteContent(
 
 	// Handle art images deletion
 	if (removedArtImages && removedArtImages.length > 0) {
+		const removedArtImagePaths: string[] = []
 		for (const art of removedArtImages) {
 			if (!art.url.startsWith('/images/art/')) continue
 
 			const normalizedUrlPath = art.url.startsWith('/') ? art.url : `/${art.url}`
-			const path = `public${normalizedUrlPath}`
-			treeItems.push({
-				path,
-				mode: '100644',
-				type: 'blob',
-				sha: null
-			})
+			removedArtImagePaths.push(`public${normalizedUrlPath}`)
+		}
+
+		if (removedArtImagePaths.length > 0) {
+			const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/art', latestCommitSha))
+			for (const path of removedArtImagePaths) {
+				if (!existingRepoFiles.has(path)) continue
+				treeItems.push({
+					path,
+					mode: '100644',
+					type: 'blob',
+					sha: null
+				})
+			}
 		}
 	}
 
@@ -130,18 +138,26 @@ export async function pushSiteContent(
 
 	// Handle background images deletion
 	if (removedBackgroundImages && removedBackgroundImages.length > 0) {
+		const removedBackgroundImagePaths: string[] = []
 		for (const bg of removedBackgroundImages) {
 			// Only delete if URL starts with /images/background/ (local file)
 			if (!bg.url.startsWith('/images/background/')) continue
 
 			const normalizedUrlPath = bg.url.startsWith('/') ? bg.url : `/${bg.url}`
-			const path = `public${normalizedUrlPath}`
-			treeItems.push({
-				path,
-				mode: '100644',
-				type: 'blob',
-				sha: null
-			})
+			removedBackgroundImagePaths.push(`public${normalizedUrlPath}`)
+		}
+
+		if (removedBackgroundImagePaths.length > 0) {
+			const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/background', latestCommitSha))
+			for (const path of removedBackgroundImagePaths) {
+				if (!existingRepoFiles.has(path)) continue
+				treeItems.push({
+					path,
+					mode: '100644',
+					type: 'blob',
+					sha: null
+				})
+			}
 		}
 	}
 
