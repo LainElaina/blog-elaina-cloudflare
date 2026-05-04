@@ -21,10 +21,26 @@ export async function buildDeleteArtifactContents(params: {
 	fallbackReadIndexRaw: () => Promise<string | null>
 }): Promise<{ index: string; categories: string; folders: string; storage: string }> {
 	assertSafeBlogSlug(params.slug)
+	return buildBatchDeleteArtifactContents({
+		slugs: [params.slug],
+		readStorageRaw: params.readStorageRaw,
+		fallbackReadIndexRaw: params.fallbackReadIndexRaw
+	})
+}
+
+export async function buildBatchDeleteArtifactContents(params: {
+	slugs: string[]
+	readStorageRaw: () => Promise<string | null>
+	fallbackReadIndexRaw: () => Promise<string | null>
+}): Promise<{ index: string; categories: string; folders: string; storage: string }> {
+	const uniqueSlugs = Array.from(new Set(params.slugs))
+	for (const slug of uniqueSlugs) {
+		assertSafeBlogSlug(slug)
+	}
 	const artifacts = await prepareBlogStaticArtifacts({
 		readStorageRaw: params.readStorageRaw,
 		fallbackReadIndexRaw: params.fallbackReadIndexRaw,
-		removeSlugs: [params.slug]
+		removeSlugs: uniqueSlugs
 	})
 
 	return {

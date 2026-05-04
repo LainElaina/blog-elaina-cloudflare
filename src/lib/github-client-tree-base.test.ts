@@ -32,9 +32,10 @@ test('createTree resolves a base commit sha to its tree sha before posting', asy
 test('remote save flows read existing artifacts from the captured base commit', async () => {
 	const batchDeleteBlogs = await readSource('../app/blog/services/batch-delete-blogs.ts')
 	assert.match(batchDeleteBlogs, /const latestCommitSha = refData\.sha[\s\S]*?listRepoFilesRecursive\([^\n]*latestCommitSha\)/)
-	assert.match(batchDeleteBlogs, /const latestCommitSha = refData\.sha[\s\S]*?removeBlogsFromIndex\([^\n]*latestCommitSha\)/)
+	assert.match(batchDeleteBlogs, /readTextFileFromRepo\([^\n]*'public\/blogs\/storage\.json', latestCommitSha\)/)
+	assert.match(batchDeleteBlogs, /readTextFileFromRepo\([^\n]*'public\/blogs\/index\.json', latestCommitSha\)/)
 	assert.doesNotMatch(batchDeleteBlogs, /listRepoFilesRecursive\([^\n]*GITHUB_CONFIG\.BRANCH\)/)
-	assert.doesNotMatch(batchDeleteBlogs, /removeBlogsFromIndex\([^\n]*GITHUB_CONFIG\.BRANCH\)/)
+	assert.doesNotMatch(batchDeleteBlogs, /readTextFileFromRepo\([^\n]*GITHUB_CONFIG\.BRANCH\)/)
 
 	const saveBlogEdits = await readSource('../app/blog/services/save-blog-edits.ts')
 	assert.match(saveBlogEdits, /readTextFileFromRepo\([^\n]*storagePath, latestCommitSha\)/)
