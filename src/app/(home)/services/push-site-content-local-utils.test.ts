@@ -239,6 +239,49 @@ test('保存草稿可清除已回到正式值的站点设置并保留布局草�
 	}
 })
 
+test('损坏草稿不会在保存时被空对象覆盖', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-broken-write-'))
+	try {
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, '{invalid json')
+
+		await assert.rejects(() => writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'draft' } } }), /站点配置草稿解析失败/)
+		assert.equal(await fs.readFile(draftPath, 'utf-8'), '{invalid json')
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('读取与发布损坏草稿会失败而不是当作无草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-broken-read-'))
+	try {
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, '{invalid json')
+
+		await assert.rejects(() => readSiteConfigDraft(tmpDir), /站点配置草稿解析失败/)
+		await assert.rejects(() => resolveSiteConfigPublishPayload(tmpDir, {}), /站点配置草稿解析失败/)
+		assert.equal(await fs.readFile(draftPath, 'utf-8'), '{invalid json')
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('草稿文件不是对象时会失败而不是继续发布', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-invalid-shape-'))
+	try {
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, JSON.stringify([]))
+
+		await assert.rejects(() => readSiteConfigDraft(tmpDir), /站点配置草稿格式错误/)
+		await assert.rejects(() => resolveSiteConfigPublishPayload(tmpDir, {}), /站点配置草稿格式错误/)
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('正式保存会写正式源并清理草稿', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-'))
 	await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })

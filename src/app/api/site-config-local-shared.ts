@@ -26,6 +26,21 @@ export function resolveSiteConfigDraftPath(baseDir: string) {
 	return path.join(baseDir, DRAFT_FILE_RELATIVE_PATH)
 }
 
+function parseSiteConfigDraftRaw(raw: string): SiteConfigDraftPayload {
+	let parsed: unknown
+	try {
+		parsed = JSON.parse(raw)
+	} catch {
+		throw new Error('站点配置草稿解析失败，请修复 data/site-config.draft.json 后重试')
+	}
+
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		throw new Error('站点配置草稿格式错误，请修复 data/site-config.draft.json 后重试')
+	}
+
+	return parsed as SiteConfigDraftPayload
+}
+
 export function buildSiteConfigDraftItems(payload: SiteConfigDraftPayload) {
 	const items: Array<{ key: string; label: string; page: string }> = []
 	if (payload.siteContent) {
@@ -46,10 +61,11 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 
 	let current: SiteConfigDraftPayload = {}
 	try {
-		const raw = await fs.readFile(draftPath, 'utf-8')
-		current = JSON.parse(raw)
-	} catch {
-		current = {}
+		current = parseSiteConfigDraftRaw(await fs.readFile(draftPath, 'utf-8'))
+	} catch (error) {
+		if (!isFileNotFoundError(error)) {
+			throw error
+		}
 	}
 
 	const merged: SiteConfigDraftPayload = { ...current, ...payload }
@@ -71,10 +87,12 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 
 export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDraftPayload | null> {
 	try {
-		const raw = await fs.readFile(resolveSiteConfigDraftPath(baseDir), 'utf-8')
-		return JSON.parse(raw)
-	} catch {
-		return null
+		return parseSiteConfigDraftRaw(await fs.readFile(resolveSiteConfigDraftPath(baseDir), 'utf-8'))
+	} catch (error) {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
 	}
 }
 
