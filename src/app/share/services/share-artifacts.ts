@@ -18,8 +18,38 @@ export const LOCAL_SHARE_SAVE_PATHS = {
 	storage: 'public/share/storage.json'
 } as const
 
+const SHARE_LOGO_PUBLIC_PREFIX = '/images/share/'
+const SHARE_LOGO_REPO_PREFIX = 'public/images/share/'
+
 export function serializeShareCategories(categories: string[]): string {
 	return JSON.stringify({ categories }, null, 2)
+}
+
+export function shareLogoRepoPath(publicPath: string): string | null {
+	if (!publicPath.startsWith(SHARE_LOGO_PUBLIC_PREFIX)) {
+		return null
+	}
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(SHARE_LOGO_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${SHARE_LOGO_REPO_PREFIX}${filename}`
+}
+
+export function collectShareLogoRepoPaths(shares: ShareListItem[]): Set<string> {
+	const paths = new Set<string>()
+	for (const share of shares) {
+		if (!share.logo) continue
+		const path = shareLogoRepoPath(share.logo)
+		if (path) paths.add(path)
+	}
+	return paths
+}
+
+export function buildUnusedShareLogoRepoPaths(previousShares: ShareListItem[], currentShares: ShareListItem[]): string[] {
+	const currentLogoPaths = collectShareLogoRepoPaths(currentShares)
+	return Array.from(collectShareLogoRepoPaths(previousShares)).filter(path => !currentLogoPaths.has(path))
 }
 
 export function applyShareLogoPathUpdates(shares: ShareListItem[], nextLogoPaths: Map<string, string>): ShareListItem[] {

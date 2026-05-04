@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+	deleteLocalShareLogo,
 	rollbackLocalShareSave,
 	saveLocalShareFile,
 	uploadLocalShareLogo,
@@ -57,6 +58,21 @@ test('local share save rollback restores previous artifacts and deletes newly cr
 			['/api/save-file', JSON.stringify({ path: 'public/share/list.json', content: '[{"name":"old"}]' })],
 			['/api/delete-image', JSON.stringify({ path: 'public/images/share/new.png' })]
 		]
+	)
+})
+
+test('local share logo cleanup deletes unused saved logo through delete-image endpoint', async () => {
+	const calls: FetchCall[] = []
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		return textResponse('{"success":true}')
+	}
+
+	await deleteLocalShareLogo('public/images/share/old.png', fetchLocal)
+
+	assert.deepEqual(
+		calls.map(call => [call.input, call.init?.body]),
+		[['/api/delete-image', JSON.stringify({ path: 'public/images/share/old.png' })]]
 	)
 })
 

@@ -6,15 +6,12 @@ import type { Share } from '../components/share-card'
 import type { LogoItem } from '../components/logo-upload-dialog'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
-import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads } from './share-artifacts'
+import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, buildUnusedShareLogoRepoPaths } from './share-artifacts'
 import type { ShareUrlMapping as ShareUrlMappingContract } from '../components/share-folder-select-view-model'
 import type { ShareCategoriesArtifact } from '../share-page-state'
 import type { ShareFolderNode } from '../share-runtime'
 
 type ShareUrlMapping = ShareUrlMappingContract
-
-const SHARE_LOGO_PUBLIC_PREFIX = '/images/share/'
-const SHARE_LOGO_REPO_PREFIX = 'public/images/share/'
 
 export type PushSharesResult = {
 	list: Share[]
@@ -29,44 +26,13 @@ export type PushSharesParams = {
 	deletedPublishedUrls?: Set<string>
 }
 
-function shareLogoRepoDeletePath(publicPath: string): string | null {
-	if (!publicPath.startsWith(SHARE_LOGO_PUBLIC_PREFIX)) {
-		return null
-	}
-	const pathOnly = publicPath.split(/[?#]/, 1)[0]
-	const filename = pathOnly.slice(SHARE_LOGO_PUBLIC_PREFIX.length)
-	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
-		return null
-	}
-	return `${SHARE_LOGO_REPO_PREFIX}${filename}`
-}
-
-function collectShareLogoRepoPaths(shares: Share[]): Set<string> {
-	const paths = new Set<string>()
-	for (const share of shares) {
-		if (!share.logo) continue
-		const path = shareLogoRepoDeletePath(share.logo)
-		if (path) paths.add(path)
-	}
-	return paths
-}
-
 export function buildUnusedShareLogoDeleteTreeItems(previousShares: Share[], currentShares: Share[]): TreeItem[] {
-	const currentLogoPaths = collectShareLogoRepoPaths(currentShares)
-	const treeItems: TreeItem[] = []
-
-	for (const path of collectShareLogoRepoPaths(previousShares)) {
-		if (!currentLogoPaths.has(path)) {
-			treeItems.push({
-				path,
-				mode: '100644',
-				type: 'blob',
-				sha: null
-			})
-		}
-	}
-
-	return treeItems
+	return buildUnusedShareLogoRepoPaths(previousShares, currentShares).map(path => ({
+		path,
+		mode: '100644',
+		type: 'blob',
+		sha: null
+	}))
 }
 
 function parsePreviousShareList(previousListJson: string | null): Share[] {

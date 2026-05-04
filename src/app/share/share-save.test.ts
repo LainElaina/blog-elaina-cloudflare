@@ -29,3 +29,11 @@ test('share local save rolls back written artifacts and uploaded logos after a l
 	assert.match(pageSource, /for \(const payload of payloads\) \{\n\s*await saveLocalShareFile\(payload, '保存分享产物', writtenFiles\)/)
 	assert.match(pageSource, /catch \(error: any\) \{\n\s*await rollbackLocalShareSave\(writtenFiles, uploadedFiles\)/)
 })
+
+test('share local save deletes unused previous share logos after writing artifacts', async () => {
+	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+	assert.match(pageSource, /buildUnusedShareLogoRepoPaths\(originalArtifacts\.list, updatedShares\)/)
+	assert.match(pageSource, /await deleteLocalShareLogo\(path\)\.catch\(error => console\.warn\('删除未使用的分享图标失败:', error\)\)/)
+	assert.match(pageSource, /saveLocalShareFile\(payload, '保存分享产物', writtenFiles\)[\s\S]*buildUnusedShareLogoRepoPaths\(originalArtifacts\.list, updatedShares\)[\s\S]*nextArtifacts = parseSavedArtifacts/)
+})

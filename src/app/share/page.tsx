@@ -19,8 +19,9 @@ import {
 	type ShareEditSubmitPayload
 } from './components/share-folder-select-view-model'
 import { pushShares } from './services/push-shares'
-import { LOCAL_SHARE_SAVE_PATHS, applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, type ShareSaveFilePayload } from './services/share-artifacts'
+import { LOCAL_SHARE_SAVE_PATHS, applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, buildUnusedShareLogoRepoPaths, type ShareSaveFilePayload } from './services/share-artifacts'
 import {
+	deleteLocalShareLogo,
 	rollbackLocalShareSave,
 	saveLocalShareFile,
 	uploadLocalShareLogo,
@@ -480,6 +481,11 @@ export default function Page() {
 				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls)
 				for (const payload of payloads) {
 					await saveLocalShareFile(payload, '保存分享产物', writtenFiles)
+				}
+
+				const unusedShareLogoPaths = buildUnusedShareLogoRepoPaths(originalArtifacts.list, updatedShares)
+				for (const path of unusedShareLogoPaths) {
+					await deleteLocalShareLogo(path).catch(error => console.warn('删除未使用的分享图标失败:', error))
 				}
 
 				nextArtifacts = parseSavedArtifacts(payloads, buildArtifactsFromList(updatedShares))
