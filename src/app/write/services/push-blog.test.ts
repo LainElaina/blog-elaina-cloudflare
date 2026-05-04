@@ -221,14 +221,15 @@ describe('buildUnusedBlogImageDeleteTreeItems', () => {
 })
 
 describe('pushBlog image upload de-duplication', () => {
-	it('同 hash 图片应复用首次上传的实际路径', async () => {
+	it('同文件名图片应复用首次上传的实际路径，且不同扩展名不能混用', async () => {
 		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 		assert.match(source, /const uploadedImagePaths = new Map<string, string>\(\)/)
-		assert.match(source, /const publicPath = `\/blogs\/\$\{form\.slug\}\/\$\{filename\}`/)
-		assert.match(source, /if \(!uploadedImagePaths\.has\(hash\)\) \{[\s\S]*?uploadedImagePaths\.set\(hash, publicPath\)[\s\S]*?\}/)
-		assert.match(source, /const uploadedPath = uploadedImagePaths\.get\(hash\)!\n\s*placeholderReplacements\.set\(id, uploadedPath\)\n\s*imagePaths\.set\(id, uploadedPath\)/)
+		assert.match(source, /const publicPath = `\/blogs\/\$\{form\.slug\}\/\$\{filename\}`\n\s*const uploadKey = filename/)
+		assert.match(source, /if \(!uploadedImagePaths\.has\(uploadKey\)\) \{[\s\S]*?uploadedImagePaths\.set\(uploadKey, publicPath\)[\s\S]*?\}/)
+		assert.match(source, /const uploadedPath = uploadedImagePaths\.get\(uploadKey\)!\n\s*placeholderReplacements\.set\(id, uploadedPath\)\n\s*imagePaths\.set\(id, uploadedPath\)/)
 		assert.match(source, /coverPath = uploadedPath/)
-		assert.doesNotMatch(source, /uploadedHashes/)
+		assert.doesNotMatch(source, /uploadedImagePaths\.has\(hash\)/)
+		assert.doesNotMatch(source, /uploadedImagePaths\.set\(hash, publicPath\)/)
 	})
 })

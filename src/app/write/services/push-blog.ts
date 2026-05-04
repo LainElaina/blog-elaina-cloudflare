@@ -132,7 +132,7 @@ function blogImageRepoPath(slug: string, publicPath: string): string | null {
 		return null
 	}
 	const pathOnly = publicPath.split(/[?#]/, 1)[0]
-	const filename = pathOnly.slice(publicPrefix.length)
+				const filename = pathOnly.slice(publicPrefix.length)
 	if (!isSafeBlogImageFilename(filename)) {
 		return null
 	}
@@ -163,7 +163,7 @@ export function buildUnusedBlogImageDeleteTreeItems(params: { slug: string; exis
 
 	for (const path of params.existingRepoFiles) {
 		if (!path.startsWith(repoPrefix)) continue
-		const filename = path.slice(repoPrefix.length)
+				const filename = path.slice(repoPrefix.length)
 		if (!isSafeBlogImageFilename(filename) || currentPaths.has(path) || params.protectedRepoPaths?.has(path)) continue
 		treeItems.push({
 			path,
@@ -230,12 +230,13 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 		toast.info('正在上传图片...')
 		const placeholderReplacements = new Map<string, string>()
 		for (const { img, id } of allLocalImages) {
-			const hash = img.hash || (await hashFileSHA256(img.file))
-			const ext = getFileExt(img.file.name)
-			const filename = `${hash}${ext}`
-			const publicPath = `/blogs/${form.slug}/${filename}`
+				const hash = img.hash || (await hashFileSHA256(img.file))
+				const ext = getFileExt(img.file.name)
+				const filename = `${hash}${ext}`
+				const publicPath = `/blogs/${form.slug}/${filename}`
+				const uploadKey = filename
 
-			if (!uploadedImagePaths.has(hash)) {
+			if (!uploadedImagePaths.has(uploadKey)) {
 				const path = `${basePath}/${filename}`
 				const contentBase64 = await fileToBase64NoPrefix(img.file)
 				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -245,10 +246,10 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 					type: 'blob',
 					sha: blobData.sha
 				})
-				uploadedImagePaths.set(hash, publicPath)
+				uploadedImagePaths.set(uploadKey, publicPath)
 			}
 
-			const uploadedPath = uploadedImagePaths.get(hash)!
+			const uploadedPath = uploadedImagePaths.get(uploadKey)!
 			placeholderReplacements.set(id, uploadedPath)
 			imagePaths.set(id, uploadedPath)
 
