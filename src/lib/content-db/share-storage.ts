@@ -198,21 +198,36 @@ export function exportStaticShareArtifacts(db: ShareStorageDB): StaticShareArtif
 	}
 }
 
+function parseShareStorageRaw(raw: string): ShareStorageDB {
+	const parsed = JSON.parse(raw) as Partial<ShareStorageDB>
+	if (parsed?.version !== 1 || !parsed.shares || typeof parsed.shares !== 'object' || Array.isArray(parsed.shares)) {
+		throw new Error('invalid share storage')
+	}
+	return {
+		version: 1,
+		updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+		shares: Object.fromEntries(Object.entries(parsed.shares).map(([key, value]) => [key, sanitizeShareStorageRecord(key, value)]))
+	}
+}
+
 export function parseShareStorageDB(raw: string | null): ShareStorageDB {
 	if (!raw) {
 		return createEmptyShareStorageDB()
 	}
 	try {
-		const parsed = JSON.parse(raw) as Partial<ShareStorageDB>
-		if (parsed?.version !== 1 || !parsed.shares || typeof parsed.shares !== 'object') {
-			return createEmptyShareStorageDB()
-		}
-		return {
-			version: 1,
-			updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
-			shares: Object.fromEntries(Object.entries(parsed.shares).map(([key, value]) => [key, sanitizeShareStorageRecord(key, value)]))
-		}
+		return parseShareStorageRaw(raw)
 	} catch {
 		return createEmptyShareStorageDB()
+	}
+}
+
+export function parseRequiredShareStorageDB(raw: string | null): ShareStorageDB {
+	if (!raw) {
+		return createEmptyShareStorageDB()
+	}
+	try {
+		return parseShareStorageRaw(raw)
+	} catch {
+		throw new Error('分享 storage.json 解析失败，请修复 public/share/storage.json 后重试')
 	}
 }

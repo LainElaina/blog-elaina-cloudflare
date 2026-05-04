@@ -1,6 +1,6 @@
 import {
 	exportStaticShareArtifacts,
-	createEmptyShareStorageDB,
+	parseRequiredShareStorageDB,
 	parseShareStorageDB,
 	upsertShareRecord,
 	type ShareListItem
@@ -77,7 +77,7 @@ export function buildLocalShareSaveFilePayloads(
 	deletedPublishedUrls: Set<string> = new Set()
 ): ShareSaveFilePayload[] {
 	const now = new Date()
-	let storage = existingStorageRaw ? parseShareStorageDB(existingStorageRaw) : createEmptyShareStorageDB(now)
+	let storage = parseRequiredShareStorageDB(existingStorageRaw)
 
 	validatePublishedShareUrlConflicts(shares, storage, renamedUrls)
 

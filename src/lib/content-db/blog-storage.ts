@@ -151,22 +151,37 @@ function sanitizeParsedRecord(key: string, value: unknown): BlogStorageRecord {
 	}
 }
 
+function parseBlogStorageRaw(raw: string): BlogStorageDB {
+	const parsed = JSON.parse(raw) as Partial<BlogStorageDB>
+	if (parsed?.version !== 1 || !parsed.blogs || typeof parsed.blogs !== 'object' || Array.isArray(parsed.blogs)) {
+		throw new Error('invalid blog storage')
+	}
+	return {
+		version: 1,
+		updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+		blogs: Object.fromEntries(Object.entries(parsed.blogs).map(([key, value]) => [key, sanitizeParsedRecord(key, value)]))
+	}
+}
+
 export function parseBlogStorageDB(raw: string | null): BlogStorageDB {
 	if (!raw) {
 		return createEmptyBlogStorageDB()
 	}
 	try {
-		const parsed = JSON.parse(raw) as Partial<BlogStorageDB>
-		if (parsed?.version !== 1 || !parsed.blogs || typeof parsed.blogs !== 'object') {
-			return createEmptyBlogStorageDB()
-		}
-		return {
-			version: 1,
-			updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
-			blogs: Object.fromEntries(Object.entries(parsed.blogs).map(([key, value]) => [key, sanitizeParsedRecord(key, value)]))
-		}
+		return parseBlogStorageRaw(raw)
 	} catch {
 		return createEmptyBlogStorageDB()
+	}
+}
+
+export function parseRequiredBlogStorageDB(raw: string | null): BlogStorageDB {
+	if (!raw) {
+		return createEmptyBlogStorageDB()
+	}
+	try {
+		return parseBlogStorageRaw(raw)
+	} catch {
+		throw new Error('博客 storage.json 解析失败，请修复 public/blogs/storage.json 后重试')
 	}
 }
 

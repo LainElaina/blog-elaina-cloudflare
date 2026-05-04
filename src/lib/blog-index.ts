@@ -6,6 +6,7 @@ import {
 	createEmptyBlogStorageDB,
 	exportStaticBlogArtifacts,
 	parseBlogStorageDB,
+	parseRequiredBlogStorageDB,
 	removeBlogRecord,
 	upsertBlogRecord,
 	type BlogStorageDB,
@@ -45,9 +46,10 @@ export async function prepareBlogStaticArtifacts(params: {
 	now?: Date
 }): Promise<StaticBlogArtifacts> {
 	const now = params.now ?? new Date()
-	let db = parseBlogStorageDB(await params.readStorageRaw())
+	const storageRaw = await params.readStorageRaw()
+	let db = parseRequiredBlogStorageDB(storageRaw)
 
-	if (Object.keys(db.blogs).length === 0 && params.fallbackReadIndexRaw) {
+	if (!storageRaw && params.fallbackReadIndexRaw) {
 		const fallbackRaw = await params.fallbackReadIndexRaw()
 		if (fallbackRaw) {
 			try {

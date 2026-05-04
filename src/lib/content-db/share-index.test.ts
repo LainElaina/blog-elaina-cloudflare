@@ -638,6 +638,26 @@ describe('share storage model', () => {
 		)
 	})
 
+	it('保存 share 正式产物时遇到损坏 storage 会失败而不是重建空库', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4
+						}
+					],
+					'{invalid json'
+				),
+			/分享 storage\.json 解析失败/
+		)
+	})
+
 	it('parseShareStorageDB 会最小化清洗非法字段形状', () => {
 		const db = parseShareStorageDB(
 			JSON.stringify({

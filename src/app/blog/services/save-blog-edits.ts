@@ -4,7 +4,7 @@ import { getAuthToken } from '@/lib/auth'
 import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
 import type { BlogIndexItem } from '@/lib/blog-index'
 import { serializeCategoriesConfig } from '@/lib/blog-index'
-import { exportStaticBlogArtifacts, parseBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
+import { exportStaticBlogArtifacts, parseRequiredBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
 import type { BlogFolderNode } from '@/lib/content-db/blog-folders'
 import { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave, type LocalSaveFilePayload } from './save-blog-edits-utils'
 
@@ -27,7 +27,7 @@ export function buildArtifactsForSaveBlogEdits(params: {
 	const now = params.now ?? new Date()
 	const removedSlugs = originalItems.filter(item => !nextItems.some(next => next.slug === item.slug)).map(item => item.slug)
 	const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
-	let db = parseBlogStorageDB(existingStorageRaw)
+	let db = parseRequiredBlogStorageDB(existingStorageRaw)
 
 	for (const item of nextItems) {
 		db = upsertBlogRecord(db, item, { now })

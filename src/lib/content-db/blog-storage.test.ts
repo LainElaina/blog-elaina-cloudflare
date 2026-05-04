@@ -307,6 +307,31 @@ describe('blog storage model', () => {
 		assert.equal(serializeCategoriesConfig(artifacts.categories), JSON.stringify({ categories: ['X'] }, null, 2))
 	})
 
+	it('写入正式产物时遇到损坏 storage 会失败而不是回退覆盖', async () => {
+		await assert.rejects(
+			() =>
+				prepareBlogStaticArtifacts({
+					readStorageRaw: async () => '{invalid json',
+					fallbackReadIndexRaw: async () =>
+						JSON.stringify([{ slug: 'from-index', title: 'From Index', tags: [], date: '2026-03-27T00:00:00.000Z' }])
+				}),
+			/博客 storage\.json 解析失败/
+		)
+	})
+
+	it('博客列表保存时遇到损坏 storage 会失败而不是重建空库', () => {
+		assert.throws(
+			() =>
+				buildArtifactsForSaveBlogEdits({
+					originalItems: [],
+					nextItems: [{ slug: 'new-post', title: 'New', tags: [], date: '2026-03-27T00:00:00.000Z' }],
+					categories: [],
+					existingStorageRaw: '{invalid json'
+				}),
+			/博客 storage\.json 解析失败/
+		)
+	})
+
 	it('编辑与删除后会同步维护 storage/index/categories/folders 产物', () => {
 		const originalItems: BlogIndexItem[] = [
 			{ slug: 'keep', title: 'Keep', tags: ['x'], date: '2026-03-10T00:00:00.000Z', category: 'A' },
