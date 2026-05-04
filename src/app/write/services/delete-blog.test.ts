@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildBatchDeleteArtifactContents, buildDeleteArtifactContents } from './delete-blog'
+import { buildBatchDeleteArtifactContents, buildDeleteArtifactContents, hasBlogRecordForDelete } from './delete-blog'
 
 describe('buildDeleteArtifactContents', () => {
 	it('远端删除应同时生成 index/categories/folders/storage 四个正式产物内容', async () => {
@@ -89,5 +89,39 @@ describe('buildDeleteArtifactContents', () => {
 		assert.deepEqual(JSON.parse(artifacts.categories).categories, ['分类C'])
 		assert.deepEqual(JSON.parse(artifacts.folders).map((item: { path: string }) => item.path), ['/保留'])
 		assert.deepEqual(Object.keys(JSON.parse(artifacts.storage).blogs), ['post-3'])
+	})
+})
+
+describe('hasBlogRecordForDelete', () => {
+	it('文章目录缺失时仍能识别 storage 或 index 中的残留记录', () => {
+		assert.equal(
+			hasBlogRecordForDelete({
+				slug: 'post-1',
+				storageRaw: JSON.stringify({
+					version: 1,
+					updatedAt: '2026-03-27T10:00:00.000Z',
+					blogs: {
+						'post-1': {
+							slug: 'post-1',
+							title: '标题',
+							tags: [],
+							date: '2026-03-27T10:00:00.000Z',
+							status: 'published'
+						}
+					}
+				}),
+				indexRaw: null
+			}),
+			true
+		)
+		assert.equal(
+			hasBlogRecordForDelete({
+				slug: 'post-2',
+				storageRaw: null,
+				indexRaw: JSON.stringify([{ slug: 'post-2', title: '标题', tags: [], date: '2026-03-27T10:00:00.000Z' }])
+			}),
+			true
+		)
+		assert.equal(hasBlogRecordForDelete({ slug: 'post-3', storageRaw: null, indexRaw: '[]' }), false)
 	})
 })

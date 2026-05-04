@@ -13,6 +13,7 @@ import {
 	updateRef
 } from '@/lib/github-client'
 import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
+import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
 import { assertSafeBlogSlug } from './blog-slug'
 
 export async function buildDeleteArtifactContents(params: {
@@ -51,6 +52,23 @@ export async function buildBatchDeleteArtifactContents(params: {
 	}
 }
 
+export function hasBlogRecordForDelete(params: { slug: string; storageRaw: string | null; indexRaw: string | null }): boolean {
+	assertSafeBlogSlug(params.slug)
+	const storage = parseBlogStorageDB(params.storageRaw)
+	if (storage.blogs[params.slug]) {
+		return true
+	}
+	if (!params.indexRaw) {
+		return false
+	}
+	try {
+		const index = JSON.parse(params.indexRaw)
+		return Array.isArray(index) && index.some(item => item?.slug === params.slug)
+	} catch {
+		return false
+	}
+}
+
 export async function deleteBlog(slug: string): Promise<void> {
 	if (!slug) throw new Error('需要 slug')
 	assertSafeBlogSlug(slug)
@@ -65,8 +83,14 @@ export async function deleteBlog(slug: string): Promise<void> {
 
 	toast.info('正在收集文章文件...')
 	const files = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, latestCommitSha)
+	let storageRaw: string | null | undefined
+	let indexRaw: string | null | undefined
 	if (files.length === 0) {
-		throw new Error('文章不存在或已删除')
+		storageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha)
+		indexRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha)
+		if (!hasBlogRecordForDelete({ slug, storageRaw, indexRaw })) {
+			throw new Error('文章不存在或已删除')
+		}
 	}
 
 	const treeItems: TreeItem[] = files.map(path => ({
@@ -77,10 +101,12 @@ export async function deleteBlog(slug: string): Promise<void> {
 	}))
 
 	toast.info('正在更新正式产物...')
+	const artifactStorageRaw = storageRaw === undefined ? await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha) : storageRaw
+	const artifactIndexRaw = indexRaw === undefined ? await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha) : indexRaw
 	const artifacts = await buildDeleteArtifactContents({
 		slug,
-		readStorageRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/storage.json', latestCommitSha),
-		fallbackReadIndexRaw: () => readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/blogs/index.json', latestCommitSha)
+		readStorageRaw: async () => artifactStorageRaw,
+		fallbackReadIndexRaw: async () => artifactIndexRaw
 	})
 
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifacts.index), 'base64')
