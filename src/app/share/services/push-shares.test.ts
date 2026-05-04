@@ -282,6 +282,17 @@ describe('buildRemoteShareArtifactContents', () => {
 		assert.match(source, /buildRemoteShareArtifactContents\(\{[\s\S]*deletedPublishedUrls[\s\S]*\}\)/)
 	})
 
+	it('pushShares 图标上传按文件名去重，避免同 hash 不同扩展名混用', async () => {
+		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
+
+		assert.match(source, /const uploadedLogoPaths = new Map<string, string>\(\)/)
+		assert.match(source, /const publicPath = `\/images\/share\/\$\{filename\}`\n\s*const uploadKey = filename/)
+		assert.match(source, /if \(!uploadedLogoPaths\.has\(uploadKey\)\) \{[\s\S]*?uploadedLogoPaths\.set\(uploadKey, publicPath\)[\s\S]*?\}/)
+		assert.match(source, /nextLogoPaths\.set\(url, uploadedLogoPaths\.get\(uploadKey\)!\)/)
+		assert.doesNotMatch(source, /uploadedLogoPaths\.has\(hash\)/)
+		assert.doesNotMatch(source, /uploadedLogoPaths\.set\(hash, publicPath\)/)
+	})
+
 	it('pushShares 入口会从基线 list.json 计算旧 share 图标删除项', async () => {
 		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
 

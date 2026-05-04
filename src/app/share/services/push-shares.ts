@@ -109,8 +109,9 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 				const ext = getFileExt(logoItem.file.name)
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/share/${filename}`
+				const uploadKey = filename
 
-				if (!uploadedLogoPaths.has(hash)) {
+				if (!uploadedLogoPaths.has(uploadKey)) {
 					const path = `public/images/share/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(logoItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -120,10 +121,10 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedLogoPaths.set(hash, publicPath)
+					uploadedLogoPaths.set(uploadKey, publicPath)
 				}
 
-				nextLogoPaths.set(url, uploadedLogoPaths.get(hash)!)
+				nextLogoPaths.set(url, uploadedLogoPaths.get(uploadKey)!)
 			}
 		}
 	}
