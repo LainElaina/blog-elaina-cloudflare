@@ -116,6 +116,66 @@ export function assertPublishableOutput(params: Pick<PushBlogParams, 'form' | 'i
 	assertPublishableBlog(params)
 }
 
+const BLOG_IMAGE_FILE_EXTENSION_PATTERN = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function isSafeBlogImageFilename(filename: string): boolean {
+	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..') && BLOG_IMAGE_FILE_EXTENSION_PATTERN.test(filename)
+}
+
+function blogImageRepoPath(slug: string, publicPath: string): string | null {
+	const publicPrefix = `/blogs/${slug}/`
+	if (!publicPath.startsWith(publicPrefix)) {
+		return null
+	}
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(publicPrefix.length)
+	if (!isSafeBlogImageFilename(filename)) {
+		return null
+	}
+	return `public/blogs/${slug}/${filename}`
+}
+
+function collectBlogImageRepoPaths(params: { slug: string; markdown: string; coverPath?: string }): Set<string> {
+	const paths = new Set<string>()
+	const addPublicPath = (publicPath?: string) => {
+		if (!publicPath) return
+		const path = blogImageRepoPath(params.slug, publicPath)
+		if (path) paths.add(path)
+	}
+	const publicPrefix = `/blogs/${params.slug}/`
+	const publicPathPattern = new RegExp(`${escapeRegExp(publicPrefix)}[^\\s\\)\\]"'<>]+`, 'g')
+	for (const match of params.markdown.matchAll(publicPathPattern)) {
+		addPublicPath(match[0])
+	}
+	addPublicPath(params.coverPath)
+	return paths
+}
+
+export function buildUnusedBlogImageDeleteTreeItems(params: { slug: string; existingRepoFiles: string[]; markdown: string; coverPath?: string; protectedRepoPaths?: ReadonlySet<string> }): TreeItem[] {
+	assertSafeBlogSlug(params.slug)
+	const repoPrefix = `public/blogs/${params.slug}/`
+	const currentPaths = collectBlogImageRepoPaths(params)
+	const treeItems: TreeItem[] = []
+
+	for (const path of params.existingRepoFiles) {
+		if (!path.startsWith(repoPrefix)) continue
+		const filename = path.slice(repoPrefix.length)
+		if (!isSafeBlogImageFilename(filename) || currentPaths.has(path) || params.protectedRepoPaths?.has(path)) continue
+		treeItems.push({
+			path,
+			mode: '100644',
+			type: 'blob',
+			sha: null
+		})
+	}
+
+	return treeItems
+}
+
 export function replacePublishLocalImagePlaceholders(markdown: string, replacements: ReadonlyMap<string, string>): string {
 	return replaceLocalImagePlaceholders(markdown, replacements)
 }
@@ -255,6 +315,19 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 
 	const storageBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.storage), 'base64')
 	treeItems.push({ path: 'public/blogs/storage.json', mode: '100644', type: 'blob', sha: storageBlob.sha })
+
+	if (mode === 'edit') {
+		const existingRepoFiles = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, basePath, latestCommitSha)
+		treeItems.push(
+			...buildUnusedBlogImageDeleteTreeItems({
+				slug: form.slug,
+				existingRepoFiles,
+				markdown: mdToUpload,
+				coverPath,
+				protectedRepoPaths: new Set(treeItems.map(item => item.path))
+			})
+		)
+	}
 
 	toast.info('正在创建文件树...')
 	const treeData = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, treeItems, latestCommitSha)

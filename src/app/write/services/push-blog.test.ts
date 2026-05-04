@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
-import { assertCreateBlogSlugAvailable, assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, hasExistingBlogSlug, type PushBlogParams } from './push-blog'
+import { assertCreateBlogSlugAvailable, assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, buildUnusedBlogImageDeleteTreeItems, hasExistingBlogSlug, type PushBlogParams } from './push-blog'
 
 describe('assertPublishableBlog', () => {
 	it('阻止失效本地图片占位符进入正式发布链路', () => {
@@ -163,6 +163,18 @@ describe('pushBlog create slug checks', () => {
 		assert.match(source, /fallbackReadIndexRaw: async \(\) => indexRaw/)
 	})
 
+	it('远端编辑模式应在创建文件树前清理未引用的旧图片', async () => {
+		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const cleanupIndex = source.indexOf("if (mode === 'edit')")
+		const createTreeIndex = source.indexOf("toast.info('正在创建文件树...')")
+
+		assert.notEqual(cleanupIndex, -1)
+		assert.notEqual(createTreeIndex, -1)
+		assert.ok(cleanupIndex < createTreeIndex)
+		assert.match(source, /const existingRepoFiles = await listRepoFilesRecursive\([\s\S]*?basePath,[^\n]*latestCommitSha\)/)
+		assert.match(source, /buildUnusedBlogImageDeleteTreeItems\(\{\n\s*slug: form\.slug,\n\s*existingRepoFiles,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths: new Set\(treeItems\.map\(item => item\.path\)\)\n\s*\}\)/)
+	})
+
 	it('本地创建模式应在图片上传前检查重复 slug', async () => {
 		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 		const checkIndex = source.indexOf("if (mode === 'create')")
@@ -174,6 +186,37 @@ describe('pushBlog create slug checks', () => {
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/index\.md`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/config\.json`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null,\n\s*indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null,\n\s*hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok\n\s*\}\)/)
+	})
+})
+
+describe('buildUnusedBlogImageDeleteTreeItems', () => {
+	it('编辑远端文章时只删除当前正文与封面不再引用的安全旧图片', () => {
+		const deleteItems = buildUnusedBlogImageDeleteTreeItems({
+			slug: 'post-a',
+			existingRepoFiles: [
+				'public/blogs/post-a/index.md',
+				'public/blogs/post-a/config.json',
+				'public/blogs/post-a/old.png',
+				'public/blogs/post-a/keep.png',
+				'public/blogs/post-a/cover.jpg',
+				'public/blogs/post-a/new.webp',
+				'public/blogs/post-a/nested/evil.png',
+				'public/blogs/post-a/unsafe..png',
+				'public/blogs/other/old.png'
+			],
+			markdown: '![keep](/blogs/post-a/keep.png?version=1)',
+			coverPath: '/blogs/post-a/cover.jpg#hash',
+			protectedRepoPaths: new Set(['public/blogs/post-a/new.webp'])
+		})
+
+		assert.deepEqual(deleteItems, [
+			{
+				path: 'public/blogs/post-a/old.png',
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			}
+		])
 	})
 })
 
