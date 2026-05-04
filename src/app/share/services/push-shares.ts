@@ -33,38 +33,36 @@ function shareLogoRepoDeletePath(publicPath: string): string | null {
 	if (!publicPath.startsWith(SHARE_LOGO_PUBLIC_PREFIX)) {
 		return null
 	}
-	const filename = publicPath.slice(SHARE_LOGO_PUBLIC_PREFIX.length)
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(SHARE_LOGO_PUBLIC_PREFIX.length)
 	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
 		return null
 	}
 	return `${SHARE_LOGO_REPO_PREFIX}${filename}`
 }
 
-function collectShareLogoPaths(shares: Share[]): Set<string> {
+function collectShareLogoRepoPaths(shares: Share[]): Set<string> {
 	const paths = new Set<string>()
 	for (const share of shares) {
-		if (share.logo?.startsWith(SHARE_LOGO_PUBLIC_PREFIX)) {
-			paths.add(share.logo)
-		}
+		if (!share.logo) continue
+		const path = shareLogoRepoDeletePath(share.logo)
+		if (path) paths.add(path)
 	}
 	return paths
 }
 
 export function buildUnusedShareLogoDeleteTreeItems(previousShares: Share[], currentShares: Share[]): TreeItem[] {
-	const currentLogoPaths = collectShareLogoPaths(currentShares)
+	const currentLogoPaths = collectShareLogoRepoPaths(currentShares)
 	const treeItems: TreeItem[] = []
 
-	for (const previousLogoPath of collectShareLogoPaths(previousShares)) {
-		if (!currentLogoPaths.has(previousLogoPath)) {
-			const path = shareLogoRepoDeletePath(previousLogoPath)
-			if (path) {
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: null
-				})
-			}
+	for (const path of collectShareLogoRepoPaths(previousShares)) {
+		if (!currentLogoPaths.has(path)) {
+			treeItems.push({
+				path,
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			})
 		}
 	}
 

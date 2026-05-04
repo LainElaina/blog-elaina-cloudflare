@@ -62,6 +62,49 @@ describe('buildUnusedShareLogoDeleteTreeItems', () => {
 		])
 	})
 
+	it('按剥离 query/hash 后的 repo 路径比较和删除旧 share 图标', () => {
+		assert.deepEqual(
+			buildUnusedShareLogoDeleteTreeItems(
+				[
+					{
+						name: 'Old',
+						logo: '/images/share/old.png?version=1',
+						url: 'https://old.dev',
+						description: 'old',
+						tags: [],
+						stars: 1
+					},
+					{
+						name: 'Keep',
+						logo: '/images/share/keep.png?version=1',
+						url: 'https://keep.dev',
+						description: 'keep',
+						tags: [],
+						stars: 1
+					}
+				],
+				[
+					{
+						name: 'Keep',
+						logo: '/images/share/keep.png#current',
+						url: 'https://keep.dev',
+						description: 'keep',
+						tags: [],
+						stars: 1
+					}
+				]
+			),
+			[
+				{
+					path: 'public/images/share/old.png',
+					mode: '100644',
+					type: 'blob',
+					sha: null
+				}
+			]
+		)
+	})
+
 	it('忽略不安全的旧 share 图标路径', () => {
 		assert.deepEqual(
 			buildUnusedShareLogoDeleteTreeItems(
