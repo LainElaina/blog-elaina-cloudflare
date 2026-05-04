@@ -12,6 +12,36 @@ export type PushPicturesParams = {
 	imageItems?: Map<string, ImageItem>
 }
 
+const PICTURE_IMAGE_PUBLIC_PREFIX = '/images/pictures/'
+const PICTURE_IMAGE_REPO_PREFIX = 'public/images/pictures/'
+
+function pictureImageRepoDeletePath(publicPath: string): string | null {
+	if (!publicPath.startsWith(PICTURE_IMAGE_PUBLIC_PREFIX)) {
+		return null
+	}
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(PICTURE_IMAGE_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${PICTURE_IMAGE_REPO_PREFIX}${filename}`
+}
+
+function collectPictureImageRepoPaths(pictures: Picture[]): Set<string> {
+	const paths = new Set<string>()
+	for (const picture of pictures) {
+		if (picture.image) {
+			const path = pictureImageRepoDeletePath(picture.image)
+			if (path) paths.add(path)
+		}
+		for (const image of picture.images ?? []) {
+			const path = pictureImageRepoDeletePath(image)
+			if (path) paths.add(path)
+		}
+	}
+	return paths
+}
+
 export async function pushPictures(params: PushPicturesParams): Promise<Picture[]> {
 	const { pictures, imageItems } = params
 
@@ -72,16 +102,8 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 		}
 	}
 
-	// 收集当前所有使用的图片 URL
-	const currentImageUrls = new Set<string>()
-	for (const picture of updatedPictures) {
-		if (picture.image) {
-			currentImageUrls.add(picture.image)
-		}
-		if (picture.images && picture.images.length > 0) {
-			picture.images.forEach(url => currentImageUrls.add(url))
-		}
-	}
+	// 收集当前所有使用的本地图片仓库路径
+	const currentImagePaths = collectPictureImageRepoPaths(updatedPictures)
 
 	// 读取之前的 list.json，找出不再使用的图片文件
 	toast.info('正在检查需要删除的文件...')
@@ -96,23 +118,11 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 	if (previousListJson) {
 		try {
 			const previousPictures: Picture[] = JSON.parse(previousListJson)
-			const previousImageUrls = new Set<string>()
-			
-			for (const picture of previousPictures) {
-				if (picture.image) {
-					previousImageUrls.add(picture.image)
-				}
-				if (picture.images && picture.images.length > 0) {
-					picture.images.forEach(url => previousImageUrls.add(url))
-				}
-			}
+			const previousImagePaths = collectPictureImageRepoPaths(previousPictures)
 
-			// 找出不再使用的图片 URL
-			for (const url of previousImageUrls) {
-				if (!currentImageUrls.has(url) && url.startsWith('/images/pictures/')) {
-					// 这是一个本地图片文件，需要删除
-					const filename = url.replace('/images/pictures/', '')
-					const path = `public/images/pictures/${filename}`
+			// 找出不再使用的本地图片仓库路径
+			for (const path of previousImagePaths) {
+				if (!currentImagePaths.has(path)) {
 					treeItems.push({
 						path,
 						mode: '100644',

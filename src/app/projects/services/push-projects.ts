@@ -12,6 +12,31 @@ export type PushProjectsParams = {
 	imageItems?: Map<string, ImageItem>
 }
 
+const PROJECT_IMAGE_PUBLIC_PREFIX = '/images/project/'
+const PROJECT_IMAGE_REPO_PREFIX = 'public/images/project/'
+
+function projectImageRepoDeletePath(publicPath: string): string | null {
+	if (!publicPath.startsWith(PROJECT_IMAGE_PUBLIC_PREFIX)) {
+		return null
+	}
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(PROJECT_IMAGE_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${PROJECT_IMAGE_REPO_PREFIX}${filename}`
+}
+
+function collectProjectImageRepoPaths(projects: Project[]): Set<string> {
+	const paths = new Set<string>()
+	for (const project of projects) {
+		if (!project.image) continue
+		const path = projectImageRepoDeletePath(project.image)
+		if (path) paths.add(path)
+	}
+	return paths
+}
+
 export async function pushProjects(params: PushProjectsParams): Promise<Project[]> {
 	const { projects, imageItems } = params
 
@@ -57,12 +82,7 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 		}
 	}
 
-	const currentImageUrls = new Set<string>()
-	for (const project of updatedProjects) {
-		if (project.image) {
-			currentImageUrls.add(project.image)
-		}
-	}
+	const currentImagePaths = collectProjectImageRepoPaths(updatedProjects)
 
 	const previousListJson = await readTextFileFromRepo(
 		token,
@@ -75,18 +95,10 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 	if (previousListJson) {
 		try {
 			const previousProjects: Project[] = JSON.parse(previousListJson)
-			const previousImageUrls = new Set<string>()
+			const previousImagePaths = collectProjectImageRepoPaths(previousProjects)
 
-			for (const project of previousProjects) {
-				if (project.image) {
-					previousImageUrls.add(project.image)
-				}
-			}
-
-			for (const url of previousImageUrls) {
-				if (!currentImageUrls.has(url) && url.startsWith('/images/project/')) {
-					const filename = url.replace('/images/project/', '')
-					const path = `public/images/project/${filename}`
+			for (const path of previousImagePaths) {
+				if (!currentImagePaths.has(path)) {
 					treeItems.push({
 						path,
 						mode: '100644',

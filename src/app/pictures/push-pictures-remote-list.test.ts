@@ -9,6 +9,19 @@ test('remote pictures publish blocks when previous list cannot be parsed', async
 	assert.doesNotMatch(source, /catch \(error\) \{\n\s*console\.error\('Failed to parse previous list\.json:', error\)\n\s*\}\n\s*\}/)
 })
 
+test('remote pictures save only deletes safe local image paths', async () => {
+	const source = (await fs.readFile(new URL('./services/push-pictures.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+	assert.match(source, /function pictureImageRepoDeletePath\(publicPath: string\): string \| null/)
+	assert.match(source, /const pathOnly = publicPath\.split/)
+	assert.match(source, /const filename = pathOnly\.slice\(PICTURE_IMAGE_PUBLIC_PREFIX\.length\)/)
+	assert.match(source, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
+	assert.match(source, /const currentImagePaths = collectPictureImageRepoPaths\(updatedPictures\)/)
+	assert.match(source, /const previousImagePaths = collectPictureImageRepoPaths\(previousPictures\)/)
+	assert.match(source, /for \(const path of previousImagePaths\) \{\n\s*if \(!currentImagePaths\.has\(path\)\) \{\n\s*treeItems\.push\(\{[\s\S]*?sha: null/)
+	assert.doesNotMatch(source, /url\.replace\('\/images\/pictures\/', ''\)/)
+})
+
 test('remote pictures save reuses first uploaded image path for duplicate hashes', async () => {
 	const source = (await fs.readFile(new URL('./services/push-pictures.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 

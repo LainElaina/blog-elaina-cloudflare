@@ -12,6 +12,31 @@ export type PushBloggersParams = {
 	avatarItems?: Map<string, AvatarItem>
 }
 
+const BLOGGER_AVATAR_PUBLIC_PREFIX = '/images/blogger/'
+const BLOGGER_AVATAR_REPO_PREFIX = 'public/images/blogger/'
+
+function bloggerAvatarRepoDeletePath(publicPath: string): string | null {
+	if (!publicPath.startsWith(BLOGGER_AVATAR_PUBLIC_PREFIX)) {
+		return null
+	}
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(BLOGGER_AVATAR_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${BLOGGER_AVATAR_REPO_PREFIX}${filename}`
+}
+
+function collectBloggerAvatarRepoPaths(bloggers: Blogger[]): Set<string> {
+	const paths = new Set<string>()
+	for (const blogger of bloggers) {
+		if (!blogger.avatar) continue
+		const path = bloggerAvatarRepoDeletePath(blogger.avatar)
+		if (path) paths.add(path)
+	}
+	return paths
+}
+
 export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[]> {
 	const { bloggers, avatarItems } = params
 
@@ -59,12 +84,7 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 		}
 	}
 
-	const currentAvatarUrls = new Set<string>()
-	for (const blogger of updatedBloggers) {
-		if (blogger.avatar) {
-			currentAvatarUrls.add(blogger.avatar)
-		}
-	}
+	const currentAvatarPaths = collectBloggerAvatarRepoPaths(updatedBloggers)
 
 	const previousListJson = await readTextFileFromRepo(
 		token,
@@ -77,18 +97,10 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 	if (previousListJson) {
 		try {
 			const previousBloggers: Blogger[] = JSON.parse(previousListJson)
-			const previousAvatarUrls = new Set<string>()
+			const previousAvatarPaths = collectBloggerAvatarRepoPaths(previousBloggers)
 
-			for (const blogger of previousBloggers) {
-				if (blogger.avatar) {
-					previousAvatarUrls.add(blogger.avatar)
-				}
-			}
-
-			for (const url of previousAvatarUrls) {
-				if (!currentAvatarUrls.has(url) && url.startsWith('/images/blogger/')) {
-					const filename = url.replace('/images/blogger/', '')
-					const path = `public/images/blogger/${filename}`
+			for (const path of previousAvatarPaths) {
+				if (!currentAvatarPaths.has(path)) {
 					treeItems.push({
 						path,
 						mode: '100644',
