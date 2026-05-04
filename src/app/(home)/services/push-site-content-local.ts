@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
-import { buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
+import { buildRemovedArtImageDeletePaths, buildRemovedBackgroundImageDeletePaths, buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
 import {
 	buildLocalConfigPayload,
 	buildLocalDraftConfigPayload,
@@ -61,12 +61,9 @@ export async function pushSiteContentLocal(
 	}
 
 	// Delete removed art images
-	if (syncFormalAssets && removedArtImages && removedArtImages.length > 0) {
-		for (const art of removedArtImages) {
-			if (!art.url.startsWith('/images/art/')) continue
-
-			const normalizedUrl = art.url.startsWith('/') ? art.url : `/${art.url}`
-			deleteTasks.push(() => deleteFile(`public${normalizedUrl}`))
+	if (syncFormalAssets) {
+		for (const path of buildRemovedArtImageDeletePaths(removedArtImages)) {
+			deleteTasks.push(() => deleteFile(path))
 		}
 	}
 
@@ -81,11 +78,9 @@ export async function pushSiteContentLocal(
 	}
 
 	// Delete removed background images
-	if (syncFormalAssets && removedBackgroundImages && removedBackgroundImages.length > 0) {
-		for (const bg of removedBackgroundImages) {
-			if (!bg.url.startsWith('/images/background/')) continue
-			const normalizedUrl = bg.url.startsWith('/') ? bg.url : `/${bg.url}`
-			deleteTasks.push(() => deleteFile(`public${normalizedUrl}`))
+	if (syncFormalAssets) {
+		for (const path of buildRemovedBackgroundImageDeletePaths(removedBackgroundImages)) {
+			deleteTasks.push(() => deleteFile(path))
 		}
 	}
 

@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { fileToBase64NoPrefix } from '@/lib/file-utils'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
-import { buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
+import { buildRemovedArtImageDeletePaths, buildRemovedBackgroundImageDeletePaths, buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
@@ -86,26 +86,17 @@ export async function pushSiteContent(
 	}
 
 	// Handle art images deletion
-	if (removedArtImages && removedArtImages.length > 0) {
-		const removedArtImagePaths: string[] = []
-		for (const art of removedArtImages) {
-			if (!art.url.startsWith('/images/art/')) continue
-
-			const normalizedUrlPath = art.url.startsWith('/') ? art.url : `/${art.url}`
-			removedArtImagePaths.push(`public${normalizedUrlPath}`)
-		}
-
-		if (removedArtImagePaths.length > 0) {
-			const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/art', latestCommitSha))
-			for (const path of removedArtImagePaths) {
-				if (!existingRepoFiles.has(path)) continue
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: null
-				})
-			}
+	const removedArtImagePaths = buildRemovedArtImageDeletePaths(removedArtImages)
+	if (removedArtImagePaths.length > 0) {
+		const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/art', latestCommitSha))
+		for (const path of removedArtImagePaths) {
+			if (!existingRepoFiles.has(path)) continue
+			treeItems.push({
+				path,
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			})
 		}
 	}
 
@@ -137,27 +128,17 @@ export async function pushSiteContent(
 	}
 
 	// Handle background images deletion
-	if (removedBackgroundImages && removedBackgroundImages.length > 0) {
-		const removedBackgroundImagePaths: string[] = []
-		for (const bg of removedBackgroundImages) {
-			// Only delete if URL starts with /images/background/ (local file)
-			if (!bg.url.startsWith('/images/background/')) continue
-
-			const normalizedUrlPath = bg.url.startsWith('/') ? bg.url : `/${bg.url}`
-			removedBackgroundImagePaths.push(`public${normalizedUrlPath}`)
-		}
-
-		if (removedBackgroundImagePaths.length > 0) {
-			const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/background', latestCommitSha))
-			for (const path of removedBackgroundImagePaths) {
-				if (!existingRepoFiles.has(path)) continue
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: null
-				})
-			}
+	const removedBackgroundImagePaths = buildRemovedBackgroundImageDeletePaths(removedBackgroundImages)
+	if (removedBackgroundImagePaths.length > 0) {
+		const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/background', latestCommitSha))
+		for (const path of removedBackgroundImagePaths) {
+			if (!existingRepoFiles.has(path)) continue
+			treeItems.push({
+				path,
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			})
 		}
 	}
 

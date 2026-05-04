@@ -1,3 +1,7 @@
+const ART_IMAGE_PUBLIC_PREFIX = '/images/art/'
+const ART_IMAGE_REPO_PREFIX = 'public/images/art/'
+const BACKGROUND_IMAGE_PUBLIC_PREFIX = '/images/background/'
+const BACKGROUND_IMAGE_REPO_PREFIX = 'public/images/background/'
 const SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX = '/images/social-buttons/'
 const SOCIAL_BUTTON_IMAGE_REPO_PREFIX = 'public/images/social-buttons/'
 
@@ -5,16 +9,46 @@ type SiteContentWithSocialButtons = {
 	socialButtons?: Array<{ value?: string | null }> | null
 }
 
-function socialButtonImageRepoPath(publicPath: string): string | null {
-	if (!publicPath.startsWith(SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX)) {
+type SiteContentImageConfig = {
+	url?: string | null
+}
+
+function publicAssetRepoPath(publicPath: string, publicPrefix: string, repoPrefix: string): string | null {
+	if (!publicPath.startsWith(publicPrefix)) {
 		return null
 	}
 	const pathOnly = publicPath.split(/[?#]/, 1)[0]
-	const filename = pathOnly.slice(SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX.length)
+	const filename = pathOnly.slice(publicPrefix.length)
 	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
 		return null
 	}
-	return `${SOCIAL_BUTTON_IMAGE_REPO_PREFIX}${filename}`
+	return `${repoPrefix}${filename}`
+}
+
+function artImageRepoPath(publicPath: string): string | null {
+	return publicAssetRepoPath(publicPath, ART_IMAGE_PUBLIC_PREFIX, ART_IMAGE_REPO_PREFIX)
+}
+
+function backgroundImageRepoPath(publicPath: string): string | null {
+	return publicAssetRepoPath(publicPath, BACKGROUND_IMAGE_PUBLIC_PREFIX, BACKGROUND_IMAGE_REPO_PREFIX)
+}
+
+function socialButtonImageRepoPath(publicPath: string): string | null {
+	return publicAssetRepoPath(publicPath, SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX, SOCIAL_BUTTON_IMAGE_REPO_PREFIX)
+}
+
+function buildRemovedImageDeletePaths(images: SiteContentImageConfig[] | null | undefined, toRepoPath: (publicPath: string) => string | null): string[] {
+	const paths: string[] = []
+	for (const image of images ?? []) {
+		if (typeof image.url !== 'string') {
+			continue
+		}
+		const path = toRepoPath(image.url)
+		if (path) {
+			paths.push(path)
+		}
+	}
+	return paths
 }
 
 function collectSocialButtonImageRepoPaths(siteContent: SiteContentWithSocialButtons): Set<string> {
@@ -29,6 +63,14 @@ function collectSocialButtonImageRepoPaths(siteContent: SiteContentWithSocialBut
 		}
 	}
 	return paths
+}
+
+export function buildRemovedArtImageDeletePaths(removedArtImages: SiteContentImageConfig[] | null | undefined): string[] {
+	return buildRemovedImageDeletePaths(removedArtImages, artImageRepoPath)
+}
+
+export function buildRemovedBackgroundImageDeletePaths(removedBackgroundImages: SiteContentImageConfig[] | null | undefined): string[] {
+	return buildRemovedImageDeletePaths(removedBackgroundImages, backgroundImageRepoPath)
 }
 
 export function buildRemovedSocialButtonImageDeletePaths(originalSiteContent: SiteContentWithSocialButtons, currentSiteContent: SiteContentWithSocialButtons): string[] {
