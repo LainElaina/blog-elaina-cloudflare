@@ -14,8 +14,8 @@ type FetchCall = {
 	init?: RequestInit
 }
 
-function textResponse(body: string, ok = true) {
-	return new Response(body, { status: ok ? 200 : 404 })
+function textResponse(body: string, ok = true, status = ok ? 200 : 404) {
+	return new Response(body, { status })
 }
 
 test('local share save records previous artifact content before writing', async () => {
@@ -35,6 +35,47 @@ test('local share save records previous artifact content before writing', async 
 	assert.equal(calls[0].input, '/share/list.json')
 	assert.equal(calls[1].input, '/api/save-file')
 	assert.equal(calls[1].init?.body, JSON.stringify({ path: 'public/share/list.json', content: '[{"name":"new"}]' }))
+})
+
+test('local share artifact backup read failure aborts before overwriting files', async () => {
+	const calls: FetchCall[] = []
+	const writtenFiles: LocalShareSaveFileBackup[] = []
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/share/list.json') {
+			return textResponse('temporary failure', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(
+		() => saveLocalShareFile({ path: 'public/share/list.json', content: '[{"name":"new"}]' }, '保存分享产物', writtenFiles, fetchLocal),
+		/读取 public\/share\/list\.json 备份失败/
+	)
+
+	assert.deepEqual(writtenFiles, [])
+	assert.deepEqual(calls.map(call => call.input), ['/share/list.json'])
+})
+
+test('local share logo backup read failure aborts before uploading file', async () => {
+	const calls: FetchCall[] = []
+	const uploadedFiles: LocalShareSaveUploadBackup[] = []
+	const image = new File(['image'], 'logo.png', { type: 'image/png' })
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/images/share/logo.png') {
+			return textResponse('temporary failure', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(
+		() => uploadLocalShareLogo({ file: image, path: 'public/images/share/logo.png', actionName: '上传分享图标', uploadedFiles }, fetchLocal),
+		/读取 public\/images\/share\/logo\.png 备份失败/
+	)
+
+	assert.deepEqual(uploadedFiles, [])
+	assert.deepEqual(calls.map(call => call.input), ['/images/share/logo.png'])
 })
 
 test('local share save rollback restores previous artifacts and deletes newly created logos', async () => {

@@ -29,9 +29,18 @@ async function assertLocalShareSaveOk(response: Response, actionName: string) {
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+async function assertLocalShareBackupReadOk(response: Response, path: string) {
+	if (response.ok || response.status === 404) {
+		return
+	}
+
+	await assertLocalShareSaveOk(response, `读取 ${path} 备份`)
+}
+
 export async function readLocalShareSaveFileBackup(path: string, fetchLocal: LocalShareSaveFetch = fetch): Promise<LocalShareSaveFileBackup> {
 	const response = await fetchLocal(toPublicUrl(path), { cache: 'no-store' })
-	if (!response.ok) {
+	await assertLocalShareBackupReadOk(response, path)
+	if (response.status === 404) {
 		return { path, existed: false, content: '' }
 	}
 	return { path, existed: true, content: await response.text() }
@@ -39,6 +48,7 @@ export async function readLocalShareSaveFileBackup(path: string, fetchLocal: Loc
 
 export async function readLocalShareSaveUploadBackup(path: string, fetchLocal: LocalShareSaveFetch = fetch): Promise<LocalShareSaveUploadBackup> {
 	const response = await fetchLocal(toPublicUrl(path), { cache: 'no-store' })
+	await assertLocalShareBackupReadOk(response, path)
 	return { path, existed: response.ok }
 }
 
