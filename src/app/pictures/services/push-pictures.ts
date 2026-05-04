@@ -26,7 +26,7 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 	toast.info('正在准备文件...')
 
 	const treeItems: TreeItem[] = []
-	const uploadedHashes = new Set<string>()
+	const uploadedPicturePaths = new Map<string, string>()
 	let updatedPictures = [...pictures]
 
 	if (imageItems && imageItems.size > 0) {
@@ -38,7 +38,7 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/pictures/${filename}`
 
-				if (!uploadedHashes.has(hash)) {
+				if (!uploadedPicturePaths.has(hash)) {
 					const path = `public/images/pictures/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(imageItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -48,9 +48,10 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedHashes.add(hash)
+					uploadedPicturePaths.set(hash, publicPath)
 				}
 
+				const uploadedPath = uploadedPicturePaths.get(hash)!
 				const [groupId, indexStr] = key.split('::')
 				const imageIndex = Number(indexStr) || 0
 
@@ -59,7 +60,7 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 
 					const currentImages = p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : []
 
-					const nextImages = currentImages.map((img, idx) => (idx === imageIndex ? publicPath : img))
+					const nextImages = currentImages.map((img, idx) => (idx === imageIndex ? uploadedPath : img))
 
 					return {
 						...p,
