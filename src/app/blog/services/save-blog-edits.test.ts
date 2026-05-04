@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
+import { buildArtifactsForSaveBlogEdits } from './save-blog-edits.ts'
 import { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave } from './save-blog-edits-utils.ts'
 
 describe('mergeCategoriesForSave', () => {
@@ -33,6 +34,32 @@ describe('buildLocalSaveFilePayloadsFromContents', () => {
 				'public/blogs/index.json',
 				'public/blogs/storage.json'
 			]
+		)
+	})
+})
+
+describe('buildArtifactsForSaveBlogEdits', () => {
+	it('删除文章前会拒绝不安全的历史 slug', () => {
+		assert.throws(
+			() =>
+				buildArtifactsForSaveBlogEdits({
+					originalItems: [
+						{
+							slug: '../secret',
+							title: '旧文章',
+							tags: [],
+							date: '2026-05-04T00:00:00.000Z'
+						}
+					],
+					nextItems: [],
+					categories: [],
+					existingStorageRaw: JSON.stringify({
+						version: 1,
+						updatedAt: '2026-05-04T00:00:00.000Z',
+						blogs: {}
+					})
+				}),
+			/slug 只能使用小写字母、数字和单个连字符/
 		)
 	})
 })

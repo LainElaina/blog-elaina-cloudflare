@@ -6,6 +6,7 @@ import type { BlogIndexItem } from '@/lib/blog-index'
 import { serializeCategoriesConfig } from '@/lib/blog-index'
 import { exportStaticBlogArtifacts, parseRequiredBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
 import type { BlogFolderNode } from '@/lib/content-db/blog-folders'
+import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave, type LocalSaveFilePayload } from './save-blog-edits-utils'
 
 export type SaveBlogEditsArtifacts = {
@@ -27,6 +28,9 @@ export function buildArtifactsForSaveBlogEdits(params: {
 	const now = params.now ?? new Date()
 	const removedSlugs = originalItems.filter(item => !nextItems.some(next => next.slug === item.slug)).map(item => item.slug)
 	const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
+	for (const slug of uniqueRemoved) {
+		assertSafeBlogSlug(slug)
+	}
 	let db = parseRequiredBlogStorageDB(existingStorageRaw)
 
 	for (const item of nextItems) {
