@@ -23,7 +23,7 @@ export function buildLocalDraftConfigPayload<TSiteContent, TCardStyles>(
 	cardStyles: TCardStyles,
 	originalCardStyles: TCardStyles
 ) {
-	const payload: { siteContent?: TSiteContent | null; cardStyles?: TCardStyles } = buildLocalConfigPayload(
+	const payload: { siteContent?: TSiteContent | null; cardStyles?: TCardStyles | null } = buildLocalConfigPayload(
 		siteContent,
 		originalSiteContent,
 		cardStyles,
@@ -32,6 +32,9 @@ export function buildLocalDraftConfigPayload<TSiteContent, TCardStyles>(
 
 	if (!('siteContent' in payload)) {
 		payload.siteContent = null
+	}
+	if (!('cardStyles' in payload)) {
+		payload.cardStyles = null
 	}
 
 	return payload

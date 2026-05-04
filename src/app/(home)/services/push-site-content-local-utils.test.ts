@@ -63,6 +63,18 @@ test('buildLocalDraftConfigPayload marks reverted site content for removal', () 
 	})
 })
 
+test('buildLocalDraftConfigPayload marks reverted card styles for removal', () => {
+	const originalSiteContent = { meta: { title: 'A' } }
+	const currentSiteContent = { meta: { title: 'B' } }
+	const originalCardStyles = { musicCard: { width: 100 } }
+	const currentCardStyles = { musicCard: { width: 100 } }
+
+	assert.deepEqual(buildLocalDraftConfigPayload(currentSiteContent, originalSiteContent, currentCardStyles, originalCardStyles), {
+		siteContent: currentSiteContent,
+		cardStyles: null
+	})
+})
+
 test('getLocalSiteConfigEndpoint splits draft and publish endpoints', () => {
 	assert.equal(getLocalSiteConfigEndpoint('draft'), '/api/drafts/site-config')
 	assert.equal(getLocalSiteConfigEndpoint('publish'), '/api/publish/site-config')
@@ -234,6 +246,31 @@ test('保存草稿可清除已回到正式值的站点设置并保留布局草�
 
 		assert.deepEqual(draft, { cardStyles: layoutDraft })
 		assert.deepEqual(await readSiteConfigDraft(tmpDir), { cardStyles: layoutDraft })
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('站点设置草稿保存可清除已回到正式值的布局草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-clear-layout-'))
+	try {
+		await writeSiteConfigDraft(tmpDir, {
+			siteContent: { meta: { title: 'old draft' } },
+			cardStyles: { musicCard: { width: 120 } }
+		})
+
+		const draft = await writeSiteConfigDraft(
+			tmpDir,
+			buildLocalDraftConfigPayload(
+				{ meta: { title: 'new draft' } },
+				{ meta: { title: 'formal' } },
+				{ musicCard: { width: 100 } },
+				{ musicCard: { width: 100 } }
+			)
+		)
+
+		assert.deepEqual(draft, { siteContent: { meta: { title: 'new draft' } } })
+		assert.deepEqual(await readSiteConfigDraft(tmpDir), { siteContent: { meta: { title: 'new draft' } } })
 	} finally {
 		await fs.rm(tmpDir, { recursive: true, force: true })
 	}
