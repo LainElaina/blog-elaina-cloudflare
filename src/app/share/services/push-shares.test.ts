@@ -3,7 +3,84 @@ import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildLocalShareSaveFilePayloads } from './share-artifacts.ts'
-import { buildRemoteShareArtifactContents } from './push-shares.ts'
+import { buildRemoteShareArtifactContents, buildUnusedShareLogoDeleteTreeItems } from './push-shares.ts'
+
+describe('buildUnusedShareLogoDeleteTreeItems', () => {
+	it('只删除旧列表中不再被当前分享引用的 share 图标文件', () => {
+		const previousShares = [
+			{
+				name: 'Alpha',
+				logo: '/images/share/old-alpha.png',
+				url: 'https://alpha.dev',
+				description: 'alpha',
+				tags: ['tool'],
+				stars: 4
+			},
+			{
+				name: 'Beta',
+				logo: '/images/share/keep-beta.png',
+				url: 'https://beta.dev',
+				description: 'beta',
+				tags: ['tool'],
+				stars: 5
+			},
+			{
+				name: 'Remote',
+				logo: 'https://cdn.example.com/logo.png',
+				url: 'https://remote.dev',
+				description: 'remote',
+				tags: ['tool'],
+				stars: 3
+			}
+		]
+		const currentShares = [
+			{
+				name: 'Beta',
+				logo: '/images/share/keep-beta.png',
+				url: 'https://beta.dev',
+				description: 'beta',
+				tags: ['tool'],
+				stars: 5
+			},
+			{
+				name: 'Gamma',
+				logo: '/images/share/new-gamma.png',
+				url: 'https://gamma.dev',
+				description: 'gamma',
+				tags: ['tool'],
+				stars: 4
+			}
+		]
+
+		assert.deepEqual(buildUnusedShareLogoDeleteTreeItems(previousShares, currentShares), [
+			{
+				path: 'public/images/share/old-alpha.png',
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			}
+		])
+	})
+
+	it('忽略不安全的旧 share 图标路径', () => {
+		assert.deepEqual(
+			buildUnusedShareLogoDeleteTreeItems(
+				[
+					{
+						name: 'Unsafe',
+						logo: '/images/share/../secret.png',
+						url: 'https://unsafe.dev',
+						description: 'unsafe',
+						tags: [],
+						stars: 1
+					}
+				],
+				[]
+			),
+			[]
+		)
+	})
+})
 
 describe('buildRemoteShareArtifactContents', () => {
 	it('远端发布使用与本地保存一致的四产物契约', async () => {
@@ -160,5 +237,14 @@ describe('buildRemoteShareArtifactContents', () => {
 		assert.match(source, /deletedPublishedUrls\?: Set<string>/)
 		assert.match(source, /const \{ shares, logoItems, urlMappings, deletedPublishedUrls \} = params/)
 		assert.match(source, /buildRemoteShareArtifactContents\(\{[\s\S]*deletedPublishedUrls[\s\S]*\}\)/)
+	})
+
+	it('pushShares 入口会从基线 list.json 计算旧 share 图标删除项', async () => {
+		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
+
+		assert.match(source, /readTextFileFromRepo\([^\n]*'public\/share\/list\.json', latestCommitSha\)/)
+		assert.match(source, /const previousShares = parsePreviousShareList\(previousListJson\)/)
+		assert.match(source, /treeItems\.push\(\.\.\.buildUnusedShareLogoDeleteTreeItems\(previousShares, updatedShares\)\)/)
+		assert.match(source, /远程分享列表解析失败/)
 	})
 })

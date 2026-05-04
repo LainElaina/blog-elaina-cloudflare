@@ -13,6 +13,9 @@ import type { ShareFolderNode } from '../share-runtime'
 
 type ShareUrlMapping = ShareUrlMappingContract
 
+const SHARE_LOGO_PUBLIC_PREFIX = '/images/share/'
+const SHARE_LOGO_REPO_PREFIX = 'public/images/share/'
+
 export type PushSharesResult = {
 	list: Share[]
 	categories: ShareCategoriesArtifact
@@ -24,6 +27,64 @@ export type PushSharesParams = {
 	logoItems?: Map<string, LogoItem>
 	urlMappings?: ShareUrlMapping[]
 	deletedPublishedUrls?: Set<string>
+}
+
+function shareLogoRepoDeletePath(publicPath: string): string | null {
+	if (!publicPath.startsWith(SHARE_LOGO_PUBLIC_PREFIX)) {
+		return null
+	}
+	const filename = publicPath.slice(SHARE_LOGO_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${SHARE_LOGO_REPO_PREFIX}${filename}`
+}
+
+function collectShareLogoPaths(shares: Share[]): Set<string> {
+	const paths = new Set<string>()
+	for (const share of shares) {
+		if (share.logo?.startsWith(SHARE_LOGO_PUBLIC_PREFIX)) {
+			paths.add(share.logo)
+		}
+	}
+	return paths
+}
+
+export function buildUnusedShareLogoDeleteTreeItems(previousShares: Share[], currentShares: Share[]): TreeItem[] {
+	const currentLogoPaths = collectShareLogoPaths(currentShares)
+	const treeItems: TreeItem[] = []
+
+	for (const previousLogoPath of collectShareLogoPaths(previousShares)) {
+		if (!currentLogoPaths.has(previousLogoPath)) {
+			const path = shareLogoRepoDeletePath(previousLogoPath)
+			if (path) {
+				treeItems.push({
+					path,
+					mode: '100644',
+					type: 'blob',
+					sha: null
+				})
+			}
+		}
+	}
+
+	return treeItems
+}
+
+function parsePreviousShareList(previousListJson: string | null): Share[] {
+	if (!previousListJson) {
+		return []
+	}
+	try {
+		const previousShares = JSON.parse(previousListJson)
+		if (!Array.isArray(previousShares)) {
+			throw new Error('invalid share list')
+		}
+		return previousShares
+	} catch (error) {
+		console.error('Failed to parse previous share list.json:', error)
+		throw new Error('远程分享列表解析失败，请修复 public/share/list.json 后重试')
+	}
 }
 
 function parseJsonWithFallback<T>(content: string | undefined, fallback: T): T {
@@ -104,6 +165,8 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 	}
 
 	const updatedShares = applyShareLogoPathUpdates(shares, nextLogoPaths)
+	const previousListJson = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/list.json', latestCommitSha)
+	const previousShares = parsePreviousShareList(previousListJson)
 	const existingStorageRaw = await readTextFileFromRepo(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/share/storage.json', latestCommitSha)
 	const artifactContents = buildRemoteShareArtifactContents({
 		shares: updatedShares,
@@ -117,6 +180,7 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 		{ path: 'public/share/folders.json', content: artifactContents.folders },
 		{ path: 'public/share/storage.json', content: artifactContents.storage }
 	]
+	treeItems.push(...buildUnusedShareLogoDeleteTreeItems(previousShares, updatedShares))
 
 	for (const payload of payloads) {
 		const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(payload.content), 'base64')
