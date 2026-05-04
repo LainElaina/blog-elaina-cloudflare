@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
+import { buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
 import {
 	buildLocalConfigPayload,
 	buildLocalDraftConfigPayload,
@@ -95,6 +96,12 @@ export async function pushSiteContentLocal(
 			const uploadPath = resolveLocalSocialButtonImageUploadPath(siteContent, id)
 			if (!uploadPath) continue
 			uploadTasks.push(() => uploadLocalSiteAsset(item.file, uploadPath, uploadedFiles))
+		}
+	}
+
+	if (syncFormalAssets) {
+		for (const path of buildRemovedSocialButtonImageDeletePaths(originalSiteContent, siteContent)) {
+			deleteTasks.push(() => deleteFile(path))
 		}
 	}
 

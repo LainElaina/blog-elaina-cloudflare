@@ -19,8 +19,15 @@ const {
 	uploadLocalSiteAsset,
 	assertCanSaveLocalSiteConfigDraft
 } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
-const { writeSiteConfigDraft, readSiteConfigDraft, clearSiteConfigDraft, publishSiteConfigDraft, canPublishSiteConfigDraft, resolveSiteConfigPublishPayload } =
-	await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
+const {
+	writeSiteConfigDraft,
+	readSiteConfigDraft,
+	clearSiteConfigDraft,
+	publishSiteConfigDraft,
+	canPublishSiteConfigDraft,
+	resolveSiteConfigPublishPayload,
+	buildRemovedSiteConfigSocialButtonImagePaths
+} = await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
 
 test('buildLocalConfigPayload only includes changed site content', () => {
 	const originalSiteContent = { meta: { title: 'A' }, theme: { colorBrand: '#000' } }
@@ -84,6 +91,28 @@ test('resolveLocalSocialButtonImageUploadPath uses the configured social button 
 	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'github'), 'public/images/social-buttons/hash.png')
 	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'mail'), null)
 	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'missing'), null)
+})
+
+test('site config social button image deletion only targets unused local images', () => {
+	assert.deepEqual(
+		buildRemovedSiteConfigSocialButtonImagePaths(
+			{
+				socialButtons: [
+					{ value: '/images/social-buttons/old.png' },
+					{ value: '/images/social-buttons/keep.png?version=1' },
+					{ value: 'https://cdn.example.com/remote.png' },
+					{ value: '/images/social-buttons/../secret.png' }
+				]
+			},
+			{
+				socialButtons: [
+					{ value: '/images/social-buttons/keep.png' },
+					{ value: '/images/social-buttons/new.png' }
+				]
+			}
+		),
+		['public/images/social-buttons/old.png']
+	)
 })
 
 test('shouldClearLocalPendingAssetUploads only clears after local publish', () => {
@@ -275,6 +304,45 @@ test('正式保存优先使用当前请求 payload 而不是旧草稿', async ()
 	assert.deepEqual(payload, { siteContent: { meta: { title: 'current publish' } } })
 	await clearSiteConfigDraft(tmpDir)
 	await fs.rm(tmpDir, { recursive: true, force: true })
+})
+
+test('发布站点配置草稿会清理旧社交按钮图片文件', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-social-cleanup-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'public/images/social-buttons'), { recursive: true })
+		await fs.writeFile(
+			path.join(tmpDir, 'src/config/site-content.json'),
+			JSON.stringify(
+				{
+					meta: { title: 'formal' },
+					socialButtons: [
+						{ id: 'old', value: '/images/social-buttons/old.png' },
+						{ id: 'keep', value: '/images/social-buttons/keep.png' },
+						{ id: 'remote', value: 'https://cdn.example.com/logo.png' }
+					]
+				},
+				null,
+				'\t'
+			)
+		)
+		await fs.writeFile(path.join(tmpDir, 'public/images/social-buttons/old.png'), 'old')
+		await fs.writeFile(path.join(tmpDir, 'public/images/social-buttons/keep.png'), 'keep')
+
+		const draft = {
+			siteContent: {
+				meta: { title: 'draft' },
+				socialButtons: [{ id: 'keep', value: '/images/social-buttons/keep.png' }]
+			}
+		}
+		await writeSiteConfigDraft(tmpDir, draft)
+		await publishSiteConfigDraft(tmpDir, draft)
+
+		await assert.rejects(() => fs.stat(path.join(tmpDir, 'public/images/social-buttons/old.png')), /ENOENT/)
+		assert.equal(await fs.readFile(path.join(tmpDir, 'public/images/social-buttons/keep.png'), 'utf-8'), 'keep')
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
 })
 
 test('正式保存请求为空时回退发布已有草稿', async () => {

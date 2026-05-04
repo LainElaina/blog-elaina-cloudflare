@@ -1,16 +1,18 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, listRepoFilesRecursive, type TreeItem } from '@/lib/github-client'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import { toast } from 'sonner'
 import { fileToBase64NoPrefix } from '@/lib/file-utils'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
+import { buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
 
 export async function pushSiteContent(
 	siteContent: SiteContent,
+	originalSiteContent: SiteContent,
 	cardStyles: CardStyles,
 	faviconItem?: FileItem | null,
 	avatarItem?: FileItem | null,
@@ -166,6 +168,20 @@ export async function pushSiteContent(
 				mode: '100644',
 				type: 'blob',
 				sha: blobData.sha
+			})
+		}
+	}
+
+	const removedSocialButtonImagePaths = buildRemovedSocialButtonImageDeletePaths(originalSiteContent, siteContent)
+	if (removedSocialButtonImagePaths.length > 0) {
+		const existingRepoFiles = new Set(await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/social-buttons', latestCommitSha))
+		for (const path of removedSocialButtonImagePaths) {
+			if (!existingRepoFiles.has(path)) continue
+			treeItems.push({
+				path,
+				mode: '100644',
+				type: 'blob',
+				sha: null
 			})
 		}
 	}

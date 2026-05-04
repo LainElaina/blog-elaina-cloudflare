@@ -238,6 +238,7 @@ export default function ConfigDialog({ open, onClose }: ConfigDialogProps) {
 
 			await pushSiteContent(
 				formData,
+				originalData,
 				cardStylesData,
 				faviconItem,
 				avatarItem,

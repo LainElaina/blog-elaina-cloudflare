@@ -13,8 +13,14 @@ type LocalAssetReference = {
 	url: string
 }
 
+type SiteContentWithSocialButtons = {
+	socialButtons?: Array<{ value?: unknown }> | null
+}
+
 const DRAFT_FILE_RELATIVE_PATH = path.join('data', 'site-config.draft.json')
 const SITE_CONFIG_DRAFT_KEYS = ['siteContent', 'cardStyles', 'customComponents', 'colorPresets'] as const
+const SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX = '/images/social-buttons/'
+const SOCIAL_BUTTON_IMAGE_REPO_PREFIX = 'public/images/social-buttons/'
 
 export function resolveSiteConfigDraftPath(baseDir: string) {
 	return path.join(baseDir, DRAFT_FILE_RELATIVE_PATH)
@@ -104,6 +110,45 @@ type SiteConfigFormalBackup = {
 	content: string
 }
 
+function socialButtonImageRepoPath(publicPath: string): string | null {
+	if (!publicPath.startsWith(SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX)) {
+		return null
+	}
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${SOCIAL_BUTTON_IMAGE_REPO_PREFIX}${filename}`
+}
+
+function collectSocialButtonImageRepoPaths(siteContent: SiteContentWithSocialButtons | null | undefined): Set<string> {
+	const paths = new Set<string>()
+	for (const button of siteContent?.socialButtons ?? []) {
+		if (typeof button.value !== 'string') {
+			continue
+		}
+		const path = socialButtonImageRepoPath(button.value)
+		if (path) {
+			paths.add(path)
+		}
+	}
+	return paths
+}
+
+export function buildRemovedSiteConfigSocialButtonImagePaths(originalSiteContent: SiteContentWithSocialButtons | null | undefined, currentSiteContent: SiteContentWithSocialButtons | null | undefined): string[] {
+	const currentPaths = collectSocialButtonImageRepoPaths(currentSiteContent)
+	const paths: string[] = []
+
+	for (const originalPath of collectSocialButtonImageRepoPaths(originalSiteContent)) {
+		if (!currentPaths.has(originalPath)) {
+			paths.push(originalPath)
+		}
+	}
+
+	return paths
+}
+
 function isFileNotFoundError(error: unknown) {
 	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
@@ -150,6 +195,24 @@ async function rollbackSiteConfigFormalWrites(backups: SiteConfigFormalBackup[])
 	}
 }
 
+async function readFormalSiteContent(baseDir: string): Promise<SiteContentWithSocialButtons | null> {
+	try {
+		const raw = await fs.readFile(path.join(baseDir, 'src/config/site-content.json'), 'utf-8')
+		return JSON.parse(raw) as SiteContentWithSocialButtons
+	} catch {
+		return null
+	}
+}
+
+async function deleteSiteConfigSocialButtonImages(baseDir: string, paths: string[]) {
+	for (const imagePath of paths) {
+		if (!imagePath.startsWith(SOCIAL_BUTTON_IMAGE_REPO_PREFIX)) {
+			continue
+		}
+		await fs.rm(path.join(baseDir, imagePath), { force: true })
+	}
+}
+
 export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
 	if (!draft || Object.keys(draft).length === 0) {
 		throw new Error('没有可发布的草稿')
@@ -157,6 +220,11 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 
 	await assertSiteConfigDraftLocalAssetsExist(baseDir, draft)
 
+	const originalSiteContent = draft.siteContent ? await readFormalSiteContent(baseDir) : null
+	const removedSocialButtonImagePaths = buildRemovedSiteConfigSocialButtonImagePaths(
+		originalSiteContent,
+		draft.siteContent as SiteContentWithSocialButtons | null | undefined
+	)
 	const configDir = path.join(baseDir, 'src/config')
 	const writes = buildSiteConfigFormalWrites(draft)
 	const touchedFormal: string[] = []
@@ -171,11 +239,13 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 		}
 
 		await clearSiteConfigDraft(baseDir)
-		return touchedFormal
 	} catch (error) {
 		await rollbackSiteConfigFormalWrites(backups)
 		throw error
 	}
+
+	await deleteSiteConfigSocialButtonImages(baseDir, removedSocialButtonImagePaths)
+	return touchedFormal
 }
 
 function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): LocalAssetReference[] {
