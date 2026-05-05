@@ -1,8 +1,22 @@
-import { rm } from 'fs/promises'
-import { resolve } from 'path'
+import { rm, stat } from 'fs/promises'
+import { relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug'
 import { isPathStrictlyInsideDirectory } from '../local-path'
+
+function isAllowedBlogDirectoryPath(blogDir: string, fullPath: string) {
+	if (!isPathStrictlyInsideDirectory(blogDir, fullPath)) {
+		return false
+	}
+
+	try {
+		assertSafeBlogSlug(relative(blogDir, fullPath))
+		return true
+	} catch {
+		return false
+	}
+}
 
 export async function handleDeleteDir(request: NextRequest) {
 	try {
@@ -15,8 +29,13 @@ export async function handleDeleteDir(request: NextRequest) {
 		const blogDir = resolve(process.cwd(), 'public/blogs')
 		const fullPath = resolve(process.cwd(), dirPath)
 
-		if (!isPathStrictlyInsideDirectory(blogDir, fullPath)) {
-			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 目录内的子目录' }, { status: 403 })
+		if (!isAllowedBlogDirectoryPath(blogDir, fullPath)) {
+			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })
+		}
+
+		const targetStat = await stat(fullPath)
+		if (!targetStat.isDirectory()) {
+			return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
 		}
 
 		await rm(fullPath, { recursive: true, force: true })
