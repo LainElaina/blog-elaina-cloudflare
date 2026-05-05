@@ -22,6 +22,7 @@ import { pushShares } from './services/push-shares'
 import { LOCAL_SHARE_SAVE_PATHS, applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, buildUnusedShareLogoRepoPaths, type ShareSaveFilePayload } from './services/share-artifacts'
 import {
 	deleteLocalShareLogo,
+	readOptionalLocalShareStorageRaw,
 	rollbackLocalShareSave,
 	saveLocalShareFile,
 	uploadLocalShareLogo,
@@ -475,8 +476,7 @@ export default function Page() {
 					}
 				}
 
-				const existingStorageResponse = await fetch('/share/storage.json', { cache: 'no-store' })
-				const existingStorageRaw = existingStorageResponse.ok ? await existingStorageResponse.text() : null
+				const existingStorageRaw = await readOptionalLocalShareStorageRaw()
 				const updatedShares = applyShareLogoPathUpdates(currentShares, nextLogoPaths)
 				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls)
 				for (const payload of payloads) {

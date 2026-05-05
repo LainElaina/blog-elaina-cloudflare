@@ -52,6 +52,15 @@ export async function readLocalShareSaveUploadBackup(path: string, fetchLocal: L
 	return { path, existed: response.ok }
 }
 
+export async function readOptionalLocalShareStorageRaw(fetchLocal: LocalShareSaveFetch = fetch): Promise<string | null> {
+	const response = await fetchLocal('/share/storage.json', { cache: 'no-store' })
+	if (response.status === 404) {
+		return null
+	}
+	await assertLocalShareSaveOk(response, '读取分享存储')
+	return response.text()
+}
+
 export async function saveLocalShareFile(
 	payload: ShareSaveFilePayload,
 	actionName: string,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
 	deleteLocalShareLogo,
+	readOptionalLocalShareStorageRaw,
 	rollbackLocalShareSave,
 	saveLocalShareFile,
 	uploadLocalShareLogo,
@@ -55,6 +56,23 @@ test('local share artifact backup read failure aborts before overwriting files',
 
 	assert.deepEqual(writtenFiles, [])
 	assert.deepEqual(calls.map(call => call.input), ['/share/list.json'])
+})
+
+test('local share storage read only treats 404 as missing before merging artifacts', async () => {
+	const calls: FetchCall[] = []
+	const fetchFailure = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		return textResponse('temporary failure', false, 500)
+	}
+
+	await assert.rejects(() => readOptionalLocalShareStorageRaw(fetchFailure), /读取分享存储失败/)
+	assert.deepEqual(calls.map(call => call.input), ['/share/storage.json'])
+
+	const missing = await readOptionalLocalShareStorageRaw(async () => textResponse('', false, 404))
+	assert.equal(missing, null)
+
+	const existing = await readOptionalLocalShareStorageRaw(async () => textResponse('{"version":1}'))
+	assert.equal(existing, '{"version":1}')
 })
 
 test('local share logo backup read failure aborts before uploading file', async () => {
