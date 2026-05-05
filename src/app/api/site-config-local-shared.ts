@@ -17,6 +17,21 @@ type SiteContentWithSocialButtons = {
 	socialButtons?: Array<{ value?: unknown }> | null
 }
 
+function buildAtomicSiteConfigTempPath(fullPath: string) {
+	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+async function writeSiteConfigFileAtomically(fullPath: string, content: string) {
+	const tempPath = buildAtomicSiteConfigTempPath(fullPath)
+	try {
+		await fs.writeFile(tempPath, content)
+		await fs.rename(tempPath, fullPath)
+	} catch (error) {
+		await fs.rm(tempPath, { force: true }).catch(() => undefined)
+		throw error
+	}
+}
+
 const DRAFT_FILE_RELATIVE_PATH = path.join('data', 'site-config.draft.json')
 const SITE_CONFIG_DRAFT_KEYS = ['siteContent', 'cardStyles', 'customComponents', 'colorPresets'] as const
 const ART_IMAGE_PUBLIC_PREFIX = '/images/art/'
@@ -89,7 +104,7 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 		return merged
 	}
 
-	await fs.writeFile(draftPath, JSON.stringify(merged, null, '\t'))
+	await writeSiteConfigFileAtomically(draftPath, JSON.stringify(merged, null, '\t'))
 
 	return merged
 }
@@ -233,7 +248,7 @@ async function readSiteConfigFormalBackup(filePath: string): Promise<SiteConfigF
 async function rollbackSiteConfigFormalWrites(backups: SiteConfigFormalBackup[]) {
 	for (const backup of backups.reverse()) {
 		if (backup.existed) {
-			await fs.writeFile(backup.filePath, backup.content).catch(() => undefined)
+			await writeSiteConfigFileAtomically(backup.filePath, backup.content).catch(() => undefined)
 		} else {
 			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
 		}
@@ -279,7 +294,7 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 		for (const write of writes) {
 			const filePath = path.join(configDir, write.fileName)
 			backups.push(await readSiteConfigFormalBackup(filePath))
-			await fs.writeFile(filePath, write.content)
+			await writeSiteConfigFileAtomically(filePath, write.content)
 			touchedFormal.push(write.fileName)
 		}
 

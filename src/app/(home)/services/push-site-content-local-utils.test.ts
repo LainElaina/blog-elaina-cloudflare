@@ -248,6 +248,20 @@ test('local site asset rollback restores overwritten assets and deletes new uplo
 	)
 })
 
+test('站点配置草稿和正式发布写入使用原子替换', async () => {
+	const source = await fs.readFile(new URL('../../api/site-config-local-shared.ts', import.meta.url), 'utf-8')
+
+	assert.match(source, /function buildAtomicSiteConfigTempPath\(fullPath: string\)/)
+	assert.match(source, /async function writeSiteConfigFileAtomically\(fullPath: string, content: string\)/)
+	assert.match(source, /await fs\.writeFile\(tempPath, content\)\n\t\tawait fs\.rename\(tempPath, fullPath\)/)
+	assert.match(source, /await fs\.rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
+	assert.match(source, /await writeSiteConfigFileAtomically\(draftPath, JSON\.stringify\(merged, null, '\\t'\)\)/)
+	assert.match(source, /await writeSiteConfigFileAtomically\(filePath, write\.content\)/)
+	assert.match(source, /await writeSiteConfigFileAtomically\(backup\.filePath, backup\.content\)\.catch\(\(\) => undefined\)/)
+	assert.doesNotMatch(source, /await fs\.writeFile\(draftPath, JSON\.stringify\(merged, null, '\\t'\)\)/)
+	assert.doesNotMatch(source, /await fs\.writeFile\(filePath, write\.content\)/)
+})
+
 test('保存草稿不直接触碰正式源', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-'))
 	await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
