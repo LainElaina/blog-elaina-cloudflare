@@ -379,6 +379,29 @@ test('正式保存会写正式源并清理草稿', async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
+test('正式站点设置损坏时发布草稿会失败并保留草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-invalid-formal-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		const draft = {
+			siteContent: {
+				meta: { title: 'draft' },
+				socialButtons: []
+			}
+		}
+
+		await fs.writeFile(formalPath, '{invalid json')
+		await writeSiteConfigDraft(tmpDir, draft)
+
+		await assert.rejects(() => publishSiteConfigDraft(tmpDir, draft), /Unexpected token|JSON/)
+		assert.equal(await fs.readFile(formalPath, 'utf-8'), '{invalid json')
+		assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('正式保存失败时会回滚已写入的正式源并保留草稿', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-rollback-'))
 	try {

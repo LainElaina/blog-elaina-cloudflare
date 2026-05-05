@@ -259,8 +259,11 @@ async function readFormalSiteContent(baseDir: string): Promise<SiteContentWithSo
 	try {
 		const raw = await fs.readFile(path.join(baseDir, 'src/config/site-content.json'), 'utf-8')
 		return JSON.parse(raw) as SiteContentWithSocialButtons
-	} catch {
-		return null
+	} catch (error) {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
 	}
 }
 
