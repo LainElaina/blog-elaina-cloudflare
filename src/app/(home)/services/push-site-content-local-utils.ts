@@ -99,12 +99,27 @@ export type LocalSiteAssetUploadBackup = {
 	file?: File
 }
 
-export function resolveLocalSocialButtonImageUploadPath(siteContent: SiteContentWithSocialButtons, buttonId: string) {
-	const value = siteContent.socialButtons?.find(button => button.id === buttonId)?.value
-	if (!value?.startsWith('/images/social-buttons/')) {
+const LOCAL_SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX = '/images/social-buttons/'
+const LOCAL_SOCIAL_BUTTON_IMAGE_REPO_PREFIX = 'public/images/social-buttons/'
+
+function resolveLocalSingleFileAssetRepoPath(publicPath: string, publicPrefix: string, repoPrefix: string) {
+	if (!publicPath.startsWith(publicPrefix)) {
 		return null
 	}
-	return `public${value}`
+	const pathOnly = publicPath.split(/[?#]/, 1)[0]
+	const filename = pathOnly.slice(publicPrefix.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `${repoPrefix}${filename}`
+}
+
+export function resolveLocalSocialButtonImageUploadPath(siteContent: SiteContentWithSocialButtons, buttonId: string) {
+	const value = siteContent.socialButtons?.find(button => button.id === buttonId)?.value
+	if (!value) {
+		return null
+	}
+	return resolveLocalSingleFileAssetRepoPath(value, LOCAL_SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX, LOCAL_SOCIAL_BUTTON_IMAGE_REPO_PREFIX)
 }
 
 function toPublicAssetUrl(filePath: string) {

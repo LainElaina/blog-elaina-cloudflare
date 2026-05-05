@@ -92,15 +92,23 @@ test('shouldRequestLocalConfigEndpoint includes explicit draft publishes', () =>
 	assert.equal(shouldRequestLocalConfigEndpoint('draft', { siteContent: {} }, false), true)
 })
 
-test('resolveLocalSocialButtonImageUploadPath uses the configured social button URL', () => {
+test('resolveLocalSocialButtonImageUploadPath uses only safe social button filenames', () => {
 	const siteContent = {
 		socialButtons: [
 			{ id: 'github', value: '/images/social-buttons/hash.png' },
+			{ id: 'with-query', value: '/images/social-buttons/hash.png?version=1#hash' },
+			{ id: 'nested', value: '/images/social-buttons/nested/hash.png' },
+			{ id: 'parent', value: '/images/social-buttons/../avatar.png' },
+			{ id: 'encoded-parent', value: '/images/social-buttons/..%2Favatar.png' },
 			{ id: 'mail', value: 'mailto:hello@example.com' }
 		]
 	}
 
 	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'github'), 'public/images/social-buttons/hash.png')
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'with-query'), 'public/images/social-buttons/hash.png')
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'nested'), null)
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'parent'), null)
+	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'encoded-parent'), null)
 	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'mail'), null)
 	assert.equal(resolveLocalSocialButtonImageUploadPath(siteContent, 'missing'), null)
 })
