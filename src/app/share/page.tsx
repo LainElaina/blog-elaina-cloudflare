@@ -512,7 +512,11 @@ export default function Page() {
 			resetEditingSessions()
 			toast.success('保存成功！')
 		} catch (error: any) {
-			await rollbackLocalShareSave(writtenFiles, uploadedFiles)
+			try {
+				await rollbackLocalShareSave(writtenFiles, uploadedFiles)
+			} catch (rollbackError) {
+				console.warn('本地分享保存回滚失败:', rollbackError)
+			}
 			console.error('Failed to save:', error)
 			toast.error(`保存失败: ${error?.message || '未知错误'}`)
 		} finally {
