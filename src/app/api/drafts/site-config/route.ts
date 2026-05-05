@@ -23,7 +23,15 @@ export async function POST(request: NextRequest) {
 	const { buildSiteConfigDraftItems, writeSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
 
 	try {
-		const payload = await request.json()
+		let payload: unknown
+		try {
+			payload = await request.json()
+		} catch {
+			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
+		}
+		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
+		}
 		const draft = await writeSiteConfigDraft(process.cwd(), payload)
 		const items = buildSiteConfigDraftItems(draft)
 		return NextResponse.json({ success: true, hasDraft: items.length > 0, items })
