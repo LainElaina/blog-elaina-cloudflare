@@ -68,7 +68,9 @@ export async function pushSiteContent(
 			const artConfig = siteContent.artImages?.find(art => art.id === id)
 			if (!artConfig) continue
 
-			// Ensure blob is saved under public directory while keeping URL as /images/...
+			// Only upload if URL starts with /images/art/ (local file)
+			if (!artConfig.url.startsWith('/images/art/')) continue
+
 			const normalizedUrlPath = artConfig.url.startsWith('/') ? artConfig.url : `/${artConfig.url}`
 			const path = `public${normalizedUrlPath}`
 			if (!path) continue

@@ -36,6 +36,8 @@ test('site config art image deletion skips external urls', async () => {
 	assert.match(remoteSource, /import \{ buildRemovedArtImageDeletePaths, buildRemovedBackgroundImageDeletePaths, buildRemovedSocialButtonImageDeletePaths \} from '\.\/site-content-assets'/)
 	assert.match(remoteSource, /const removedArtImagePaths = buildRemovedArtImageDeletePaths\(removedArtImages\)/)
 	assert.match(remoteSource, /const removedBackgroundImagePaths = buildRemovedBackgroundImageDeletePaths\(removedBackgroundImages\)/)
+	assert.match(remoteSource, /if \(!artConfig\.url\.startsWith\('\/images\/art\/'\)\) continue\n\n\s*const normalizedUrlPath = artConfig\.url\.startsWith\('\/'\) \? artConfig\.url : `\/\$\{artConfig\.url\}`\n\s*const path = `public\$\{normalizedUrlPath\}`/)
+	assert.doesNotMatch(remoteSource, /const normalizedUrlPath = artConfig\.url\.startsWith\('\/'\) \? artConfig\.url : `\/\$\{artConfig\.url\}`\n\s*const path = `public\$\{normalizedUrlPath\}`\n\s*if \(!artConfig\.url\.startsWith\('\/images\/art\/'\)\) continue/)
 	assert.match(localSource, /import \{ buildRemovedArtImageDeletePaths, buildRemovedBackgroundImageDeletePaths, buildRemovedSocialButtonImageDeletePaths \} from '\.\/site-content-assets'/)
 	assert.match(localSource, /for \(const path of buildRemovedArtImageDeletePaths\(removedArtImages\)\) \{\n\s*deleteTasks\.push\(\(\) => deleteFile\(path\)\)/)
 	assert.match(localSource, /for \(const path of buildRemovedBackgroundImageDeletePaths\(removedBackgroundImages\)\) \{\n\s*deleteTasks\.push\(\(\) => deleteFile\(path\)\)/)
