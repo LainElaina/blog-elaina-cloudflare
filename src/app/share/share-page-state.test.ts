@@ -184,6 +184,52 @@ describe('share page state', () => {
 		assert.deepEqual(state.runtime.visibleItems.map(item => item.url), ['https://alpha.dev'])
 	})
 
+	it('初始 state 会过滤脏 categories 与 folders，避免页面目录/分类选项读取崩溃', () => {
+		const dirtyCategoriesArtifact = {
+			categories: ['inspiration', null, 'tool', 1, { value: 'learning' }, 'unused']
+		} as unknown as ShareCategoriesArtifact
+		const dirtyFoldersArtifact = [
+			null,
+			{
+				name: 'design',
+				path: '/design',
+				children: [
+					{ name: 'missing-path', children: [] },
+					{
+						name: 'images',
+						path: '/design/images',
+						children: [{ name: 'icons', path: '/design/images/icons', children: [] }, null]
+					}
+				]
+			},
+			{
+				name: 'dev',
+				path: '/dev',
+				children: [{ name: 'frontend', path: '/dev/frontend', children: [] }, []]
+			},
+			{ name: 'missing-path', children: [] }
+		] as unknown as ShareFolderNode[]
+
+		const state = createSharePageState({
+			listArtifact,
+			categoriesArtifact: dirtyCategoriesArtifact,
+			foldersArtifact: dirtyFoldersArtifact,
+			filters: {
+				activeDirectory: '/design',
+				activeCategory: 'tool',
+				searchTerm: 'alpha',
+				selectedTag: 'image'
+			}
+		})
+
+		assert.deepEqual(state.artifacts.categories, {
+			categories: ['inspiration', 'tool', 'unused']
+		})
+		assert.deepEqual(state.artifacts.folders, foldersArtifact)
+		assert.deepEqual(state.runtime.visibleItems.map(item => item.url), ['https://alpha.dev'])
+		assert.deepEqual(state.runtime.availableCategories, ['all', 'inspiration', 'tool'])
+	})
+
 	it('目录树直接消费 folders.json', () => {
 		const state = createState()
 

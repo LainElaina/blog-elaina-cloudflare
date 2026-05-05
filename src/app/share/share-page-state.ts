@@ -2,6 +2,8 @@ import {
 	applyCategorySelection,
 	applyDirectorySelection,
 	buildShareRuntimeSnapshot,
+	normalizeShareFolderNodes,
+	normalizeShareRuntimeCategories,
 	normalizeShareRuntimeItems,
 	SHARE_CATEGORY_ALL,
 	SHARE_DIRECTORY_ALL,
@@ -193,8 +195,10 @@ export function createSharePageState(input: {
 	return rebuildSharePageState({
 		artifacts: {
 			list: normalizeShareRuntimeItems(input.listArtifact),
-			categories: input.categoriesArtifact,
-			folders: input.foldersArtifact
+			categories: {
+				categories: normalizeShareRuntimeCategories(input.categoriesArtifact.categories)
+			},
+			folders: normalizeShareFolderNodes(input.foldersArtifact)
 		},
 		filters: createDefaultFilters(input.filters),
 		isEditMode: input.isEditMode ?? false
@@ -215,8 +219,10 @@ export function replaceSharePageArtifacts(
 	return rebuildSharePageState({
 		artifacts: {
 			list: normalizeShareRuntimeItems(nextArtifacts.listArtifact),
-			categories: nextArtifacts.categoriesArtifact,
-			folders: nextArtifacts.foldersArtifact
+			categories: {
+				categories: normalizeShareRuntimeCategories(nextArtifacts.categoriesArtifact.categories)
+			},
+			folders: normalizeShareFolderNodes(nextArtifacts.foldersArtifact)
 		},
 		filters: state.filters,
 		isEditMode: state.isEditMode,

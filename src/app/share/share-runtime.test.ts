@@ -369,6 +369,44 @@ describe('share runtime', () => {
 		assert.equal(result.directoryTree.some(node => node.path === '/design'), true)
 	})
 
+	it('snapshot 会过滤脏分类与目录节点，避免目录递归和分类过滤崩溃', () => {
+		const result = buildShareRuntimeSnapshot({
+			items,
+			categories: ['inspiration', 1, null, 'tool', { value: 'learning' }] as unknown as string[],
+			folders: [
+				null,
+				{
+					name: 'design',
+					path: '/design',
+					children: [
+						{ name: 'missing-path', children: [] },
+						{
+							name: 'images',
+							path: '/design/images',
+							children: [null, { name: 'icons', path: '/design/images/icons', children: {} }]
+						}
+					]
+				},
+				{
+					name: 'dev',
+					path: '/dev',
+					children: [{ name: 'frontend', path: '/dev/frontend', children: [] }, []]
+				},
+				{ name: 'missing-path', children: [] }
+			] as unknown as ShareFolderNode[],
+			filters: createFilters({
+				activeDirectory: '/design',
+				activeCategory: 'tool',
+				searchTerm: 'compress',
+				selectedTag: 'image'
+			})
+		})
+
+		assert.deepEqual(result.visibleItems.map(item => item.url), ['https://alpha.dev'])
+		assert.deepEqual(result.availableCategories, ['all', 'inspiration', 'tool'])
+		assert.deepEqual(flattenFolderPaths(result.directoryTree), ['/design', '/design/images', '/design/images/icons', '/dev', '/dev/frontend'])
+	})
+
 	it('snapshot 不会把没有任何 share 的空目录节点暴露给前台', () => {
 		const result = buildShareRuntimeSnapshot({
 			items,

@@ -58,6 +58,39 @@ export function normalizeShareRuntimeItems(items: unknown): ShareRuntimeItem[] {
 	})
 }
 
+export function normalizeShareRuntimeCategories(categories: unknown): string[] {
+	if (!Array.isArray(categories)) {
+		return []
+	}
+
+	return categories.filter(category => typeof category === 'string')
+}
+
+export function normalizeShareFolderNodes(nodes: unknown): ShareFolderNode[] {
+	if (!Array.isArray(nodes)) {
+		return []
+	}
+
+	return nodes.flatMap(node => {
+		if (!node || typeof node !== 'object' || Array.isArray(node)) {
+			return []
+		}
+
+		const folder = node as Record<string, unknown>
+		if (typeof folder.name !== 'string' || typeof folder.path !== 'string') {
+			return []
+		}
+
+		return [
+			{
+				name: folder.name,
+				path: folder.path,
+				children: normalizeShareFolderNodes(folder.children)
+			}
+		]
+	})
+}
+
 export type ShareRuntimeFilters = {
 	activeDirectory: string
 	activeCategory: string
@@ -177,9 +210,11 @@ export function buildShareRuntimeSnapshot(input: {
 	filters: ShareRuntimeFilters
 }): ShareRuntimeSnapshot {
 	const items = normalizeShareRuntimeItems(input.items)
-	const activeDirectory = normalizeDirectorySelection(input.filters.activeDirectory, input.folders)
+	const categories = normalizeShareRuntimeCategories(input.categories)
+	const folders = normalizeShareFolderNodes(input.folders)
+	const activeDirectory = normalizeDirectorySelection(input.filters.activeDirectory, folders)
 	const directoryItems = filterItemsByDirectory(items, activeDirectory)
-	const activeCategory = normalizeCategoryInput(input.filters.activeCategory, input.categories)
+	const activeCategory = normalizeCategoryInput(input.filters.activeCategory, categories)
 	const categoryItems = filterItemsByCategory(directoryItems, activeCategory)
 	const visibleItems = categoryItems.filter(
 		item => matchesSearch(item, input.filters.searchTerm) && matchesTag(item, input.filters.selectedTag)
@@ -198,8 +233,8 @@ export function buildShareRuntimeSnapshot(input: {
 
 	return {
 		visibleItems,
-		availableCategories: getAvailableCategories(directoryItems, input.categories),
-		directoryTree: pruneEmptyFolders(input.folders, items),
+		availableCategories: getAvailableCategories(directoryItems, categories),
+		directoryTree: pruneEmptyFolders(folders, items),
 		activeCategory,
 		emptyState
 	}
@@ -213,12 +248,13 @@ export function applyDirectorySelection(input: {
 	nextDirectory: string
 }): ShareRuntimeFilters {
 	const items = normalizeShareRuntimeItems(input.items)
-	const activeDirectory = normalizeDirectorySelection(input.nextDirectory, input.folders)
+	const categories = normalizeShareRuntimeCategories(input.categories)
+	const activeDirectory = normalizeDirectorySelection(input.nextDirectory, normalizeShareFolderNodes(input.folders))
 	const nextDirectoryItems = filterItemsByDirectory(items, activeDirectory)
 	const activeCategory = normalizeCategorySelection(
 		input.current.activeCategory,
 		nextDirectoryItems,
-		input.categories
+		categories
 	)
 
 	return {
@@ -244,7 +280,7 @@ export function applyCategorySelection(input: {
 		activeCategory: normalizeCategorySelection(
 			input.nextCategory,
 			currentDirectoryItems,
-			input.categories
+			normalizeShareRuntimeCategories(input.categories)
 		)
 	}
 }
