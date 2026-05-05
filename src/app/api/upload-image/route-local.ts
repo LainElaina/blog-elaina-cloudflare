@@ -25,7 +25,13 @@ async function writeImageAtomically(fullPath: string, buffer: Buffer) {
 
 export async function handleUploadImage(request: NextRequest) {
 	try {
-		const formData = await request.formData()
+		let formData: FormData
+		try {
+			formData = await request.formData()
+		} catch {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
+
 		const file = formData.get('file')
 		const path = formData.get('path')
 

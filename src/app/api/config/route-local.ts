@@ -90,7 +90,13 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 
 export async function handleConfigPost(request: NextRequest) {
 	try {
-		const payload = await request.json()
+		let payload: unknown
+		try {
+			payload = await request.json()
+		} catch {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
+
 		const configDir = path.join(process.cwd(), 'src/config')
 		const writes = buildConfigWrites(payload)
 		const backups: ConfigBackup[] = []

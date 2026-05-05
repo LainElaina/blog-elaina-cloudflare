@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+import { handleConfigPost } from './route-local.ts'
+
 test('local config write accepts explicit empty array payloads', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
@@ -30,4 +32,15 @@ test('local config write preserves layout undo backup when saving card styles', 
 	assert.match(source, /await writeLayoutBackupIfNeeded\(writes, backups\)/)
 	assert.match(source, /await writeFileAtomically\(LAYOUT_BACKUP_PATH, cardStylesBackup\.content\)/)
 	assert.doesNotMatch(source, /await fs\.writeFile\(LAYOUT_BACKUP_PATH, cardStylesBackup\.content\)/)
+})
+
+test('local config write returns 400 when JSON body is malformed', async () => {
+	const response = await handleConfigPost({
+		json: async () => {
+			throw new SyntaxError('bad json')
+		}
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })

@@ -47,3 +47,14 @@ test('upload image local route returns 400 for non-string path field', async () 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: 'Missing file or path' })
 })
+
+test('upload image local route returns 400 when multipart body is malformed', async () => {
+	const response = await handleUploadImage({
+		formData: async () => {
+			throw new TypeError('bad multipart')
+		}
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
+})
