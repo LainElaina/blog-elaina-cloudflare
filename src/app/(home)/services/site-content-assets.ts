@@ -37,6 +37,18 @@ function socialButtonImageRepoPath(publicPath: string): string | null {
 	return publicAssetRepoPath(publicPath, SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX, SOCIAL_BUTTON_IMAGE_REPO_PREFIX)
 }
 
+export function buildArtImageUploadRepoPath(publicPath: string | null | undefined): string | null {
+	return typeof publicPath === 'string' ? artImageRepoPath(publicPath) : null
+}
+
+export function buildBackgroundImageUploadRepoPath(publicPath: string | null | undefined): string | null {
+	return typeof publicPath === 'string' ? backgroundImageRepoPath(publicPath) : null
+}
+
+export function buildSocialButtonImageUploadRepoPath(publicPath: string | null | undefined): string | null {
+	return typeof publicPath === 'string' ? socialButtonImageRepoPath(publicPath) : null
+}
+
 function buildRemovedImageDeletePaths(images: SiteContentImageConfig[] | null | undefined, toRepoPath: (publicPath: string) => string | null): string[] {
 	const paths: string[] = []
 	for (const image of images ?? []) {

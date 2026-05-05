@@ -5,7 +5,14 @@ import { toast } from 'sonner'
 import { fileToBase64NoPrefix } from '@/lib/file-utils'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
-import { buildRemovedArtImageDeletePaths, buildRemovedBackgroundImageDeletePaths, buildRemovedSocialButtonImageDeletePaths } from './site-content-assets'
+import {
+	buildArtImageUploadRepoPath,
+	buildBackgroundImageUploadRepoPath,
+	buildRemovedArtImageDeletePaths,
+	buildRemovedBackgroundImageDeletePaths,
+	buildRemovedSocialButtonImageDeletePaths,
+	buildSocialButtonImageUploadRepoPath
+} from './site-content-assets'
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
@@ -68,11 +75,7 @@ export async function pushSiteContent(
 			const artConfig = siteContent.artImages?.find(art => art.id === id)
 			if (!artConfig) continue
 
-			// Only upload if URL starts with /images/art/ (local file)
-			if (!artConfig.url.startsWith('/images/art/')) continue
-
-			const normalizedUrlPath = artConfig.url.startsWith('/') ? artConfig.url : `/${artConfig.url}`
-			const path = `public${normalizedUrlPath}`
+			const path = buildArtImageUploadRepoPath(artConfig.url)
 			if (!path) continue
 
 			toast.info(`正在上传 Art 图片 ${id}...`)
@@ -110,11 +113,7 @@ export async function pushSiteContent(
 			const bgConfig = siteContent.backgroundImages?.find(bg => bg.id === id)
 			if (!bgConfig) continue
 
-			// Only upload if URL starts with /images/background/ (local file)
-			if (!bgConfig.url.startsWith('/images/background/')) continue
-
-			const normalizedUrlPath = bgConfig.url.startsWith('/') ? bgConfig.url : `/${bgConfig.url}`
-			const path = `public${normalizedUrlPath}`
+			const path = buildBackgroundImageUploadRepoPath(bgConfig.url)
 			if (!path) continue
 
 			toast.info(`正在上传背景图片 ${id}...`)
@@ -152,11 +151,7 @@ export async function pushSiteContent(
 			const button = siteContent.socialButtons?.find(btn => btn.id === buttonId)
 			if (!button) continue
 
-			// Only upload if URL starts with /images/social-buttons/ (local file)
-			if (!button.value.startsWith('/images/social-buttons/')) continue
-
-			const normalizedUrlPath = button.value.startsWith('/') ? button.value : `/${button.value}`
-			const path = `public${normalizedUrlPath}`
+			const path = buildSocialButtonImageUploadRepoPath(button.value)
 			if (!path) continue
 
 			toast.info(`正在上传社交按钮图片 ${buttonId}...`)
