@@ -62,8 +62,9 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 				const ext = getFileExt(imageItem.file.name)
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/project/${filename}`
+				const uploadKey = filename
 
-				if (!uploadedProjectImagePaths.has(hash)) {
+				if (!uploadedProjectImagePaths.has(uploadKey)) {
 					const path = `public/images/project/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(imageItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -73,10 +74,10 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedProjectImagePaths.set(hash, publicPath)
+					uploadedProjectImagePaths.set(uploadKey, publicPath)
 				}
 
-				const uploadedPath = uploadedProjectImagePaths.get(hash)!
+				const uploadedPath = uploadedProjectImagePaths.get(uploadKey)!
 				updatedProjects = updatedProjects.map(p => (p.url === url ? { ...p, image: uploadedPath } : p))
 			}
 		}
