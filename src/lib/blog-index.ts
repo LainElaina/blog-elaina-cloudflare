@@ -26,15 +26,21 @@ export function serializeCategoriesConfig(categories: string[]): string {
 }
 
 async function readIndexItemsFromRepo(token: string, owner: string, repo: string, branch: string): Promise<BlogIndexItem[]> {
+	const txt = await readTextFileFromRepo(token, owner, repo, BLOG_INDEX_PATH, branch)
+	if (txt === null) return []
+
+	let parsed: unknown
 	try {
-		const txt = await readTextFileFromRepo(token, owner, repo, BLOG_INDEX_PATH, branch)
-		if (!txt) return []
-		const parsed = JSON.parse(txt)
-		if (!Array.isArray(parsed)) return []
-		return parsed as BlogIndexItem[]
+		parsed = JSON.parse(txt)
 	} catch {
-		return []
+		throw new Error('博客 index.json 解析失败，请修复 public/blogs/index.json 后重试')
 	}
+
+	if (!Array.isArray(parsed)) {
+		throw new Error('博客 index.json 格式错误，请修复 public/blogs/index.json 后重试')
+	}
+
+	return parsed as BlogIndexItem[]
 }
 
 export async function prepareBlogStaticArtifacts(params: {
