@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { isPathMatchingFileOrInsideDirectory } from '../local-path.ts'
+import { isPathStrictlyInsideDirectory } from '../local-path.ts'
 
 const ALLOWED_SAVE_FILE_PATHS = [
 	'src/app/about/list.json',
@@ -22,6 +22,6 @@ const ALLOWED_SAVE_FILE_DIRECTORIES = ['public/blogs']
 export function isAllowedSaveFilePath(projectDir: string, fullPath: string) {
 	return (
 		ALLOWED_SAVE_FILE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
-		ALLOWED_SAVE_FILE_DIRECTORIES.some(allowedDir => isPathMatchingFileOrInsideDirectory(resolve(projectDir, allowedDir), fullPath))
+		ALLOWED_SAVE_FILE_DIRECTORIES.some(allowedDir => isPathStrictlyInsideDirectory(resolve(projectDir, allowedDir), fullPath))
 	)
 }

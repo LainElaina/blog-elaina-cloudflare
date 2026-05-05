@@ -12,6 +12,12 @@ test('save-file local route allows only known content files and blog artifacts',
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs/post-a/config.json')), true)
 })
 
+test('save-file local route rejects blog artifact directory root as a file path', () => {
+	const projectDir = resolve('/repo/blog')
+
+	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs')), false)
+})
+
 test('save-file local route rejects project files outside the write allowlist', () => {
 	const projectDir = resolve('/repo/blog')
 
