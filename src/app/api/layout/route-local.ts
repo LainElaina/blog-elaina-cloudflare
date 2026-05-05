@@ -5,6 +5,21 @@ import { NextResponse } from 'next/server'
 const LAYOUT_PATH = path.join(process.cwd(), 'src/config/card-styles.json')
 const BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
 
+function buildAtomicLayoutTempPath(fullPath: string) {
+	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function writeFileAtomically(fullPath: string, content: string) {
+	const tempPath = buildAtomicLayoutTempPath(fullPath)
+	try {
+		fs.writeFileSync(tempPath, content, 'utf-8')
+		fs.renameSync(tempPath, fullPath)
+	} catch (error) {
+		fs.rmSync(tempPath, { force: true })
+		throw error
+	}
+}
+
 export async function handleLayoutGet() {
 	try {
 		const data = fs.readFileSync(LAYOUT_PATH, 'utf-8')
@@ -24,10 +39,10 @@ export async function handleLayoutPost(request: Request) {
 				fs.mkdirSync(dataDir, { recursive: true })
 			}
 			const current = fs.readFileSync(LAYOUT_PATH, 'utf-8')
-			fs.writeFileSync(BACKUP_PATH, current)
+			writeFileAtomically(BACKUP_PATH, current)
 		}
 
-		fs.writeFileSync(LAYOUT_PATH, JSON.stringify(layout, null, '\t'))
+		writeFileAtomically(LAYOUT_PATH, JSON.stringify(layout, null, '\t'))
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
