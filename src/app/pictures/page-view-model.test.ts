@@ -119,6 +119,17 @@ describe('pictures save path replacement', () => {
 		assert.ok(saveListIndex < deleteImageIndex)
 	})
 
+	it('development save ignores orphaned picture deletion failures after persisting list.json', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+		const deleteImageIndex = pageSource.indexOf("'删除图床旧图片'")
+		const savedPicturesIndex = pageSource.indexOf('savedPictures = updatedPictures')
+
+		assert.notEqual(deleteImageIndex, -1)
+		assert.notEqual(savedPicturesIndex, -1)
+		assert.ok(deleteImageIndex < savedPicturesIndex)
+		assert.match(pageSource, /'删除图床旧图片'\n\s*\)\.catch\(error => console\.warn\('删除图床旧图片失败:', error\)\)/)
+	})
+
 	it('development save reuses key-based replacements instead of treating imageItems keys as URLs', async () => {
 		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 

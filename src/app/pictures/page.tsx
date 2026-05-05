@@ -263,7 +263,7 @@ export default function Page() {
 									body: JSON.stringify({ path: `public${url}` })
 								}),
 								'删除图床旧图片'
-							)
+							).catch(error => console.warn('删除图床旧图片失败:', error))
 						}
 					}
 				}
