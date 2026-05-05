@@ -126,6 +126,31 @@ describe('loadBlog', () => {
 		)
 	})
 
+	it('aborts when fallback blog config JSON is not an object', async () => {
+		for (const configBody of ['null', '[]']) {
+			await withMockFetch(
+				new Map<string, Response>([
+					[
+						'/blogs/storage.json',
+						new Response(
+							JSON.stringify({
+								version: 1,
+								updatedAt: '2026-03-27T10:00:00.000Z',
+								blogs: {}
+							}),
+							{ status: 200 }
+						)
+					],
+					['/blogs/post-a/config.json', new Response(configBody, { status: 200 })],
+					['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+				]),
+				async () => {
+					await assert.rejects(() => loadBlog('post-a'), /博客配置格式错误/)
+				}
+			)
+		}
+	})
+
 	it('keeps missing markdown as not found while surfacing read failures', async () => {
 		await withMockFetch(new Map<string, Response>(), async () => {
 			await assert.rejects(() => loadBlog('post-a'), /Blog not found/)

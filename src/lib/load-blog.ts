@@ -10,6 +10,10 @@ export type LoadedBlog = {
 	cover?: string
 }
 
+function isPlainBlogConfig(value: unknown): value is BlogConfig {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function toBlogConfigFromStorageRecord(record: Record<string, unknown> | undefined): BlogConfig {
 	if (!record) return {}
 	return {
@@ -76,7 +80,11 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 		const configRaw = await readOptionalLoadBlogText(configRes, '读取博客配置')
 		if (configRaw !== null) {
 			try {
-				config = JSON.parse(configRaw)
+				const parsedConfig = JSON.parse(configRaw)
+				if (!isPlainBlogConfig(parsedConfig)) {
+					throw new Error('博客配置格式错误')
+				}
+				config = parsedConfig
 			} catch {
 				throw new Error('博客配置格式错误')
 			}
