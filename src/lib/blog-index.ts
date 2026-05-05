@@ -24,22 +24,47 @@ export function serializeCategoriesConfig(categories: string[]): string {
 	return JSON.stringify({ categories }, null, 2)
 }
 
-async function readIndexItemsFromRepo(token: string, owner: string, repo: string, branch: string): Promise<BlogIndexItem[]> {
-	const txt = await readTextFileFromRepo(token, owner, repo, BLOG_INDEX_PATH, branch)
-	if (txt === null) return []
+function isBlogIndexItem(value: unknown): value is BlogIndexItem {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return false
+	}
+	const item = value as Partial<BlogIndexItem>
+	return (
+		typeof item.slug === 'string' &&
+		item.slug.trim().length > 0 &&
+		typeof item.title === 'string' &&
+		Array.isArray(item.tags) &&
+		item.tags.every(tag => typeof tag === 'string') &&
+		typeof item.date === 'string' &&
+		(item.summary === undefined || typeof item.summary === 'string') &&
+		(item.cover === undefined || typeof item.cover === 'string') &&
+		(item.hidden === undefined || typeof item.hidden === 'boolean') &&
+		(item.category === undefined || typeof item.category === 'string') &&
+		(item.folderPath === undefined || typeof item.folderPath === 'string') &&
+		(item.favorite === undefined || typeof item.favorite === 'boolean')
+	)
+}
 
+function parseBlogIndexItemsRaw(raw: string): BlogIndexItem[] {
 	let parsed: unknown
 	try {
-		parsed = JSON.parse(txt)
+		parsed = JSON.parse(raw)
 	} catch {
 		throw new Error('博客 index.json 解析失败，请修复 public/blogs/index.json 后重试')
 	}
 
-	if (!Array.isArray(parsed)) {
+	if (!Array.isArray(parsed) || !parsed.every(isBlogIndexItem)) {
 		throw new Error('博客 index.json 格式错误，请修复 public/blogs/index.json 后重试')
 	}
 
-	return parsed as BlogIndexItem[]
+	return parsed
+}
+
+async function readIndexItemsFromRepo(token: string, owner: string, repo: string, branch: string): Promise<BlogIndexItem[]> {
+	const txt = await readTextFileFromRepo(token, owner, repo, BLOG_INDEX_PATH, branch)
+	if (txt === null) return []
+
+	return parseBlogIndexItemsRaw(txt)
 }
 
 export async function prepareBlogStaticArtifacts(params: {
@@ -56,16 +81,7 @@ export async function prepareBlogStaticArtifacts(params: {
 	if (!storageRaw && params.fallbackReadIndexRaw) {
 		const fallbackRaw = await params.fallbackReadIndexRaw()
 		if (fallbackRaw) {
-			let parsed: unknown
-			try {
-				parsed = JSON.parse(fallbackRaw)
-			} catch {
-				throw new Error('博客 index.json 解析失败，请修复 public/blogs/index.json 后重试')
-			}
-			if (!Array.isArray(parsed)) {
-				throw new Error('博客 index.json 格式错误，请修复 public/blogs/index.json 后重试')
-			}
-			db = buildBlogStorageFromIndex(parsed as BlogIndexItem[], now)
+			db = buildBlogStorageFromIndex(parseBlogIndexItemsRaw(fallbackRaw), now)
 		}
 	}
 

@@ -338,6 +338,17 @@ describe('blog storage model', () => {
 		)
 	})
 
+	it('storage 缺失但 index 元素损坏时会失败而不是生成脏产物', async () => {
+		await assert.rejects(
+			() =>
+				prepareBlogStaticArtifacts({
+					readStorageRaw: async () => null,
+					fallbackReadIndexRaw: async () => JSON.stringify([null, { slug: '', title: 'Broken', tags: [], date: '2026-03-27T00:00:00.000Z' }])
+				}),
+			/博客 index\.json 格式错误/
+		)
+	})
+
 	it('远端 storage 损坏时会失败而不是重建空库', async () => {
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -390,6 +401,26 @@ describe('blog storage model', () => {
 
 		try {
 			await assert.rejects(() => prepareBlogStorageArtifacts('token', 'owner', 'repo', 'main'), /博客 index\.json 解析失败/)
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	it('远端 storage 缺失但 index 元素损坏时会失败而不是生成脏产物', async () => {
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = input.toString()
+			if (url.includes('public%2Fblogs%2Fstorage.json')) {
+				return new Response(null, { status: 404 })
+			}
+			if (url.includes('public%2Fblogs%2Findex.json')) {
+				return new Response(JSON.stringify({ content: Buffer.from(JSON.stringify([null]), 'utf-8').toString('base64') }), { status: 200 })
+			}
+			return new Response(null, { status: 404 })
+		}) as typeof fetch
+
+		try {
+			await assert.rejects(() => prepareBlogStorageArtifacts('token', 'owner', 'repo', 'main'), /博客 index\.json 格式错误/)
 		} finally {
 			globalThis.fetch = originalFetch
 		}
