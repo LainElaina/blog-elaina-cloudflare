@@ -27,5 +27,15 @@ test('save-file local route creates parent directories without an existence prec
 
 	assert.doesNotMatch(source, /existsSync/)
 	assert.match(source, /await mkdir\(dir, \{ recursive: true \}\)/)
-	assert.match(source, /await mkdir\(dir, \{ recursive: true \}\)\n\n\t\tawait writeFile\(fullPath, content, 'utf-8'\)/)
+})
+
+test('save-file local route replaces files atomically', async () => {
+	const source = await import('node:fs/promises').then(fs => fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8'))
+
+	assert.match(source, /import \{ mkdir, rename, rm, writeFile \} from 'fs\/promises'/)
+	assert.match(source, /function buildAtomicSaveTempPath\(fullPath: string\)/)
+	assert.match(source, /await writeFile\(tempPath, content, 'utf-8'\)\n\t\tawait rename\(tempPath, fullPath\)/)
+	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
+	assert.match(source, /await writeFileAtomically\(fullPath, content\)/)
+	assert.doesNotMatch(source, /await writeFile\(fullPath, content, 'utf-8'\)/)
 })

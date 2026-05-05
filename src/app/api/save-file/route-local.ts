@@ -1,8 +1,23 @@
-import { mkdir, writeFile } from 'fs/promises'
+import { mkdir, rename, rm, writeFile } from 'fs/promises'
 import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
+
+function buildAtomicSaveTempPath(fullPath: string) {
+	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+async function writeFileAtomically(fullPath: string, content: string) {
+	const tempPath = buildAtomicSaveTempPath(fullPath)
+	try {
+		await writeFile(tempPath, content, 'utf-8')
+		await rename(tempPath, fullPath)
+	} catch (error) {
+		await rm(tempPath, { force: true }).catch(() => undefined)
+		throw error
+	}
+}
 
 export async function handleSaveFile(request: NextRequest) {
 	try {
@@ -22,7 +37,7 @@ export async function handleSaveFile(request: NextRequest) {
 		const dir = dirname(fullPath)
 		await mkdir(dir, { recursive: true })
 
-		await writeFile(fullPath, content, 'utf-8')
+		await writeFileAtomically(fullPath, content)
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
 		console.error('Save file error:', error)
