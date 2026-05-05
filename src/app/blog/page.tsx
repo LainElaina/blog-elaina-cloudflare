@@ -385,7 +385,11 @@ export default function BlogPage() {
 						)
 					}
 				} catch (error) {
-					await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
+					try {
+						await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
+					} catch (rollbackError) {
+						console.warn('本地博客保存回滚失败:', rollbackError)
+					}
 					throw error
 				}
 

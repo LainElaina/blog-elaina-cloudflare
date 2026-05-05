@@ -13,7 +13,12 @@ test('blog local save rolls back written artifacts when deleting removed article
 	assert.ok(saveIndex !== -1)
 	assert.ok(deleteIndex > saveIndex)
 	assert.ok(catchIndex > deleteIndex)
+	const rollbackWarnIndex = source.indexOf("console.warn('本地博客保存回滚失败:', rollbackError)", rollbackIndex)
+	const throwIndex = source.indexOf('throw error', rollbackIndex)
+
 	assert.ok(rollbackIndex > catchIndex)
+	assert.ok(rollbackWarnIndex > rollbackIndex)
+	assert.ok(throwIndex > rollbackWarnIndex)
 	assert.match(source.slice(saveIndex, rollbackIndex), /for \(const slug of uniqueRemoved\) \{[\s\S]*?path: `public\/blogs\/\$\{slug\}`/)
 	assert.doesNotMatch(source.slice(saveIndex, deleteIndex), /catch \(error\)/)
 })
