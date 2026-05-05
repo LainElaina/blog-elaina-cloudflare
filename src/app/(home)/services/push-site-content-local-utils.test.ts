@@ -197,6 +197,27 @@ test('local site asset upload records binary backup before overwriting', async (
 	assert.equal(await uploadedFiles[0].file?.text(), 'old')
 })
 
+test('local site asset backup read failure aborts before uploading asset', async () => {
+	const calls: Array<{ input: string; init?: RequestInit }> = []
+	const uploadedFiles: LocalSiteAssetUploadBackup[] = []
+	const image = new File(['new'], 'new.png', { type: 'image/png' })
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/favicon.png') {
+			return new Response('temporary failure', { status: 500 })
+		}
+		return new Response('{"success":true}')
+	}
+
+	await assert.rejects(
+		() => uploadLocalSiteAsset(image, 'public/favicon.png', uploadedFiles, fetchLocal),
+		/读取 public\/favicon\.png 备份失败/
+	)
+
+	assert.deepEqual(uploadedFiles, [])
+	assert.deepEqual(calls.map(call => call.input), ['/favicon.png'])
+})
+
 test('local site asset rollback restores overwritten assets and deletes new uploads', async () => {
 	const calls: Array<{ input: string; init?: RequestInit }> = []
 	const uploadedFiles: LocalSiteAssetUploadBackup[] = [

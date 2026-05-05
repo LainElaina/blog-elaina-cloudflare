@@ -127,9 +127,18 @@ async function assertLocalSiteAssetOk(response: Response, actionName: string) {
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+async function assertLocalSiteAssetBackupReadOk(response: Response, path: string) {
+	if (response.ok || response.status === 404) {
+		return
+	}
+
+	await assertLocalSiteAssetOk(response, `读取 ${path} 备份`)
+}
+
 export async function readLocalSiteAssetUploadBackup(path: string, fetchLocal: LocalSiteAssetFetch = fetch): Promise<LocalSiteAssetUploadBackup> {
 	const response = await fetchLocal(toPublicAssetUrl(path), { cache: 'no-store' })
-	if (!response.ok) {
+	await assertLocalSiteAssetBackupReadOk(response, path)
+	if (response.status === 404) {
 		return { path, existed: false }
 	}
 
