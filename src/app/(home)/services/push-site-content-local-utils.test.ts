@@ -535,6 +535,17 @@ test('旧社交按钮图片清理失败不会让已发布配置回滚为失败',
 	}
 })
 
+test('正式保存请求只有空值字段时不会清除已有草稿', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-empty-publish-'))
+	const draft = { siteContent: { meta: { title: 'saved draft' } } }
+	await writeSiteConfigDraft(tmpDir, draft)
+
+	await assert.rejects(() => publishSiteConfigDraft(tmpDir, { siteContent: null }), /没有可发布的草稿/)
+
+	assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
+	await fs.rm(tmpDir, { recursive: true, force: true })
+})
+
 test('正式保存请求为空时回退发布已有草稿', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-draft-'))
 	const draft = { siteContent: { meta: { title: 'saved draft' } } }

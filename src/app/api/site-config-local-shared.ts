@@ -292,6 +292,9 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 	)
 	const configDir = path.join(baseDir, 'src/config')
 	const writes = buildSiteConfigFormalWrites(draft)
+	if (writes.length === 0) {
+		throw new Error('没有可发布的草稿')
+	}
 	const touchedFormal: string[] = []
 	const backups: SiteConfigFormalBackup[] = []
 
