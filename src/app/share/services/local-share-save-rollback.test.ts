@@ -120,6 +120,22 @@ test('local share save rollback restores previous artifacts and deletes newly cr
 	)
 })
 
+test('local share save rollback reports artifacts that failed to restore', async () => {
+	const writtenFiles: LocalShareSaveFileBackup[] = [
+		{ path: 'public/share/list.json', existed: true, content: '[{"name":"old"}]' },
+		{ path: 'public/share/storage.json', existed: false, content: '' }
+	]
+	const uploadedFiles: LocalShareSaveUploadBackup[] = [{ path: 'public/images/share/new.png', existed: false }]
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		if (input === '/api/save-file') {
+			return textResponse('restore failed', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(() => rollbackLocalShareSave(writtenFiles, uploadedFiles, fetchLocal), /回滚失败：public\/share\/list\.json/)
+})
+
 test('local share logo cleanup deletes unused saved logo through delete-image endpoint', async () => {
 	const calls: FetchCall[] = []
 	const fetchLocal = async (input: string, init?: RequestInit) => {

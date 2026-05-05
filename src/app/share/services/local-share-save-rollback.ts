@@ -97,19 +97,25 @@ export async function uploadLocalShareLogo(
 }
 
 async function restoreLocalShareFile(backup: LocalShareSaveFileBackup, fetchLocal: LocalShareSaveFetch) {
-	await fetchLocal('/api/save-file', {
+	const response = await fetchLocal('/api/save-file', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ path: backup.path, content: backup.content })
 	})
+	if (!response.ok) {
+		throw new Error(`恢复 ${backup.path} 失败`)
+	}
 }
 
 async function deleteLocalShareFile(path: string, fetchLocal: LocalShareSaveFetch) {
-	return fetchLocal('/api/delete-file', {
+	const response = await fetchLocal('/api/delete-file', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ path })
 	})
+	if (!response.ok) {
+		throw new Error(`删除 ${path} 失败`)
+	}
 }
 
 async function deleteLocalShareImage(path: string, fetchLocal: LocalShareSaveFetch) {
@@ -129,17 +135,34 @@ export async function rollbackLocalShareSave(
 	uploadedFiles: LocalShareSaveUploadBackup[],
 	fetchLocal: LocalShareSaveFetch = fetch
 ) {
+	const rollbackErrors: string[] = []
+
 	for (const backup of [...writtenFiles].reverse()) {
-		if (backup.existed) {
-			await restoreLocalShareFile(backup, fetchLocal).catch(() => undefined)
-		} else {
-			await deleteLocalShareFile(backup.path, fetchLocal).catch(() => undefined)
+		try {
+			if (backup.existed) {
+				await restoreLocalShareFile(backup, fetchLocal)
+			} else {
+				await deleteLocalShareFile(backup.path, fetchLocal)
+			}
+		} catch {
+			rollbackErrors.push(backup.path)
 		}
 	}
 
 	for (const backup of [...uploadedFiles].reverse()) {
 		if (!backup.existed) {
-			await deleteLocalShareImage(backup.path, fetchLocal).catch(() => undefined)
+			try {
+				const response = await deleteLocalShareImage(backup.path, fetchLocal)
+				if (!response.ok) {
+					throw new Error(`删除 ${backup.path} 失败`)
+				}
+			} catch {
+				rollbackErrors.push(backup.path)
+			}
 		}
+	}
+
+	if (rollbackErrors.length > 0) {
+		throw new Error(`回滚失败：${rollbackErrors.join(', ')}`)
 	}
 }
