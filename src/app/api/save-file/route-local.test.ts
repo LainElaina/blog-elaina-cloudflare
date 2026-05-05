@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
+import { handleSaveFile } from './route-local.ts'
 
 test('save-file local route allows only known content files and blog artifacts', () => {
 	const projectDir = resolve('/repo/blog')
@@ -44,4 +45,15 @@ test('save-file local route replaces files atomically', async () => {
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 	assert.match(source, /await writeFileAtomically\(fullPath, content\)/)
 	assert.doesNotMatch(source, /await writeFile\(fullPath, content, 'utf-8'\)/)
+})
+
+test('save-file local route returns 400 when JSON body is malformed', async () => {
+	const response = await handleSaveFile({
+		json: async () => {
+			throw new SyntaxError('bad json')
+		}
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
