@@ -51,6 +51,14 @@ const assertOk = async (response: Response, actionName: string) => {
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+async function readOptionalBlogPageText(response: Response, actionName: string): Promise<string | null> {
+	if (response.status === 404) {
+		return null
+	}
+	await assertOk(response, actionName)
+	return response.text()
+}
+
 type DisplayMode = 'day' | 'week' | 'month' | 'year' | 'category' | 'folder'
 
 export default function BlogPage() {
@@ -344,15 +352,8 @@ export default function BlogPage() {
 			let savedArtifacts: SaveBlogEditsArtifacts
 			if (process.env.NODE_ENV === 'development') {
 				const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
-				let existingStorageRaw: string | null = null
-				try {
-					const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
-					if (response.ok) {
-						existingStorageRaw = await response.text()
-					}
-				} catch {
-					existingStorageRaw = null
-				}
+				const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
+				const existingStorageRaw = await readOptionalBlogPageText(response, '读取博客存储')
 
 				savedArtifacts = buildArtifactsForSaveBlogEdits({
 					originalItems: items,
