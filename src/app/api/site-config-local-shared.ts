@@ -14,7 +14,7 @@ type LocalAssetReference = {
 }
 
 type SiteContentWithSocialButtons = {
-	socialButtons?: Array<{ value?: unknown }> | null
+	socialButtons?: unknown
 }
 
 function buildAtomicSiteConfigTempPath(fullPath: string) {
@@ -202,9 +202,19 @@ function socialButtonImageRepoPath(publicPath: string): string | null {
 	return singleFileAssetRepoPath(publicPath, SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX, SOCIAL_BUTTON_IMAGE_REPO_PREFIX)
 }
 
+function iterableSiteConfigCollection(value: unknown): Array<Record<string, unknown>> {
+	if (Array.isArray(value)) {
+		return value.filter(item => item && typeof item === 'object' && !Array.isArray(item)) as Array<Record<string, unknown>>
+	}
+	if (value && typeof value === 'object') {
+		return Object.values(value).filter(item => item && typeof item === 'object' && !Array.isArray(item)) as Array<Record<string, unknown>>
+	}
+	return []
+}
+
 function collectSocialButtonImageRepoPaths(siteContent: SiteContentWithSocialButtons | null | undefined): Set<string> {
 	const paths = new Set<string>()
-	for (const button of siteContent?.socialButtons ?? []) {
+	for (const button of iterableSiteConfigCollection(siteContent?.socialButtons)) {
 		if (typeof button.value !== 'string') {
 			continue
 		}
@@ -338,9 +348,9 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 
 function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): LocalAssetReference[] {
 	const siteContent = draft.siteContent as {
-		artImages?: Array<{ url?: unknown }>
-		backgroundImages?: Array<{ url?: unknown }>
-		socialButtons?: Array<{ value?: unknown }>
+		artImages?: unknown
+		backgroundImages?: unknown
+		socialButtons?: unknown
 	} | null
 
 	if (!siteContent || typeof siteContent !== 'object') {
@@ -348,17 +358,17 @@ function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): Local
 	}
 
 	const assets: LocalAssetReference[] = []
-	for (const image of siteContent.artImages ?? []) {
+	for (const image of iterableSiteConfigCollection(siteContent.artImages)) {
 		if (typeof image.url === 'string') {
 			assets.push({ label: '首页图片', url: image.url })
 		}
 	}
-	for (const image of siteContent.backgroundImages ?? []) {
+	for (const image of iterableSiteConfigCollection(siteContent.backgroundImages)) {
 		if (typeof image.url === 'string') {
 			assets.push({ label: '背景图片', url: image.url })
 		}
 	}
-	for (const button of siteContent.socialButtons ?? []) {
+	for (const button of iterableSiteConfigCollection(siteContent.socialButtons)) {
 		if (typeof button.value === 'string') {
 			assets.push({ label: '社交按钮图片', url: button.value })
 		}

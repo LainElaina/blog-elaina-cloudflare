@@ -76,3 +76,42 @@ test('site config publish rejects non-object JSON without publishing saved draft
 		assert.equal((await fs.readFile(path.join(tmpDir, 'data/site-config.draft.json'), 'utf-8')).includes('saved draft'), true)
 	})
 })
+
+test('site config publish accepts object-shaped local asset collections', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		await fs.mkdir(path.join(tmpDir, 'public/images/art'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'public/images/background'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'public/images/social-buttons'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'public/images/art/hero.png'), 'hero')
+		await fs.writeFile(path.join(tmpDir, 'public/images/background/bg.png'), 'bg')
+		await fs.writeFile(path.join(tmpDir, 'public/images/social-buttons/github.png'), 'github')
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					siteContent: {
+						artImages: {
+							hero: { url: '/images/art/hero.png' }
+						},
+						backgroundImages: {
+							main: { url: '/images/background/bg.png' }
+						},
+						socialButtons: {
+							github: { value: '/images/social-buttons/github.png' }
+						}
+					}
+				})
+			})
+		)
+		const payload = await response.json()
+		const saved = JSON.parse(await fs.readFile(path.join(tmpDir, 'src/config/site-content.json'), 'utf-8'))
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(payload.touchedFormal, ['site-content.json'])
+		assert.equal(saved.artImages.hero.url, '/images/art/hero.png')
+		assert.equal(saved.backgroundImages.main.url, '/images/background/bg.png')
+		assert.equal(saved.socialButtons.github.value, '/images/social-buttons/github.png')
+	})
+})
