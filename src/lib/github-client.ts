@@ -213,7 +213,12 @@ export async function readTextFileFromRepo(token: string, owner: string, repo: s
 	if (res.status === 404) return null
 	if (!res.ok) throw new Error(`read file failed: ${res.status}`)
 	const data: any = await res.json()
-	if (Array.isArray(data) || !data.content) return null
+	if (Array.isArray(data)) {
+		throw new Error('read file failed: expected file but received directory')
+	}
+	if (typeof data?.content !== 'string') {
+		throw new Error('read file failed: invalid response')
+	}
 	try {
 		return decodeURIComponent(escape(atob(data.content)))
 	} catch {
@@ -239,17 +244,25 @@ export async function listRepoFilesRecursive(token: string, owner: string, repo:
 			const files: string[] = []
 			for (const item of data) {
 				if (item.type === 'file') {
+					if (typeof item.path !== 'string') {
+						throw new Error('read directory failed: invalid response')
+					}
 					files.push(item.path)
 				} else if (item.type === 'dir') {
+					if (typeof item.path !== 'string') {
+						throw new Error('read directory failed: invalid response')
+					}
 					const nested = await fetchPath(item.path)
 					files.push(...nested)
+				} else {
+					throw new Error('read directory failed: invalid response')
 				}
 			}
 			return files
 		}
-		if (data?.type === 'file') return [data.path]
-		if (data?.type === 'dir') return fetchPath(data.path)
-		return []
+		if (data?.type === 'file' && typeof data.path === 'string') return [data.path]
+		if (data?.type === 'dir' && typeof data.path === 'string') return fetchPath(data.path)
+		throw new Error('read directory failed: invalid response')
 	}
 
 	return fetchPath(path)

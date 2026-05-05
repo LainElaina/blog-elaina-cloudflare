@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { afterEach, test } from 'node:test'
 import fs from 'node:fs/promises'
+import { listRepoFilesRecursive, readTextFileFromRepo } from './github-client'
 
 async function readSource(relativePath: string) {
 	return (await fs.readFile(new URL(relativePath, import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
@@ -16,6 +17,12 @@ function findCallContaining(source: string, callee: string, content: string) {
 	return source.slice(callStart, callEnd)
 }
 
+const originalFetch = globalThis.fetch
+
+afterEach(() => {
+	globalThis.fetch = originalFetch
+})
+
 test('createTree resolves a base commit sha to its tree sha before posting', async () => {
 	const source = await readSource('./github-client.ts')
 
@@ -27,6 +34,54 @@ test('createTree resolves a base commit sha to its tree sha before posting', asy
 	assert.match(source, /const baseTree = baseTreeCommitSha \? \(await getCommit\(token, owner, repo, baseTreeCommitSha\)\)\.treeSha : undefined/)
 	assert.match(source, /body: JSON\.stringify\(\{ tree, base_tree: baseTree \}\)/)
 	assert.doesNotMatch(source, /body: JSON\.stringify\(\{ tree, base_tree: baseTreeCommitSha \}\)/)
+})
+
+test('readTextFileFromRepo treats only 404 as missing', async () => {
+	globalThis.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch
+
+	assert.equal(await readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'), null)
+})
+
+test('readTextFileFromRepo rejects successful directory payloads instead of treating them as missing files', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify([{ type: 'file', path: 'public/blogs/index.json' }]), { status: 200 })) as typeof fetch
+
+	await assert.rejects(
+		() => readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'),
+		/read file failed: expected file but received directory/
+	)
+})
+
+test('readTextFileFromRepo rejects successful file payloads without content', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify({ type: 'file', path: 'public/blogs/index.json' }), { status: 200 })) as typeof fetch
+
+	await assert.rejects(
+		() => readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'),
+		/read file failed: invalid response/
+	)
+})
+
+test('listRepoFilesRecursive treats only 404 as an empty directory', async () => {
+	globalThis.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch
+
+	assert.deepEqual(await listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'), [])
+})
+
+test('listRepoFilesRecursive rejects unknown successful payloads instead of returning an empty list', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'unexpected' }), { status: 200 })) as typeof fetch
+
+	await assert.rejects(
+		() => listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'),
+		/read directory failed: invalid response/
+	)
+})
+
+test('listRepoFilesRecursive rejects directory entries without paths', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify([{ type: 'file' }]), { status: 200 })) as typeof fetch
+
+	await assert.rejects(
+		() => listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'),
+		/read directory failed: invalid response/
+	)
 })
 
 test('remote save flows read existing artifacts from the captured base commit', async () => {
