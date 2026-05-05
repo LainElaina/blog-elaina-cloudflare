@@ -90,6 +90,42 @@ describe('loadBlog', () => {
 		)
 	})
 
+	it('aborts when blog storage JSON is malformed', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				['/blogs/storage.json', new Response('{bad json', { status: 200 })],
+				['/blogs/post-a/config.json', new Response('{"title":"Fallback"}', { status: 200 })],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /博客存储格式错误/)
+			}
+		)
+	})
+
+	it('aborts when fallback blog config JSON is malformed', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {}
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/config.json', new Response('{bad json', { status: 200 })],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /博客配置格式错误/)
+			}
+		)
+	})
+
 	it('keeps missing markdown as not found while surfacing read failures', async () => {
 		await withMockFetch(new Map<string, Response>(), async () => {
 			await assert.rejects(() => loadBlog('post-a'), /Blog not found/)

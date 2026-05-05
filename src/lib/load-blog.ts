@@ -1,5 +1,5 @@
 import type { BlogConfig } from '@/app/blog/types'
-import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
+import { parseRequiredBlogStorageDB } from '@/lib/content-db/blog-storage'
 
 export type { BlogConfig } from '@/app/blog/types'
 
@@ -64,10 +64,10 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 	const storageRaw = await readOptionalLoadBlogText(storageRes, '读取博客存储')
 	if (storageRaw !== null) {
 		try {
-			const storage = parseBlogStorageDB(storageRaw)
+			const storage = parseRequiredBlogStorageDB(storageRaw)
 			config = toBlogConfigFromStorageRecord(storage.blogs[slug] as Record<string, unknown> | undefined)
 		} catch {
-			config = {}
+			throw new Error('博客存储格式错误')
 		}
 	}
 
@@ -78,7 +78,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 			try {
 				config = JSON.parse(configRaw)
 			} catch {
-				config = {}
+				throw new Error('博客配置格式错误')
 			}
 		}
 	}
