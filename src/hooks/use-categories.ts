@@ -6,10 +6,16 @@ export type CategoriesConfig = {
 	categories: string[]
 }
 
-const fetcher = async (url: string): Promise<CategoriesConfig> => {
+export const fetchCategoriesConfig = async (url: string): Promise<CategoriesConfig> => {
 	const res = await fetch(url, { cache: 'no-store' })
 	if (!res.ok) {
-		return { categories: [] }
+		if (res.status === 404) {
+			return { categories: [] }
+		}
+
+		const error: any = new Error('Fetch failed')
+		error.status = res.status
+		throw error
 	}
 	const data = await res.json()
 	if (Array.isArray(data)) {
@@ -22,7 +28,7 @@ const fetcher = async (url: string): Promise<CategoriesConfig> => {
 }
 
 export function useCategories() {
-	const { data, error, isLoading, mutate } = useSWR<CategoriesConfig>('/blogs/categories.json', fetcher, {
+	const { data, error, isLoading, mutate } = useSWR<CategoriesConfig>('/blogs/categories.json', fetchCategoriesConfig, {
 		revalidateOnFocus: false,
 		revalidateOnReconnect: true
 	})

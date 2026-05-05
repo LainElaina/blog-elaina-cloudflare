@@ -63,10 +63,16 @@ export function parseBlogFoldersConfig(data: unknown): BlogFoldersConfig {
 	return { folders: [] }
 }
 
-const fetcher = async (url: string): Promise<BlogFoldersConfig> => {
+export const fetchBlogFoldersConfig = async (url: string): Promise<BlogFoldersConfig> => {
 	const res = await fetch(url, { cache: 'no-store' })
 	if (!res.ok) {
-		return { folders: [] }
+		if (res.status === 404) {
+			return { folders: [] }
+		}
+
+		const error: any = new Error('Fetch failed')
+		error.status = res.status
+		throw error
 	}
 
 	const data = await res.json()
@@ -74,7 +80,7 @@ const fetcher = async (url: string): Promise<BlogFoldersConfig> => {
 }
 
 export function useBlogFolders() {
-	const { data, error, isLoading, mutate } = useSWR<BlogFoldersConfig>('/blogs/folders.json', fetcher, {
+	const { data, error, isLoading, mutate } = useSWR<BlogFoldersConfig>('/blogs/folders.json', fetchBlogFoldersConfig, {
 		revalidateOnFocus: false,
 		revalidateOnReconnect: true
 	})
