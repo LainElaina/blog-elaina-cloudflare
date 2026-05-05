@@ -31,7 +31,12 @@ export async function handleLayoutGet() {
 
 export async function handleLayoutPost(request: Request) {
 	try {
-		const layout = await request.json()
+		let layout: unknown
+		try {
+			layout = await request.json()
+		} catch {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
 
 		if (fs.existsSync(LAYOUT_PATH)) {
 			const dataDir = path.join(process.cwd(), 'data')
