@@ -192,6 +192,16 @@ describe('pushBlog create slug checks', () => {
 		assert.doesNotMatch(source, /storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null/)
 		assert.doesNotMatch(source, /indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null/)
 		assert.doesNotMatch(source, /hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok/)
+		assert.match(source, /readStorageRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/storage\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客存储'\)/)
+		assert.match(source, /fallbackReadIndexRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/index\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客索引'\)/)
+	})
+
+	it('本地删除模式应在重建产物前安全读取现有索引', async () => {
+		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+		assert.match(source, /const artifactContents = await buildDeleteArtifactContents\(\{\n\s*slug: targetSlug,\n\s*readStorageRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/storage\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客存储'\)/)
+		assert.match(source, /fallbackReadIndexRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/index\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客索引'\)/)
+		assert.doesNotMatch(source, /return response\.ok \? response\.text\(\) : null/)
 	})
 
 	it('本地编辑模式应在保存后清理未引用的旧图片', async () => {

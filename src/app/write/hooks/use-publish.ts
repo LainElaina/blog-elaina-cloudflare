@@ -241,11 +241,11 @@ export function usePublish() {
 				coverPath,
 				readStorageRaw: async () => {
 					const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
-					return response.ok ? response.text() : null
+					return readOptionalLocalBlogText(response, '读取博客存储')
 				},
 				fallbackReadIndexRaw: async () => {
 					const response = await fetch('/blogs/index.json', { cache: 'no-store' })
-					return response.ok ? response.text() : null
+					return readOptionalLocalBlogText(response, '读取博客索引')
 				}
 			})
 
@@ -298,11 +298,11 @@ export function usePublish() {
 					slug: targetSlug,
 					readStorageRaw: async () => {
 						const response = await fetch('/blogs/storage.json', { cache: 'no-store' })
-						return response.ok ? response.text() : null
+						return readOptionalLocalBlogText(response, '读取博客存储')
 					},
 					fallbackReadIndexRaw: async () => {
 						const response = await fetch('/blogs/index.json', { cache: 'no-store' })
-						return response.ok ? response.text() : null
+						return readOptionalLocalBlogText(response, '读取博客索引')
 					}
 				})
 
