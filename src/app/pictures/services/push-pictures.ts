@@ -67,8 +67,9 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 				const ext = getFileExt(imageItem.file.name)
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/pictures/${filename}`
+				const uploadKey = filename
 
-				if (!uploadedPicturePaths.has(hash)) {
+				if (!uploadedPicturePaths.has(uploadKey)) {
 					const path = `public/images/pictures/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(imageItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -78,10 +79,10 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedPicturePaths.set(hash, publicPath)
+					uploadedPicturePaths.set(uploadKey, publicPath)
 				}
 
-				const uploadedPath = uploadedPicturePaths.get(hash)!
+				const uploadedPath = uploadedPicturePaths.get(uploadKey)!
 				const [groupId, indexStr] = key.split('::')
 				const imageIndex = Number(indexStr) || 0
 
