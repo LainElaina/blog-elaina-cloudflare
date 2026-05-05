@@ -96,6 +96,9 @@ export async function handleConfigPost(request: NextRequest) {
 		} catch {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
+		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
 
 		const configDir = path.join(process.cwd(), 'src/config')
 		const writes = buildConfigWrites(payload)

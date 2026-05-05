@@ -44,3 +44,14 @@ test('local config write returns 400 when JSON body is malformed', async () => {
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
+
+test('local config write rejects non-object JSON payloads', async () => {
+	for (const body of [null, [], 'x']) {
+		const response = await handleConfigPost({
+			json: async () => body
+		} as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
+	}
+})
