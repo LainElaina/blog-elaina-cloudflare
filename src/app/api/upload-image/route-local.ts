@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { mkdir, writeFile } from 'fs/promises'
+import { mkdir, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -7,6 +7,21 @@ import { isPathInsideDirectory } from '../local-path'
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
 const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+function buildAtomicUploadTempPath(fullPath: string) {
+	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+async function writeImageAtomically(fullPath: string, buffer: Buffer) {
+	const tempPath = buildAtomicUploadTempPath(fullPath)
+	try {
+		await writeFile(tempPath, buffer)
+		await rename(tempPath, fullPath)
+	} catch (error) {
+		await rm(tempPath, { force: true }).catch(() => undefined)
+		throw error
+	}
+}
 
 export async function handleUploadImage(request: NextRequest) {
 	try {
@@ -42,7 +57,7 @@ export async function handleUploadImage(request: NextRequest) {
 			await mkdir(dir, { recursive: true })
 		}
 
-		await writeFile(fullPath, buffer)
+		await writeImageAtomically(fullPath, buffer)
 
 		return NextResponse.json({ success: true, path })
 	} catch (error: any) {
