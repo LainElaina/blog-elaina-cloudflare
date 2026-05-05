@@ -143,6 +143,47 @@ describe('share page state', () => {
 		)
 	})
 
+	it('初始 state 会过滤脏 list 条目，避免页面 tag 选项读取崩溃', () => {
+		const dirtyListArtifact = [
+			...listArtifact,
+			null,
+			{
+				name: 'Broken Tags',
+				logo: '/logos/broken.png',
+				url: 'https://broken-tags.dev',
+				description: 'invalid tags',
+				tags: [1],
+				stars: 1,
+				category: 'tool',
+				folderPath: '/design/images'
+			},
+			{
+				name: 'Missing Description',
+				logo: '/logos/missing-description.png',
+				url: 'https://missing-description.dev',
+				tags: ['image'],
+				stars: 1,
+				category: 'tool',
+				folderPath: '/design/images'
+			}
+		] as ShareRuntimeItem[]
+
+		const state = createSharePageState({
+			listArtifact: dirtyListArtifact,
+			categoriesArtifact,
+			foldersArtifact,
+			filters: {
+				activeDirectory: '/design',
+				activeCategory: 'tool',
+				searchTerm: 'alpha',
+				selectedTag: 'image'
+			}
+		})
+
+		assert.deepEqual(state.artifacts.list, listArtifact)
+		assert.deepEqual(state.runtime.visibleItems.map(item => item.url), ['https://alpha.dev'])
+	})
+
 	it('目录树直接消费 folders.json', () => {
 		const state = createState()
 

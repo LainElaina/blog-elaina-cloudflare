@@ -330,6 +330,45 @@ describe('share runtime', () => {
 		)
 	})
 
+	it('snapshot 会过滤脏 share 条目，避免搜索或标签过滤崩溃', () => {
+		const result = buildShareRuntimeSnapshot({
+			items: [
+				...items,
+				null,
+				{
+					name: 'Broken Tags',
+					logo: '/logos/broken.png',
+					url: 'https://broken-tags.dev',
+					description: 'invalid tags',
+					tags: [1],
+					stars: 1,
+					category: 'tool',
+					folderPath: '/design/images'
+				},
+				{
+					logo: '/logos/missing-name.png',
+					url: 'https://missing-name.dev',
+					description: 'missing name',
+					tags: ['image'],
+					stars: 1,
+					category: 'tool',
+					folderPath: '/design/images'
+				}
+			] as ShareRuntimeItem[],
+			categories,
+			folders,
+			filters: createFilters({
+				activeDirectory: '/design',
+				activeCategory: 'tool',
+				searchTerm: 'compress',
+				selectedTag: 'image'
+			})
+		})
+
+		assert.deepEqual(result.visibleItems.map(item => item.url), ['https://alpha.dev'])
+		assert.equal(result.directoryTree.some(node => node.path === '/design'), true)
+	})
+
 	it('snapshot 不会把没有任何 share 的空目录节点暴露给前台', () => {
 		const result = buildShareRuntimeSnapshot({
 			items,

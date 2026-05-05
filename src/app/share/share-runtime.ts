@@ -18,6 +18,46 @@ export type ShareFolderNode = {
 	children: ShareFolderNode[]
 }
 
+export function normalizeShareRuntimeItems(items: unknown): ShareRuntimeItem[] {
+	if (!Array.isArray(items)) {
+		return []
+	}
+
+	return items.flatMap(item => {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			return []
+		}
+
+		const share = item as Record<string, unknown>
+		if (
+			typeof share.name !== 'string' ||
+			typeof share.logo !== 'string' ||
+			typeof share.url !== 'string' ||
+			typeof share.description !== 'string' ||
+			!Array.isArray(share.tags) ||
+			!share.tags.every(tag => typeof tag === 'string') ||
+			typeof share.stars !== 'number'
+		) {
+			return []
+		}
+
+		const { category, folderPath, ...shareFields } = share
+		return [
+			{
+				...shareFields,
+				name: share.name,
+				logo: share.logo,
+				url: share.url,
+				description: share.description,
+				tags: share.tags,
+				stars: share.stars,
+				...(typeof category === 'string' ? { category } : {}),
+				...(typeof folderPath === 'string' ? { folderPath } : {})
+			} as ShareRuntimeItem
+		]
+	})
+}
+
 export type ShareRuntimeFilters = {
 	activeDirectory: string
 	activeCategory: string
@@ -136,8 +176,9 @@ export function buildShareRuntimeSnapshot(input: {
 	folders: ShareFolderNode[]
 	filters: ShareRuntimeFilters
 }): ShareRuntimeSnapshot {
+	const items = normalizeShareRuntimeItems(input.items)
 	const activeDirectory = normalizeDirectorySelection(input.filters.activeDirectory, input.folders)
-	const directoryItems = filterItemsByDirectory(input.items, activeDirectory)
+	const directoryItems = filterItemsByDirectory(items, activeDirectory)
 	const activeCategory = normalizeCategoryInput(input.filters.activeCategory, input.categories)
 	const categoryItems = filterItemsByCategory(directoryItems, activeCategory)
 	const visibleItems = categoryItems.filter(
@@ -145,7 +186,7 @@ export function buildShareRuntimeSnapshot(input: {
 	)
 
 	let emptyState: ShareRuntimeSnapshot['emptyState'] = null
-	if (input.items.length === 0) {
+	if (items.length === 0) {
 		emptyState = 'global-empty'
 	} else if (directoryItems.length === 0) {
 		emptyState = 'directory-empty'
@@ -158,7 +199,7 @@ export function buildShareRuntimeSnapshot(input: {
 	return {
 		visibleItems,
 		availableCategories: getAvailableCategories(directoryItems, input.categories),
-		directoryTree: pruneEmptyFolders(input.folders, input.items),
+		directoryTree: pruneEmptyFolders(input.folders, items),
 		activeCategory,
 		emptyState
 	}
@@ -171,8 +212,9 @@ export function applyDirectorySelection(input: {
 	current: ShareRuntimeFilters
 	nextDirectory: string
 }): ShareRuntimeFilters {
+	const items = normalizeShareRuntimeItems(input.items)
 	const activeDirectory = normalizeDirectorySelection(input.nextDirectory, input.folders)
-	const nextDirectoryItems = filterItemsByDirectory(input.items, activeDirectory)
+	const nextDirectoryItems = filterItemsByDirectory(items, activeDirectory)
 	const activeCategory = normalizeCategorySelection(
 		input.current.activeCategory,
 		nextDirectoryItems,
@@ -192,7 +234,10 @@ export function applyCategorySelection(input: {
 	current: ShareRuntimeFilters
 	nextCategory: string
 }): ShareRuntimeFilters {
-	const currentDirectoryItems = filterItemsByDirectory(input.items, input.current.activeDirectory)
+	const currentDirectoryItems = filterItemsByDirectory(
+		normalizeShareRuntimeItems(input.items),
+		input.current.activeDirectory
+	)
 
 	return {
 		...input.current,

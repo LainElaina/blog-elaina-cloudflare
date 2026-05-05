@@ -2,6 +2,7 @@ import {
 	applyCategorySelection,
 	applyDirectorySelection,
 	buildShareRuntimeSnapshot,
+	normalizeShareRuntimeItems,
 	SHARE_CATEGORY_ALL,
 	SHARE_DIRECTORY_ALL,
 	type ShareFolderNode,
@@ -191,7 +192,7 @@ export function createSharePageState(input: {
 }): SharePageState {
 	return rebuildSharePageState({
 		artifacts: {
-			list: input.listArtifact,
+			list: normalizeShareRuntimeItems(input.listArtifact),
 			categories: input.categoriesArtifact,
 			folders: input.foldersArtifact
 		},
@@ -213,7 +214,7 @@ export function replaceSharePageArtifacts(
 ): SharePageState {
 	return rebuildSharePageState({
 		artifacts: {
-			list: nextArtifacts.listArtifact,
+			list: normalizeShareRuntimeItems(nextArtifacts.listArtifact),
 			categories: nextArtifacts.categoriesArtifact,
 			folders: nextArtifacts.foldersArtifact
 		},
@@ -324,5 +325,5 @@ export function mergeEditingSharesIntoVisibleItems(params: {
 }
 
 export function createHomeShareListContract(listArtifact: ShareRuntimeItem[]): ShareRuntimeItem[] {
-	return listArtifact
+	return normalizeShareRuntimeItems(listArtifact)
 }
