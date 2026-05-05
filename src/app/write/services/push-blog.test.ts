@@ -185,7 +185,13 @@ describe('pushBlog create slug checks', () => {
 		assert.ok(checkIndex < uploadIndex)
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/index\.md`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/config\.json`, \{ cache: 'no-store' \}\)/)
-		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null,\n\s*indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null,\n\s*hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok\n\s*\}\)/)
+		assert.match(source, /async function readOptionalLocalBlogText\(response: Response, actionName: string\): Promise<string \| null> \{\n\s*if \(response\.status === 404\) \{\n\s*return null\n\s*\}\n\s*await assertOk\(response, actionName\)/)
+		assert.match(source, /async function assertOptionalLocalBlogFileReadable\(response: Response, actionName: string\): Promise<boolean> \{\n\s*if \(response\.status === 404\) \{\n\s*return false\n\s*\}\n\s*await assertOk\(response, actionName\)/)
+		assert.match(source, /const hasExistingMarkdown = await assertOptionalLocalBlogFileReadable\(mdResponse, '读取文章 Markdown'\)\n\s*const hasExistingConfig = await assertOptionalLocalBlogFileReadable\(configResponse, '读取文章配置'\)/)
+		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: await readOptionalLocalBlogText\(storageResponse, '读取博客存储'\),\n\s*indexRaw: await readOptionalLocalBlogText\(indexResponse, '读取博客索引'\),\n\s*hasExistingFiles: hasExistingMarkdown \|\| hasExistingConfig\n\s*\}\)/)
+		assert.doesNotMatch(source, /storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null/)
+		assert.doesNotMatch(source, /indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null/)
+		assert.doesNotMatch(source, /hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok/)
 	})
 
 	it('本地编辑模式应在保存后清理未引用的旧图片', async () => {

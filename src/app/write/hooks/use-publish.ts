@@ -36,6 +36,22 @@ const assertOk = async (response: Response, actionName: string): Promise<void> =
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+async function readOptionalLocalBlogText(response: Response, actionName: string): Promise<string | null> {
+	if (response.status === 404) {
+		return null
+	}
+	await assertOk(response, actionName)
+	return response.text()
+}
+
+async function assertOptionalLocalBlogFileReadable(response: Response, actionName: string): Promise<boolean> {
+	if (response.status === 404) {
+		return false
+	}
+	await assertOk(response, actionName)
+	return true
+}
+
 type PreviousLocalBlogImageState = {
 	markdown: string
 	coverPath?: string
@@ -155,11 +171,13 @@ export function usePublish() {
 					fetch(`/blogs/${form.slug}/index.md`, { cache: 'no-store' }),
 					fetch(`/blogs/${form.slug}/config.json`, { cache: 'no-store' })
 				])
+				const hasExistingMarkdown = await assertOptionalLocalBlogFileReadable(mdResponse, '读取文章 Markdown')
+				const hasExistingConfig = await assertOptionalLocalBlogFileReadable(configResponse, '读取文章配置')
 				assertCreateBlogSlugAvailable({
 					slug: form.slug,
-					storageRaw: storageResponse.ok ? await storageResponse.text() : null,
-					indexRaw: indexResponse.ok ? await indexResponse.text() : null,
-					hasExistingFiles: mdResponse.ok || configResponse.ok
+					storageRaw: await readOptionalLocalBlogText(storageResponse, '读取博客存储'),
+					indexRaw: await readOptionalLocalBlogText(indexResponse, '读取博客索引'),
+					hasExistingFiles: hasExistingMarkdown || hasExistingConfig
 				})
 			}
 
