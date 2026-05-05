@@ -38,6 +38,20 @@ const assertOk = async (response: Response, actionName: string) => {
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+const PICTURE_IMAGE_PUBLIC_PREFIX = '/images/pictures/'
+
+function getLocalPictureDeletePath(publicUrl: string) {
+	const pathOnly = publicUrl.split(/[?#]/, 1)[0]
+	if (!pathOnly.startsWith(PICTURE_IMAGE_PUBLIC_PREFIX)) {
+		return null
+	}
+	const filename = pathOnly.slice(PICTURE_IMAGE_PUBLIC_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return `public${PICTURE_IMAGE_PUBLIC_PREFIX}${filename}`
+}
+
 export interface Picture {
 	id: string
 	uploadedAt: string
@@ -255,12 +269,13 @@ export default function Page() {
 				for (const p of originalPictures) {
 					const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
 					for (const url of urls) {
-						if (!currentUrls.has(url) && url.startsWith('/images/pictures/')) {
+						const deletePath = getLocalPictureDeletePath(url)
+						if (!currentUrls.has(url) && deletePath) {
 							await assertOk(
 								await fetch('/api/delete-image', {
 									method: 'POST',
 									headers: { 'Content-Type': 'application/json' },
-									body: JSON.stringify({ path: `public${url}` })
+									body: JSON.stringify({ path: deletePath })
 								}),
 								'删除图床旧图片'
 							).catch(error => console.warn('删除图床旧图片失败:', error))

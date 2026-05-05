@@ -119,6 +119,15 @@ describe('pictures save path replacement', () => {
 		assert.ok(saveListIndex < deleteImageIndex)
 	})
 
+	it('development save only deletes orphaned picture files with safe public image paths', async () => {
+		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+		assert.match(pageSource, /function getLocalPictureDeletePath\(publicUrl: string\)/)
+		assert.match(pageSource, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
+		assert.match(pageSource, /const deletePath = getLocalPictureDeletePath\(url\)/)
+		assert.match(pageSource, /body: JSON\.stringify\(\{ path: deletePath \}\)/)
+	})
+
 	it('development save ignores orphaned picture deletion failures after persisting list.json', async () => {
 		const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
 		const deleteImageIndex = pageSource.indexOf("'删除图床旧图片'")
