@@ -14,7 +14,7 @@ registerHooks({
 	}
 })
 
-const { POST } = await import('./route.ts')
+const { GET, POST } = await import('./route.ts')
 
 async function withDevelopmentCwd<T>(callback: (tmpDir: string) => Promise<T>): Promise<T> {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'draft-site-config-route-'))
@@ -72,4 +72,27 @@ test('site config draft rejects non-object JSON without writing draft', async ()
 			await assertDraftFileMissing(tmpDir)
 		})
 	}
+})
+
+test('site config draft ignores unknown keys instead of keeping ghost drafts', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'data/site-config.draft.json'), JSON.stringify({ stale: { hidden: true } }, null, '\t'))
+
+		const getResponse = await GET()
+		assert.deepEqual(await getResponse.json(), { hasDraft: false, items: [] })
+
+		const response = await POST(
+			new Request('http://localhost/api/drafts/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ stale: { hidden: true } })
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(payload, { success: true, hasDraft: false, items: [] })
+		await assertDraftFileMissing(tmpDir)
+	})
 })

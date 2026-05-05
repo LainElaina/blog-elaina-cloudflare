@@ -50,6 +50,24 @@ export function resolveSiteConfigDraftPath(baseDir: string) {
 	return path.join(baseDir, DRAFT_FILE_RELATIVE_PATH)
 }
 
+function pickSiteConfigDraftPayload(payload: SiteConfigDraftPayload | null | undefined): SiteConfigDraftPayload {
+	const picked: SiteConfigDraftPayload = {}
+	if (!payload || typeof payload !== 'object') {
+		return picked
+	}
+
+	for (const key of SITE_CONFIG_DRAFT_KEYS) {
+		if (Object.prototype.hasOwnProperty.call(payload, key)) {
+			picked[key] = payload[key]
+		}
+	}
+	return picked
+}
+
+function hasSiteConfigDraftPayload(payload: SiteConfigDraftPayload) {
+	return SITE_CONFIG_DRAFT_KEYS.some(key => payload[key] !== undefined && payload[key] !== null)
+}
+
 function parseSiteConfigDraftRaw(raw: string): SiteConfigDraftPayload {
 	let parsed: unknown
 	try {
@@ -62,7 +80,7 @@ function parseSiteConfigDraftRaw(raw: string): SiteConfigDraftPayload {
 		throw new Error('站点配置草稿格式错误，请修复 data/site-config.draft.json 后重试')
 	}
 
-	return parsed as SiteConfigDraftPayload
+	return pickSiteConfigDraftPayload(parsed as SiteConfigDraftPayload)
 }
 
 export function buildSiteConfigDraftItems(payload: SiteConfigDraftPayload) {
@@ -92,14 +110,14 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 		}
 	}
 
-	const merged: SiteConfigDraftPayload = { ...current, ...payload }
+	const merged: SiteConfigDraftPayload = { ...current, ...pickSiteConfigDraftPayload(payload) }
 	for (const key of SITE_CONFIG_DRAFT_KEYS) {
 		if (merged[key] === null) {
 			delete merged[key]
 		}
 	}
 
-	if (Object.keys(merged).length === 0) {
+	if (!hasSiteConfigDraftPayload(merged)) {
 		await fs.rm(draftPath, { force: true })
 		return merged
 	}
@@ -111,7 +129,8 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 
 export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDraftPayload | null> {
 	try {
-		return parseSiteConfigDraftRaw(await fs.readFile(resolveSiteConfigDraftPath(baseDir), 'utf-8'))
+		const draft = parseSiteConfigDraftRaw(await fs.readFile(resolveSiteConfigDraftPath(baseDir), 'utf-8'))
+		return hasSiteConfigDraftPayload(draft) ? draft : null
 	} catch (error) {
 		if (isFileNotFoundError(error)) {
 			return null
@@ -126,16 +145,17 @@ export async function clearSiteConfigDraft(baseDir: string) {
 
 export async function canPublishSiteConfigDraft(baseDir: string) {
 	const draft = await readSiteConfigDraft(baseDir)
-	return draft !== null
+	return draft !== null && hasSiteConfigDraftPayload(draft)
 }
 
 export async function resolveSiteConfigPublishPayload(baseDir: string, payload: SiteConfigDraftPayload) {
-	if (Object.keys(payload).length > 0) {
-		return payload
+	const pickedPayload = pickSiteConfigDraftPayload(payload)
+	if (hasSiteConfigDraftPayload(pickedPayload)) {
+		return pickedPayload
 	}
 
 	const draft = await readSiteConfigDraft(baseDir)
-	if (!draft) {
+	if (!draft || !hasSiteConfigDraftPayload(draft)) {
 		throw new Error('没有可发布的草稿')
 	}
 	return draft
