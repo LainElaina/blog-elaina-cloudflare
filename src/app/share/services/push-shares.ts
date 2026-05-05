@@ -6,6 +6,7 @@ import type { Share } from '../components/share-card'
 import type { LogoItem } from '../components/logo-upload-dialog'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
+import { parseRequiredShareStorageDB } from '@/lib/content-db/share-storage'
 import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, buildUnusedShareLogoRepoPaths } from './share-artifacts'
 import type { ShareUrlMapping as ShareUrlMappingContract } from '../components/share-folder-select-view-model'
 import type { ShareCategoriesArtifact } from '../share-page-state'
@@ -33,6 +34,14 @@ export function buildUnusedShareLogoDeleteTreeItems(previousShares: Share[], cur
 		type: 'blob',
 		sha: null
 	}))
+}
+
+function collectNextShareStorageItems(storageRaw: string): Share[] {
+	return Object.values(parseRequiredShareStorageDB(storageRaw).shares)
+}
+
+export function buildUnusedShareLogoDeleteTreeItemsForStorage(previousShares: Share[], currentShares: Share[], storageRaw: string): TreeItem[] {
+	return buildUnusedShareLogoDeleteTreeItems(previousShares, [...currentShares, ...collectNextShareStorageItems(storageRaw)])
 }
 
 function parsePreviousShareList(previousListJson: string | null): Share[] {
@@ -145,7 +154,7 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 		{ path: 'public/share/folders.json', content: artifactContents.folders },
 		{ path: 'public/share/storage.json', content: artifactContents.storage }
 	]
-	treeItems.push(...buildUnusedShareLogoDeleteTreeItems(previousShares, updatedShares))
+	treeItems.push(...buildUnusedShareLogoDeleteTreeItemsForStorage(previousShares, updatedShares, artifactContents.storage))
 
 	for (const payload of payloads) {
 		const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(payload.content), 'base64')

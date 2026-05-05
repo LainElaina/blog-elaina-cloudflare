@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildLocalShareSaveFilePayloads } from './share-artifacts.ts'
-import { buildRemoteShareArtifactContents, buildUnusedShareLogoDeleteTreeItems } from './push-shares.ts'
+import { buildRemoteShareArtifactContents, buildUnusedShareLogoDeleteTreeItems, buildUnusedShareLogoDeleteTreeItemsForStorage } from './push-shares.ts'
 
 describe('buildUnusedShareLogoDeleteTreeItems', () => {
 	it('只删除旧列表中不再被当前分享引用的 share 图标文件', () => {
@@ -122,6 +122,62 @@ describe('buildUnusedShareLogoDeleteTreeItems', () => {
 			),
 			[]
 		)
+	})
+
+	it('远端清理旧 share 图标时保留下一版 storage 中仍引用的草稿图标', () => {
+		const previousShares = [
+			{
+				name: 'Draft Logo Published Before',
+				logo: '/images/share/draft-logo.png',
+				url: 'https://draft-logo.dev',
+				description: 'published before',
+				tags: [],
+				stars: 1
+			},
+			{
+				name: 'Old Logo',
+				logo: '/images/share/old-logo.png',
+				url: 'https://old-logo.dev',
+				description: 'old',
+				tags: [],
+				stars: 1
+			}
+		]
+		const currentShares = [
+			{
+				name: 'Current',
+				logo: '/images/share/current.png',
+				url: 'https://current.dev',
+				description: 'current',
+				tags: [],
+				stars: 1
+			}
+		]
+		const storageRaw = JSON.stringify({
+			version: 1,
+			updatedAt: '2026-05-05T00:00:00.000Z',
+			shares: {
+				draft: {
+					slug: 'draft',
+					name: 'Draft',
+					logo: '/images/share/draft-logo.png',
+					url: 'https://draft.dev',
+					description: 'draft',
+					tags: [],
+					stars: 1,
+					status: 'draft'
+				}
+			}
+		})
+
+		assert.deepEqual(buildUnusedShareLogoDeleteTreeItemsForStorage(previousShares, currentShares, storageRaw), [
+			{
+				path: 'public/images/share/old-logo.png',
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			}
+		])
 	})
 })
 
@@ -298,7 +354,7 @@ describe('buildRemoteShareArtifactContents', () => {
 
 		assert.match(source, /readTextFileFromRepo\([^\n]*'public\/share\/list\.json', latestCommitSha\)/)
 		assert.match(source, /const previousShares = parsePreviousShareList\(previousListJson\)/)
-		assert.match(source, /treeItems\.push\(\.\.\.buildUnusedShareLogoDeleteTreeItems\(previousShares, updatedShares\)\)/)
+		assert.match(source, /treeItems\.push\(\.\.\.buildUnusedShareLogoDeleteTreeItemsForStorage\(previousShares, updatedShares, artifactContents\.storage\)\)/)
 		assert.match(source, /远程分享列表解析失败/)
 	})
 })
