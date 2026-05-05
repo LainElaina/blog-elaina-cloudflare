@@ -4,8 +4,7 @@ import type { BlogIndexItem } from '@/app/blog/types'
 
 export type { BlogIndexItem } from '@/app/blog/types'
 
-// 改进 fetcher，抛出状态码以便处理 404
-const fetcher = async (url: string) => {
+export const fetchBlogIndex = async (url: string): Promise<BlogIndexItem[]> => {
 	const res = await fetch(url, { cache: 'no-store' })
 	if (!res.ok) {
 		const error: any = new Error('Fetch failed')
@@ -13,12 +12,15 @@ const fetcher = async (url: string) => {
 		throw error
 	}
 	const data = await res.json()
-	return Array.isArray(data) ? data : []
+	if (!Array.isArray(data)) {
+		throw new Error('博客索引格式错误')
+	}
+	return data
 }
 
 export function useBlogIndex() {
 	const { isAuth } = useAuthStore()
-	const { data, error, isLoading, mutate } = useSWR<BlogIndexItem[]>('/blogs/index.json', fetcher, {
+	const { data, error, isLoading, mutate } = useSWR<BlogIndexItem[]>('/blogs/index.json', fetchBlogIndex, {
 		revalidateOnFocus: false,
 		revalidateOnReconnect: true
 	})
