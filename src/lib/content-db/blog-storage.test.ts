@@ -214,7 +214,7 @@ describe('blog storage model', () => {
 		}
 	})
 
-	it('loadBlog 在 storage 损坏时回退到 config.json', async () => {
+	it('loadBlog 在 storage 损坏时会失败而不是回退到 config.json', async () => {
 		const originalFetch = globalThis.fetch
 		const responses = new Map<string, Response>([
 			['/blogs/storage.json', new Response('{invalid json', { status: 200 })],
@@ -236,10 +236,7 @@ describe('blog storage model', () => {
 			return responses.get(key) ?? new Response(null, { status: 404 })
 		}) as typeof fetch
 		try {
-			const loaded = await loadBlog('fallback-broken')
-			assert.equal(loaded.config.title, '来自损坏回退')
-			assert.deepEqual(loaded.config.tags, ['broken-storage'])
-			assert.equal(loaded.markdown, '# fallback broken storage')
+			await assert.rejects(() => loadBlog('fallback-broken'), /博客存储格式错误/)
 		} finally {
 			globalThis.fetch = originalFetch
 		}
@@ -339,6 +336,23 @@ describe('blog storage model', () => {
 				}),
 			/博客 index\.json 格式错误/
 		)
+	})
+
+	it('远端 storage 损坏时会失败而不是重建空库', async () => {
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = input.toString()
+			if (url.includes('public%2Fblogs%2Fstorage.json')) {
+				return new Response(JSON.stringify({ content: Buffer.from('{invalid json', 'utf-8').toString('base64') }), { status: 200 })
+			}
+			return new Response(null, { status: 404 })
+		}) as typeof fetch
+
+		try {
+			await assert.rejects(() => prepareBlogStorageArtifacts('token', 'owner', 'repo', 'main'), /博客 storage\.json 解析失败/)
+		} finally {
+			globalThis.fetch = originalFetch
+		}
 	})
 
 	it('远端 storage 缺失但 index 读取失败时会失败而不是重建空库', async () => {

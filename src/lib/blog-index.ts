@@ -4,7 +4,6 @@ import type { BlogIndexItem } from '@/app/blog/types'
 import {
 	buildBlogStorageFromIndex,
 	exportStaticBlogArtifacts,
-	parseBlogStorageDB,
 	parseRequiredBlogStorageDB,
 	removeBlogRecord,
 	upsertBlogRecord,
@@ -120,7 +119,7 @@ export async function removeBlogFromIndex(token: string, owner: string, repo: st
 export async function prepareBlogStorageArtifacts(token: string, owner: string, repo: string, branch: string): Promise<StaticBlogArtifacts> {
 	const storageRaw = await readTextFileFromRepo(token, owner, repo, BLOG_STORAGE_PATH, branch)
 	if (storageRaw) {
-		return exportStaticBlogArtifacts(parseBlogStorageDB(storageRaw))
+		return exportStaticBlogArtifacts(parseRequiredBlogStorageDB(storageRaw))
 	}
 	const index = await readIndexItemsFromRepo(token, owner, repo, branch)
 	const db: BlogStorageDB = buildBlogStorageFromIndex(index)
