@@ -491,6 +491,50 @@ test('发布站点配置草稿会清理旧社交按钮图片文件', async () =>
 	}
 })
 
+test('旧社交按钮图片清理失败不会让已发布配置回滚为失败', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-social-cleanup-failure-'))
+	const originalWarn = console.warn
+	const warnings: unknown[][] = []
+	console.warn = (...args: unknown[]) => {
+		warnings.push(args)
+	}
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'public/images/social-buttons/old.png'), { recursive: true })
+		await fs.writeFile(
+			path.join(tmpDir, 'src/config/site-content.json'),
+			JSON.stringify(
+				{
+					meta: { title: 'formal' },
+					socialButtons: [{ id: 'old', value: '/images/social-buttons/old.png' }]
+				},
+				null,
+				'\t'
+			)
+		)
+
+		const draft = {
+			siteContent: {
+				meta: { title: 'draft' },
+				socialButtons: []
+			}
+		}
+		await writeSiteConfigDraft(tmpDir, draft)
+
+		const touched = await publishSiteConfigDraft(tmpDir, draft)
+		const formalRaw = await fs.readFile(path.join(tmpDir, 'src/config/site-content.json'), 'utf-8')
+
+		assert.deepEqual(touched, ['site-content.json'])
+		assert.equal(JSON.parse(formalRaw).meta.title, 'draft')
+		assert.equal(await readSiteConfigDraft(tmpDir), null)
+		assert.equal(warnings.length, 1)
+		assert.equal(warnings[0]?.[0], '删除旧社交按钮图片失败:')
+	} finally {
+		console.warn = originalWarn
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('正式保存请求为空时回退发布已有草稿', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-draft-'))
 	const draft = { siteContent: { meta: { title: 'saved draft' } } }

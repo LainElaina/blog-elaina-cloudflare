@@ -272,7 +272,9 @@ async function deleteSiteConfigSocialButtonImages(baseDir: string, paths: string
 		if (!imagePath.startsWith(SOCIAL_BUTTON_IMAGE_REPO_PREFIX)) {
 			continue
 		}
-		await fs.rm(path.join(baseDir, imagePath), { force: true })
+		await fs.rm(path.join(baseDir, imagePath), { force: true }).catch(error => {
+			console.warn('删除旧社交按钮图片失败:', error)
+		})
 	}
 }
 
