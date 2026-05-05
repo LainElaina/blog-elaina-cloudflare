@@ -8,7 +8,14 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.web
 
 export async function handleDeleteImage(request: NextRequest) {
 	try {
-		const { path: filePath } = await request.json()
+		let body: unknown
+		try {
+			body = await request.json()
+		} catch {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
+
+		const { path: filePath } = body as Record<string, unknown>
 
 		if (!filePath || typeof filePath !== 'string') {
 			return NextResponse.json({ error: '缺少文件路径' }, { status: 400 })

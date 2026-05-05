@@ -34,3 +34,14 @@ test('delete dir route treats missing safe blog directory as already deleted', a
 	assert.equal(response.status, 200)
 	assert.deepEqual(await response.json(), { success: true })
 })
+
+test('delete dir route returns 400 when JSON body is malformed', async () => {
+	const response = await handleDeleteDir({
+		json: async () => {
+			throw new SyntaxError('bad json')
+		}
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
+})

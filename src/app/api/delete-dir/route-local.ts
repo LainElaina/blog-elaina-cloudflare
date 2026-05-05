@@ -24,7 +24,14 @@ function isFileNotFoundError(error: unknown) {
 
 export async function handleDeleteDir(request: NextRequest) {
 	try {
-		const { path: dirPath } = await request.json()
+		let body: unknown
+		try {
+			body = await request.json()
+		} catch {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
+
+		const { path: dirPath } = body as Record<string, unknown>
 
 		if (!dirPath || typeof dirPath !== 'string') {
 			return NextResponse.json({ error: '缺少目录路径' }, { status: 400 })

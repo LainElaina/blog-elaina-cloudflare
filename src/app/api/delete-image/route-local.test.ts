@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+import { handleDeleteImage } from './route-local.ts'
+
 test('delete image route only deletes image files inside public directory', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
@@ -19,4 +21,15 @@ test('delete image route treats missing files as successful deletion', async () 
 
 	assert.doesNotMatch(source, /existsSync/)
 	assert.match(source, /await unlink\(fullPath\)\.catch\(error => \{\n\s*if \(\(error as NodeJS\.ErrnoException\)\?\.code !== 'ENOENT'\) \{\n\s*throw error\n\s*\}\n\s*\}\)/)
+})
+
+test('delete image route returns 400 when JSON body is malformed', async () => {
+	const response = await handleDeleteImage({
+		json: async () => {
+			throw new SyntaxError('bad json')
+		}
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
