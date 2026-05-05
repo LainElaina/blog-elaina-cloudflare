@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import fs from 'node:fs/promises'
 
-import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model.ts'
+import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState, normalizePicturesRuntimeItems } from './page-view-model.ts'
 
 describe('pictures page display mode wiring', () => {
 	it('keeps page-level onDisplayModeChange connected to preferred display mode state', () => {
@@ -72,6 +72,50 @@ describe('pictures page display mode wiring', () => {
 
 		assert.equal(mobileState.effectiveDisplayMode, 'random')
 		assert.equal(desktopState.effectiveDisplayMode, 'masonry')
+	})
+})
+
+describe('pictures runtime item normalization', () => {
+	it('filters dirty picture list entries before page state consumes them', () => {
+		const normalized = normalizePicturesRuntimeItems([
+			{
+				id: 'valid-single',
+				uploadedAt: '2026-05-05T00:00:00.000Z',
+				description: 'single image',
+				image: '/images/pictures/single.webp',
+				extra: true
+			},
+			{
+				id: 'valid-group',
+				uploadedAt: '2026-05-05T00:00:00.000Z',
+				images: ['/images/pictures/one.webp', 1, '/images/pictures/two.webp']
+			},
+			null,
+			{
+				id: 'missing-image',
+				uploadedAt: '2026-05-05T00:00:00.000Z'
+			},
+			{
+				id: 'bad-uploaded-at',
+				uploadedAt: 1,
+				image: '/images/pictures/bad.webp'
+			}
+		])
+
+		assert.deepEqual(normalized, [
+			{
+				id: 'valid-single',
+				uploadedAt: '2026-05-05T00:00:00.000Z',
+				description: 'single image',
+				image: '/images/pictures/single.webp',
+				extra: true
+			},
+			{
+				id: 'valid-group',
+				uploadedAt: '2026-05-05T00:00:00.000Z',
+				images: ['/images/pictures/one.webp', '/images/pictures/two.webp']
+			}
+		])
 	})
 })
 

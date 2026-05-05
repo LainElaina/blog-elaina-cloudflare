@@ -11,7 +11,7 @@ import {
 	writePicturesDisplayModeToSessionStorage,
 	type PicturesDisplayMode
 } from './display-mode'
-import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState } from './page-view-model'
+import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState, normalizePicturesRuntimeItems } from './page-view-model'
 import { PicturesPageView } from './page-view'
 import UploadDialog from './components/upload-dialog'
 import { pushPictures } from './services/push-pictures'
@@ -39,6 +39,7 @@ const assertOk = async (response: Response, actionName: string) => {
 }
 
 const PICTURE_IMAGE_PUBLIC_PREFIX = '/images/pictures/'
+const initialPictures = normalizePicturesRuntimeItems(initialList) as Picture[]
 
 function getLocalPictureDeletePath(publicUrl: string) {
 	const pathOnly = publicUrl.split(/[?#]/, 1)[0]
@@ -61,8 +62,8 @@ export interface Picture {
 }
 
 export default function Page() {
-	const [pictures, setPictures] = useState<Picture[]>(initialList as Picture[])
-	const [originalPictures, setOriginalPictures] = useState<Picture[]>(initialList as Picture[])
+	const [pictures, setPictures] = useState<Picture[]>(initialPictures)
+	const [originalPictures, setOriginalPictures] = useState<Picture[]>(initialPictures)
 	const [isEditMode, setIsEditMode] = useState(false)
 	const [preferredDisplayMode, setPreferredDisplayMode] = useState<PicturesDisplayMode>('random')
 	const [hasRestoredDisplayModePreference, setHasRestoredDisplayModePreference] = useState(false)
