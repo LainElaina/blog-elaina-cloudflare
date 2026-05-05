@@ -6,6 +6,21 @@ import { NextResponse } from 'next/server'
 const CARD_STYLES_FILE_NAME = 'card-styles.json'
 const LAYOUT_BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
 
+function buildAtomicConfigTempPath(fullPath: string) {
+	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+async function writeFileAtomically(fullPath: string, content: string) {
+	const tempPath = buildAtomicConfigTempPath(fullPath)
+	try {
+		await fs.writeFile(tempPath, content)
+		await fs.rename(tempPath, fullPath)
+	} catch (error) {
+		await fs.rm(tempPath, { force: true }).catch(() => undefined)
+		throw error
+	}
+}
+
 type ConfigWrite = {
 	fileName: string
 	content: string
@@ -39,7 +54,7 @@ async function readConfigBackup(filePath: string): Promise<ConfigBackup> {
 async function rollbackConfigWrites(backups: ConfigBackup[]) {
 	for (const backup of backups.reverse()) {
 		if (backup.existed) {
-			await fs.writeFile(backup.filePath, backup.content).catch(() => undefined)
+			await writeFileAtomically(backup.filePath, backup.content).catch(() => undefined)
 		} else {
 			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
 		}
@@ -70,7 +85,7 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 	}
 
 	await fs.mkdir(path.dirname(LAYOUT_BACKUP_PATH), { recursive: true })
-	await fs.writeFile(LAYOUT_BACKUP_PATH, cardStylesBackup.content)
+	await writeFileAtomically(LAYOUT_BACKUP_PATH, cardStylesBackup.content)
 }
 
 export async function handleConfigPost(request: NextRequest) {
@@ -84,7 +99,7 @@ export async function handleConfigPost(request: NextRequest) {
 			for (const write of writes) {
 				const filePath = path.join(configDir, write.fileName)
 				backups.push(await readConfigBackup(filePath))
-				await fs.writeFile(filePath, write.content)
+				await writeFileAtomically(filePath, write.content)
 			}
 			await writeLayoutBackupIfNeeded(writes, backups)
 		} catch (error) {
