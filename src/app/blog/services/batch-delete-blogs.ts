@@ -3,11 +3,15 @@ import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
 import { buildBatchDeleteArtifactContents } from '../../write/services/delete-blog'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug'
 
 export async function batchDeleteBlogs(slugs: string[]): Promise<void> {
 	const uniqueSlugs = Array.from(new Set(slugs.filter(Boolean)))
 	if (uniqueSlugs.length === 0) {
 		throw new Error('需要至少选择一篇文章')
+	}
+	for (const slug of uniqueSlugs) {
+		assertSafeBlogSlug(slug)
 	}
 
 	const token = await getAuthToken()

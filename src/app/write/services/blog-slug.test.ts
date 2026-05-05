@@ -30,6 +30,7 @@ test('assertSafeBlogSlug accepts only a single safe blog path segment', () => {
 test('blog publish and delete paths validate slug before composing repository paths', async () => {
 	const publishSource = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 	const deleteSource = (await fs.readFile(new URL('./delete-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const batchDeleteSource = (await fs.readFile(new URL('../../blog/services/batch-delete-blogs.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 	const localPublishSource = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(publishSource, /import \{ assertSafeBlogSlug \} from '\.\/blog-slug'/)
@@ -42,6 +43,9 @@ test('blog publish and delete paths validate slug before composing repository pa
 	assert.match(deleteSource, /import \{ assertSafeBlogSlug \} from '\.\/blog-slug'/)
 	assert.match(deleteSource, /buildDeleteArtifactContents[\s\S]*assertSafeBlogSlug\(params\.slug\)/)
 	assert.match(deleteSource, /if \(!slug\) throw new Error\('需要 slug'\)\n\s*assertSafeBlogSlug\(slug\)[\s\S]*const basePath = `public\/blogs\/\$\{slug\}`/)
+
+	assert.match(batchDeleteSource, /import \{ assertSafeBlogSlug \} from '\.\.\/\.\.\/write\/services\/blog-slug'/)
+	assert.match(batchDeleteSource, /for \(const slug of uniqueSlugs\) \{\n\s*assertSafeBlogSlug\(slug\)\n\s*\}[\s\S]*const basePath = `public\/blogs\/\$\{slug\}`/)
 
 	assert.match(localPublishSource, /import \{ assertSafeBlogSlug \} from '\.\.\/services\/blog-slug'/)
 	assert.match(
