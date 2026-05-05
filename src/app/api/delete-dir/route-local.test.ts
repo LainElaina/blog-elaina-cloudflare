@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+import { handleDeleteDir } from './route-local.ts'
+
 test('delete dir route only allows deleting single safe blog directories', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
@@ -19,7 +21,16 @@ test('delete dir route only allows deleting single safe blog directories', async
 test('delete dir route rejects files and nested paths before removing', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tconst targetStat = await stat\(fullPath\)/)
+	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\ttry \{\n\t\t\tconst targetStat = await stat\(fullPath\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
 	assert.doesNotMatch(source, /await rm\(fullPath, \{ recursive: true, force: true \}\)[\s\S]*?const targetStat = await stat\(fullPath\)/)
+})
+
+test('delete dir route treats missing safe blog directory as already deleted', async () => {
+	const response = await handleDeleteDir({
+		json: async () => ({ path: 'public/blogs/missing-safe-post' })
+	} as any)
+
+	assert.equal(response.status, 200)
+	assert.deepEqual(await response.json(), { success: true })
 })

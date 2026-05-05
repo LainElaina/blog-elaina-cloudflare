@@ -18,6 +18,10 @@ function isAllowedBlogDirectoryPath(blogDir: string, fullPath: string) {
 	}
 }
 
+function isFileNotFoundError(error: unknown) {
+	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+}
+
 export async function handleDeleteDir(request: NextRequest) {
 	try {
 		const { path: dirPath } = await request.json()
@@ -33,9 +37,16 @@ export async function handleDeleteDir(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })
 		}
 
-		const targetStat = await stat(fullPath)
-		if (!targetStat.isDirectory()) {
-			return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
+		try {
+			const targetStat = await stat(fullPath)
+			if (!targetStat.isDirectory()) {
+				return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
+			}
+		} catch (error) {
+			if (isFileNotFoundError(error)) {
+				return NextResponse.json({ success: true })
+			}
+			throw error
 		}
 
 		await rm(fullPath, { recursive: true, force: true })
