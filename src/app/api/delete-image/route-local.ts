@@ -1,8 +1,10 @@
 import { unlink } from 'fs/promises'
-import { resolve } from 'path'
+import { extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isPathInsideDirectory } from '../local-path'
+
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
 
 export async function handleDeleteImage(request: NextRequest) {
 	try {
@@ -12,11 +14,16 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: '缺少文件路径' }, { status: 400 })
 		}
 
+		const ext = extname(filePath).toLowerCase()
+		if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+			return NextResponse.json({ error: `不允许的文件类型: ${ext}` }, { status: 400 })
+		}
+
 		const publicDir = resolve(process.cwd(), 'public')
 		const fullPath = resolve(process.cwd(), filePath)
 
 		if (!isPathInsideDirectory(publicDir, fullPath)) {
-			return NextResponse.json({ error: '路径不合法，只能删除 public 目录内的文件' }, { status: 403 })
+			return NextResponse.json({ error: '路径不合法，只能删除 public 目录内的图片文件' }, { status: 403 })
 		}
 
 		await unlink(fullPath).catch(error => {

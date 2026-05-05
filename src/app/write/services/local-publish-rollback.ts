@@ -99,6 +99,14 @@ async function restoreLocalBlogPublishFile(backup: LocalBlogPublishFileBackup, f
 }
 
 async function deleteLocalBlogPublishFile(path: string, fetchLocal: LocalBlogPublishFetch) {
+	await fetchLocal('/api/delete-file', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ path })
+	})
+}
+
+async function deleteLocalBlogPublishImage(path: string, fetchLocal: LocalBlogPublishFetch) {
 	await fetchLocal('/api/delete-image', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -121,7 +129,7 @@ export async function rollbackLocalBlogPublish(
 
 	for (const backup of [...uploadedFiles].reverse()) {
 		if (!backup.existed) {
-			await deleteLocalBlogPublishFile(backup.path, fetchLocal).catch(() => undefined)
+			await deleteLocalBlogPublishImage(backup.path, fetchLocal).catch(() => undefined)
 		}
 	}
 }

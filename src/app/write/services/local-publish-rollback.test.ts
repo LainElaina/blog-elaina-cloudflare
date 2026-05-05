@@ -94,7 +94,7 @@ test('local publish rollback restores previous files and deletes newly created f
 	assert.deepEqual(
 		calls.map(call => [call.input, call.init?.body]),
 		[
-			['/api/delete-image', JSON.stringify({ path: 'public/blogs/index.json' })],
+			['/api/delete-file', JSON.stringify({ path: 'public/blogs/index.json' })],
 			['/api/save-file', JSON.stringify({ path: 'public/blogs/post-a/index.md', content: 'old markdown' })],
 			['/api/delete-image', JSON.stringify({ path: 'public/blogs/post-a/new.png' })]
 		]

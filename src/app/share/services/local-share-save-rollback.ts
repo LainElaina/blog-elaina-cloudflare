@@ -105,6 +105,14 @@ async function restoreLocalShareFile(backup: LocalShareSaveFileBackup, fetchLoca
 }
 
 async function deleteLocalShareFile(path: string, fetchLocal: LocalShareSaveFetch) {
+	return fetchLocal('/api/delete-file', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ path })
+	})
+}
+
+async function deleteLocalShareImage(path: string, fetchLocal: LocalShareSaveFetch) {
 	return fetchLocal('/api/delete-image', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -113,7 +121,7 @@ async function deleteLocalShareFile(path: string, fetchLocal: LocalShareSaveFetc
 }
 
 export async function deleteLocalShareLogo(path: string, fetchLocal: LocalShareSaveFetch = fetch) {
-	await assertLocalShareSaveOk(await deleteLocalShareFile(path, fetchLocal), '删除旧分享图标')
+	await assertLocalShareSaveOk(await deleteLocalShareImage(path, fetchLocal), '删除旧分享图标')
 }
 
 export async function rollbackLocalShareSave(
@@ -131,7 +139,7 @@ export async function rollbackLocalShareSave(
 
 	for (const backup of [...uploadedFiles].reverse()) {
 		if (!backup.existed) {
-			await deleteLocalShareFile(backup.path, fetchLocal).catch(() => undefined)
+			await deleteLocalShareImage(backup.path, fetchLocal).catch(() => undefined)
 		}
 	}
 }

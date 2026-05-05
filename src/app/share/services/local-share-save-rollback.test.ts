@@ -113,7 +113,7 @@ test('local share save rollback restores previous artifacts and deletes newly cr
 	assert.deepEqual(
 		calls.map(call => [call.input, call.init?.body]),
 		[
-			['/api/delete-image', JSON.stringify({ path: 'public/share/storage.json' })],
+			['/api/delete-file', JSON.stringify({ path: 'public/share/storage.json' })],
 			['/api/save-file', JSON.stringify({ path: 'public/share/list.json', content: '[{"name":"old"}]' })],
 			['/api/delete-image', JSON.stringify({ path: 'public/images/share/new.png' })]
 		]
