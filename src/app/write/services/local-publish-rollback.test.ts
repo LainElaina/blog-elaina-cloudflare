@@ -101,6 +101,22 @@ test('local publish rollback restores previous files and deletes newly created f
 	)
 })
 
+test('local publish rollback reports files that failed to restore', async () => {
+	const writtenFiles: LocalBlogPublishFileBackup[] = [
+		{ path: 'public/blogs/post-a/index.md', existed: true, content: 'old markdown' },
+		{ path: 'public/blogs/index.json', existed: false, content: '' }
+	]
+	const uploadedFiles: LocalBlogPublishUploadBackup[] = [{ path: 'public/blogs/post-a/new.png', existed: false }]
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		if (input === '/api/save-file') {
+			return textResponse('restore failed', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(() => rollbackLocalBlogPublish(writtenFiles, uploadedFiles, fetchLocal), /回滚失败：public\/blogs\/post-a\/index\.md/)
+})
+
 test('local publish upload tracks newly created image paths for rollback', async () => {
 	const calls: FetchCall[] = []
 	const uploadedFiles: LocalBlogPublishUploadBackup[] = []

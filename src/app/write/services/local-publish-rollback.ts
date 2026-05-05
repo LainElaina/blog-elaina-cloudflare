@@ -91,27 +91,36 @@ export async function uploadLocalBlogPublishImage(
 }
 
 async function restoreLocalBlogPublishFile(backup: LocalBlogPublishFileBackup, fetchLocal: LocalBlogPublishFetch) {
-	await fetchLocal('/api/save-file', {
+	const response = await fetchLocal('/api/save-file', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ path: backup.path, content: backup.content })
 	})
+	if (!response.ok) {
+		throw new Error(`恢复 ${backup.path} 失败`)
+	}
 }
 
 async function deleteLocalBlogPublishFile(path: string, fetchLocal: LocalBlogPublishFetch) {
-	await fetchLocal('/api/delete-file', {
+	const response = await fetchLocal('/api/delete-file', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ path })
 	})
+	if (!response.ok) {
+		throw new Error(`删除 ${path} 失败`)
+	}
 }
 
 async function deleteLocalBlogPublishImage(path: string, fetchLocal: LocalBlogPublishFetch) {
-	await fetchLocal('/api/delete-image', {
+	const response = await fetchLocal('/api/delete-image', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ path })
 	})
+	if (!response.ok) {
+		throw new Error(`删除 ${path} 失败`)
+	}
 }
 
 export async function rollbackLocalBlogPublish(
@@ -119,17 +128,31 @@ export async function rollbackLocalBlogPublish(
 	uploadedFiles: LocalBlogPublishUploadBackup[],
 	fetchLocal: LocalBlogPublishFetch = fetch
 ) {
+	const rollbackErrors: string[] = []
+
 	for (const backup of [...writtenFiles].reverse()) {
-		if (backup.existed) {
-			await restoreLocalBlogPublishFile(backup, fetchLocal).catch(() => undefined)
-		} else {
-			await deleteLocalBlogPublishFile(backup.path, fetchLocal).catch(() => undefined)
+		try {
+			if (backup.existed) {
+				await restoreLocalBlogPublishFile(backup, fetchLocal)
+			} else {
+				await deleteLocalBlogPublishFile(backup.path, fetchLocal)
+			}
+		} catch {
+			rollbackErrors.push(backup.path)
 		}
 	}
 
 	for (const backup of [...uploadedFiles].reverse()) {
 		if (!backup.existed) {
-			await deleteLocalBlogPublishImage(backup.path, fetchLocal).catch(() => undefined)
+			try {
+				await deleteLocalBlogPublishImage(backup.path, fetchLocal)
+			} catch {
+				rollbackErrors.push(backup.path)
+			}
 		}
+	}
+
+	if (rollbackErrors.length > 0) {
+		throw new Error(`回滚失败：${rollbackErrors.join(', ')}`)
 	}
 }
