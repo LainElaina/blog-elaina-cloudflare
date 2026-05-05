@@ -1,4 +1,3 @@
-import { existsSync } from 'fs'
 import { mkdir, writeFile } from 'fs/promises'
 import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
@@ -21,9 +20,7 @@ export async function handleSaveFile(request: NextRequest) {
 		}
 
 		const dir = dirname(fullPath)
-		if (!existsSync(dir)) {
-			await mkdir(dir, { recursive: true })
-		}
+		await mkdir(dir, { recursive: true })
 
 		await writeFile(fullPath, content, 'utf-8')
 		return NextResponse.json({ success: true })

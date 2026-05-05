@@ -21,3 +21,11 @@ test('save-file local route rejects project files outside the write allowlist', 
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs-backup/post-a/index.md')), false)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve('/repo/blog-backup/public/blogs/post-a/index.md')), false)
 })
+
+test('save-file local route creates parent directories without an existence precheck', async () => {
+	const source = await import('node:fs/promises').then(fs => fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8'))
+
+	assert.doesNotMatch(source, /existsSync/)
+	assert.match(source, /await mkdir\(dir, \{ recursive: true \}\)/)
+	assert.match(source, /await mkdir\(dir, \{ recursive: true \}\)\n\n\t\tawait writeFile\(fullPath, content, 'utf-8'\)/)
+})
