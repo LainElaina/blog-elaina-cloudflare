@@ -87,6 +87,26 @@ describe('blog migration next routes', () => {
     }
   })
 
+  it('execute route 遇到 malformed JSON 时返回请求格式错误', async () => {
+    const previousNodeEnv = process.env.NODE_ENV
+
+    try {
+      process.env.NODE_ENV = 'development'
+      const request = new Request('http://localhost/api/blog-migration/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid json'
+      })
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 400)
+      assert.deepEqual(payload, { message: '请求 JSON 格式错误' })
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv
+    }
+  })
+
   it('execute route 遇到 null 请求体时按未确认请求处理', async () => {
     const previousNodeEnv = process.env.NODE_ENV
 
