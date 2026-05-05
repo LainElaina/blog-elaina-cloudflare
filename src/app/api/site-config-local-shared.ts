@@ -19,8 +19,17 @@ type SiteContentWithSocialButtons = {
 
 const DRAFT_FILE_RELATIVE_PATH = path.join('data', 'site-config.draft.json')
 const SITE_CONFIG_DRAFT_KEYS = ['siteContent', 'cardStyles', 'customComponents', 'colorPresets'] as const
+const ART_IMAGE_PUBLIC_PREFIX = '/images/art/'
+const ART_IMAGE_REPO_PREFIX = 'public/images/art/'
+const BACKGROUND_IMAGE_PUBLIC_PREFIX = '/images/background/'
+const BACKGROUND_IMAGE_REPO_PREFIX = 'public/images/background/'
 const SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX = '/images/social-buttons/'
 const SOCIAL_BUTTON_IMAGE_REPO_PREFIX = 'public/images/social-buttons/'
+const SITE_CONFIG_LOCAL_ASSET_PREFIXES = [
+	{ publicPrefix: ART_IMAGE_PUBLIC_PREFIX, repoPrefix: ART_IMAGE_REPO_PREFIX },
+	{ publicPrefix: BACKGROUND_IMAGE_PUBLIC_PREFIX, repoPrefix: BACKGROUND_IMAGE_REPO_PREFIX },
+	{ publicPrefix: SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX, repoPrefix: SOCIAL_BUTTON_IMAGE_REPO_PREFIX }
+] as const
 
 export function resolveSiteConfigDraftPath(baseDir: string) {
 	return path.join(baseDir, DRAFT_FILE_RELATIVE_PATH)
@@ -128,16 +137,34 @@ type SiteConfigFormalBackup = {
 	content: string
 }
 
-function socialButtonImageRepoPath(publicPath: string): string | null {
-	if (!publicPath.startsWith(SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX)) {
+function singleFileAssetRepoPath(publicPath: string, publicPrefix: string, repoPrefix: string): string | null {
+	if (!publicPath.startsWith(publicPrefix)) {
 		return null
 	}
 	const pathOnly = publicPath.split(/[?#]/, 1)[0]
-	const filename = pathOnly.slice(SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX.length)
+	const filename = pathOnly.slice(publicPrefix.length)
 	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
 		return null
 	}
-	return `${SOCIAL_BUTTON_IMAGE_REPO_PREFIX}${filename}`
+	return `${repoPrefix}${filename}`
+}
+
+function hasProjectLocalAssetPrefix(publicPath: string) {
+	return SITE_CONFIG_LOCAL_ASSET_PREFIXES.some(({ publicPrefix }) => publicPath.startsWith(publicPrefix))
+}
+
+function projectLocalAssetRepoPath(publicPath: string): string | null {
+	for (const { publicPrefix, repoPrefix } of SITE_CONFIG_LOCAL_ASSET_PREFIXES) {
+		const repoPath = singleFileAssetRepoPath(publicPath, publicPrefix, repoPrefix)
+		if (repoPath) {
+			return repoPath
+		}
+	}
+	return null
+}
+
+function socialButtonImageRepoPath(publicPath: string): string | null {
+	return singleFileAssetRepoPath(publicPath, SOCIAL_BUTTON_IMAGE_PUBLIC_PREFIX, SOCIAL_BUTTON_IMAGE_REPO_PREFIX)
 }
 
 function collectSocialButtonImageRepoPaths(siteContent: SiteContentWithSocialButtons | null | undefined): Set<string> {
@@ -297,17 +324,17 @@ function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): Local
 	return assets
 }
 
-function isProjectLocalAssetUrl(url: string) {
-	return url.startsWith('/images/art/') || url.startsWith('/images/background/') || url.startsWith('/images/social-buttons/')
-}
-
 async function assertSiteConfigDraftLocalAssetsExist(baseDir: string, draft: SiteConfigDraftPayload) {
 	for (const asset of collectSiteConfigDraftLocalAssets(draft)) {
-		if (!isProjectLocalAssetUrl(asset.url)) {
+		const repoPath = projectLocalAssetRepoPath(asset.url)
+		if (!repoPath) {
+			if (hasProjectLocalAssetPrefix(asset.url)) {
+				throw new Error(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
+			}
 			continue
 		}
 
-		const assetPath = path.join(baseDir, 'public', asset.url)
+		const assetPath = path.join(baseDir, repoPath)
 		try {
 			const stat = await fs.stat(assetPath)
 			if (!stat.isFile()) {

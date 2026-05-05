@@ -487,3 +487,28 @@ test('正式保存草稿前会拒绝引用缺失的本地资源', async () => {
 	assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
 	await fs.rm(tmpDir, { recursive: true, force: true })
 })
+
+test('正式保存草稿前会拒绝不安全的本地资源路径', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-unsafe-asset-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'public/images'), { recursive: true })
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+		await fs.writeFile(path.join(tmpDir, 'public/images/secret.png'), 'secret')
+
+		const draft = {
+			siteContent: {
+				meta: { title: 'draft' },
+				artImages: [{ id: 'unsafe', url: '/images/art/../secret.png' }]
+			}
+		}
+		await writeSiteConfigDraft(tmpDir, draft)
+
+		await assert.rejects(() => publishSiteConfigDraft(tmpDir, draft), /草稿引用的本地资源不存在/)
+		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
+		assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
