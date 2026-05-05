@@ -87,6 +87,26 @@ describe('blog migration next routes', () => {
     }
   })
 
+  it('execute route 遇到 null 请求体时按未确认请求处理', async () => {
+    const previousNodeEnv = process.env.NODE_ENV
+
+    try {
+      process.env.NODE_ENV = 'development'
+      const request = new Request('http://localhost/api/blog-migration/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'null'
+      })
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 400)
+      assert.equal(payload.message, '执行前需要明确确认')
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv
+    }
+  })
+
   it('execute route 确认后会真正写入同步与重建结果', async () => {
     const context = await setupBlogArtifactsRepo()
     const previousNodeEnv = process.env.NODE_ENV

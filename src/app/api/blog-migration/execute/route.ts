@@ -5,7 +5,8 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: '仅开发环境可用' }, { status: 403 })
 	}
 
-	const body = (await request.json().catch(() => ({}))) as { confirmed?: boolean }
+	const rawBody = await request.json().catch(() => ({}))
+	const body = (rawBody && typeof rawBody === 'object' ? rawBody : {}) as { confirmed?: boolean }
 	const { executeRoute } = await import('../route-handlers.ts')
 	const result = await executeRoute({
 		nodeEnv: 'development',
