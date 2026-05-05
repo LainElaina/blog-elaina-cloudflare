@@ -62,19 +62,20 @@ async function readPreviousLocalBlogImageState(slug: string): Promise<PreviousLo
 		fetch(`/blogs/${slug}/index.md`, { cache: 'no-store' }),
 		fetch(`/blogs/${slug}/config.json`, { cache: 'no-store' })
 	])
-	const markdown = markdownResponse.ok ? await markdownResponse.text() : ''
+	const previousMarkdown = await readOptionalLocalBlogText(markdownResponse, '读取旧文章 Markdown')
+	const configRaw = await readOptionalLocalBlogText(configResponse, '读取旧文章配置')
 	let coverPath: string | undefined
 
-	if (configResponse.ok) {
+	if (configRaw) {
 		try {
-			const config = await configResponse.json()
+			const config = JSON.parse(configRaw)
 			coverPath = typeof config?.cover === 'string' ? config.cover : undefined
 		} catch {
 			coverPath = undefined
 		}
 	}
 
-	return { markdown, coverPath }
+	return { markdown: previousMarkdown ?? '', coverPath }
 }
 
 function buildLocalUnusedBlogImagePaths(params: {
