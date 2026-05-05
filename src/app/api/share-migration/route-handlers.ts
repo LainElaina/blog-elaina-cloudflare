@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import { LOCAL_SHARE_SAVE_PATHS } from '../../share/services/share-artifacts.ts'
@@ -46,7 +46,22 @@ class ShareArtifactWriteError extends Error {
 }
 
 const defaultReadText: ReadText = filePath => readFile(filePath, 'utf8')
-const defaultWriteText: WriteText = (filePath, content) => writeFile(filePath, content)
+
+function buildAtomicShareArtifactTempPath(filePath: string) {
+  return `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+const defaultWriteText: WriteText = async (filePath, content) => {
+  const tempPath = buildAtomicShareArtifactTempPath(filePath)
+
+  try {
+    await writeFile(tempPath, content)
+    await rename(tempPath, filePath)
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => undefined)
+    throw error
+  }
+}
 
 function isNodeErrorWithCode(error: unknown, code: string): error is NodeJS.ErrnoException {
   return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === code

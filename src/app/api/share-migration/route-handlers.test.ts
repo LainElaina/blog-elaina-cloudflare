@@ -286,6 +286,17 @@ describe('share migration route handlers', () => {
     }
   })
 
+  it('execute default writer replaces share artifacts atomically', async () => {
+    const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf8')
+
+    assert.match(source, /import \{ readFile, rename, rm, writeFile \} from 'node:fs\/promises'/)
+    assert.match(source, /function buildAtomicShareArtifactTempPath\(filePath: string\)/)
+    assert.match(source, /const defaultWriteText: WriteText = async \(filePath, content\) => \{/)
+    assert.match(source, /await writeFile\(tempPath, content\)\n    await rename\(tempPath, filePath\)/)
+    assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
+    assert.doesNotMatch(source, /const defaultWriteText: WriteText = \(filePath, content\) => writeFile\(filePath, content\)/)
+  })
+
   it('execute rolls back already written artifacts on injected mid-write failure', async () => {
     const context = await setupShareArtifactsRepo()
     const writeOrder: string[] = []
