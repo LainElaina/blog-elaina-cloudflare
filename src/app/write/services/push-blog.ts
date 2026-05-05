@@ -139,7 +139,7 @@ function blogImageRepoPath(slug: string, publicPath: string): string | null {
 	return `public/blogs/${slug}/${filename}`
 }
 
-function collectBlogImageRepoPaths(params: { slug: string; markdown: string; coverPath?: string }): Set<string> {
+export function collectBlogImageRepoPaths(params: { slug: string; markdown: string; coverPath?: string }): Set<string> {
 	const paths = new Set<string>()
 	const addPublicPath = (publicPath?: string) => {
 		if (!publicPath) return

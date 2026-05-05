@@ -9,7 +9,9 @@ import {
 	assertPublishableOutput,
 	buildRemoteArtifactContents,
 	replacePublishLocalImagePlaceholders,
-	assertCreateBlogSlugAvailable
+	assertCreateBlogSlugAvailable,
+	collectBlogImageRepoPaths,
+	buildUnusedBlogImageDeleteTreeItems
 } from '../services/push-blog'
 import { deleteBlog, buildDeleteArtifactContents } from '../services/delete-blog'
 import { useWriteStore, formatDateTimeLocal } from '../stores/write-store'
@@ -32,6 +34,71 @@ const assertOk = async (response: Response, actionName: string): Promise<void> =
 
 	const detail = await response.text().catch(() => '')
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
+
+type PreviousLocalBlogImageState = {
+	markdown: string
+	coverPath?: string
+}
+
+async function readPreviousLocalBlogImageState(slug: string): Promise<PreviousLocalBlogImageState> {
+	const [markdownResponse, configResponse] = await Promise.all([
+		fetch(`/blogs/${slug}/index.md`, { cache: 'no-store' }),
+		fetch(`/blogs/${slug}/config.json`, { cache: 'no-store' })
+	])
+	const markdown = markdownResponse.ok ? await markdownResponse.text() : ''
+	let coverPath: string | undefined
+
+	if (configResponse.ok) {
+		try {
+			const config = await configResponse.json()
+			coverPath = typeof config?.cover === 'string' ? config.cover : undefined
+		} catch {
+			coverPath = undefined
+		}
+	}
+
+	return { markdown, coverPath }
+}
+
+function buildLocalUnusedBlogImagePaths(params: {
+	slug: string
+	previousMarkdown: string
+	previousCoverPath?: string
+	markdown: string
+	coverPath?: string
+	protectedRepoPaths: ReadonlySet<string>
+}): string[] {
+	const previousRepoPaths = collectBlogImageRepoPaths({
+		slug: params.slug,
+		markdown: params.previousMarkdown,
+		coverPath: params.previousCoverPath
+	})
+
+	return buildUnusedBlogImageDeleteTreeItems({
+		slug: params.slug,
+		existingRepoFiles: Array.from(previousRepoPaths),
+		markdown: params.markdown,
+		coverPath: params.coverPath,
+		protectedRepoPaths: params.protectedRepoPaths
+	}).map(item => item.path)
+}
+
+async function deleteLocalBlogImage(path: string) {
+	await assertOk(
+		await fetch('/api/delete-image', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ path })
+		}),
+		'删除旧图片'
+	)
+}
+
+async function cleanupUnusedLocalBlogImages(paths: string[]) {
+	for (const path of paths) {
+		await deleteLocalBlogImage(path).catch(error => console.warn('删除未使用的博客图片失败:', error))
+	}
 }
 
 export function usePublish() {
@@ -73,8 +140,14 @@ export function usePublish() {
 		const uploadedFiles: LocalBlogPublishUploadBackup[] = []
 		let mdToUpload = form.md
 		let coverPath: string | undefined
+		let previousImageState: PreviousLocalBlogImageState | null = null
+		const protectedRepoPaths = new Set<string>()
 
 		try {
+			if (mode === 'edit') {
+				previousImageState = await readPreviousLocalBlogImageState(form.slug)
+			}
+
 			if (mode === 'create') {
 				const [storageResponse, indexResponse, mdResponse, configResponse] = await Promise.all([
 					fetch('/blogs/storage.json', { cache: 'no-store' }),
@@ -108,6 +181,7 @@ export function usePublish() {
 				const filename = `${hash}${ext}`
 				const publicPath = `/blogs/${form.slug}/${filename}`
 				const filePath = `${basePath}/${filename}`
+				protectedRepoPaths.add(filePath)
 
 				await uploadLocalBlogPublishImage({ file: img.file, path: filePath, actionName: '上传图片', uploadedFiles })
 
@@ -160,6 +234,19 @@ export function usePublish() {
 			const payloads = buildLocalSaveFilePayloadsFromContents(artifactContents)
 			for (const payload of payloads) {
 				await saveLocalBlogPublishFile(payload, '保存索引产物', writtenFiles)
+			}
+
+			if (mode === 'edit' && previousImageState) {
+				await cleanupUnusedLocalBlogImages(
+					buildLocalUnusedBlogImagePaths({
+						slug: form.slug,
+						previousMarkdown: previousImageState.markdown,
+						previousCoverPath: previousImageState.coverPath,
+						markdown: mdToUpload,
+						coverPath,
+						protectedRepoPaths
+					})
+				)
 			}
 
 			return buildPublishedWriteSnapshot({

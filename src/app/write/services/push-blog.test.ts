@@ -187,6 +187,26 @@ describe('pushBlog create slug checks', () => {
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/config\.json`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null,\n\s*indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null,\n\s*hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok\n\s*\}\)/)
 	})
+
+	it('本地编辑模式应在保存后清理未引用的旧图片', async () => {
+		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const readPreviousIndex = source.indexOf('previousImageState = await readPreviousLocalBlogImageState(form.slug)')
+		const savePayloadIndex = source.indexOf("await saveLocalBlogPublishFile(payload, '保存索引产物', writtenFiles)")
+		const cleanupIndex = source.indexOf('await cleanupUnusedLocalBlogImages(')
+		const snapshotIndex = source.indexOf('return buildPublishedWriteSnapshot')
+
+		assert.notEqual(readPreviousIndex, -1)
+		assert.notEqual(savePayloadIndex, -1)
+		assert.notEqual(cleanupIndex, -1)
+		assert.notEqual(snapshotIndex, -1)
+		assert.ok(readPreviousIndex < savePayloadIndex)
+		assert.ok(savePayloadIndex < cleanupIndex)
+		assert.ok(cleanupIndex < snapshotIndex)
+		assert.match(source, /function buildLocalUnusedBlogImagePaths\(params: \{[\s\S]*?const previousRepoPaths = collectBlogImageRepoPaths\(\{[\s\S]*?previousMarkdown[\s\S]*?previousCoverPath[\s\S]*?return buildUnusedBlogImageDeleteTreeItems\(\{[\s\S]*?existingRepoFiles: Array\.from\(previousRepoPaths\),[\s\S]*?markdown: params\.markdown,[\s\S]*?protectedRepoPaths: params\.protectedRepoPaths[\s\S]*?\}\)\.map\(item => item\.path\)/)
+		assert.match(source, /const filePath = `\$\{basePath\}\/\$\{filename\}`\n\s*protectedRepoPaths\.add\(filePath\)\n\s*await uploadLocalBlogPublishImage/)
+		assert.match(source, /if \(mode === 'edit' && previousImageState\) \{\n\s*await cleanupUnusedLocalBlogImages\(\n\s*buildLocalUnusedBlogImagePaths\(\{\n\s*slug: form\.slug,\n\s*previousMarkdown: previousImageState\.markdown,\n\s*previousCoverPath: previousImageState\.coverPath,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths\n\s*\}\)\n\s*\)\n\s*\}/)
+		assert.match(source, /fetch\('\/api\/delete-image', \{\n\s*method: 'POST',[\s\S]*?body: JSON\.stringify\(\{ path \}\)/)
+	})
 })
 
 describe('buildUnusedBlogImageDeleteTreeItems', () => {
