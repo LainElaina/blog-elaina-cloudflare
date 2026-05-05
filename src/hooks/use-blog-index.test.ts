@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { fetchBlogIndex } from './use-blog-index.ts'
+import { fetchBlogIndex, getLatestBlogItem } from './use-blog-index.ts'
 
 function mockFetchResponse(response: { ok: boolean; status: number; json?: () => Promise<unknown> }) {
 	const originalFetch = globalThis.fetch
@@ -31,5 +31,22 @@ describe('fetchBlogIndex', () => {
 		} finally {
 			restoreFetch()
 		}
+	})
+})
+
+describe('getLatestBlogItem', () => {
+	it('计算最新文章时不会原地重排传入的索引数组', () => {
+		const items = [
+			{ slug: 'old', title: 'Old', date: '2026-01-01T00:00:00.000Z' },
+			{ slug: 'new', title: 'New', date: '2026-02-01T00:00:00.000Z' }
+		] as any[]
+
+		const latest = getLatestBlogItem(items)
+
+		assert.equal(latest?.slug, 'new')
+		assert.deepEqual(
+			items.map(item => item.slug),
+			['old', 'new']
+		)
 	})
 })

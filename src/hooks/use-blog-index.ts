@@ -38,10 +38,13 @@ export function useBlogIndex() {
 	}
 }
 
+export function getLatestBlogItem(items: BlogIndexItem[]) {
+	return items.length > 0 ? [...items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] : null
+}
+
 export function useLatestBlog() {
 	const { items, loading, error } = useBlogIndex()
-
-	const latestBlog = items.length > 0 ? items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] : null
+	const latestBlog = getLatestBlogItem(items)
 
 	return {
 		blog: latestBlog,
