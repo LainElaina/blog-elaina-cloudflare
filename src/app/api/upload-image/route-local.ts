@@ -26,10 +26,10 @@ async function writeImageAtomically(fullPath: string, buffer: Buffer) {
 export async function handleUploadImage(request: NextRequest) {
 	try {
 		const formData = await request.formData()
-		const file = formData.get('file') as File
-		const path = formData.get('path') as string
+		const file = formData.get('file')
+		const path = formData.get('path')
 
-		if (!file || !path) {
+		if (!(file instanceof File) || typeof path !== 'string' || path.length === 0) {
 			return NextResponse.json({ error: 'Missing file or path' }, { status: 400 })
 		}
 
