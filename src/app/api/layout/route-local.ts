@@ -37,6 +37,9 @@ export async function handleLayoutPost(request: Request) {
 		} catch {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
+		if (!layout || typeof layout !== 'object' || Array.isArray(layout)) {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
 
 		if (fs.existsSync(LAYOUT_PATH)) {
 			const dataDir = path.join(process.cwd(), 'data')
