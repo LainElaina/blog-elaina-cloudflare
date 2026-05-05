@@ -64,8 +64,9 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 				const ext = getFileExt(avatarItem.file.name)
 				const filename = `${hash}${ext}`
 				const publicPath = `/images/blogger/${filename}`
+				const uploadKey = filename
 
-				if (!uploadedAvatarPaths.has(hash)) {
+				if (!uploadedAvatarPaths.has(uploadKey)) {
 					const path = `public/images/blogger/${filename}`
 					const contentBase64 = await fileToBase64NoPrefix(avatarItem.file)
 					const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
@@ -75,10 +76,10 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 						type: 'blob',
 						sha: blobData.sha
 					})
-					uploadedAvatarPaths.set(hash, publicPath)
+					uploadedAvatarPaths.set(uploadKey, publicPath)
 				}
 
-				const uploadedPath = uploadedAvatarPaths.get(hash)!
+				const uploadedPath = uploadedAvatarPaths.get(uploadKey)!
 				updatedBloggers = updatedBloggers.map(b => (b.url === url ? { ...b, avatar: uploadedPath } : b))
 			}
 		}
