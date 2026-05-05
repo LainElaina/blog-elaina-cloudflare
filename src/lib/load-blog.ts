@@ -25,6 +25,31 @@ function toBlogConfigFromStorageRecord(record: Record<string, unknown> | undefin
 	}
 }
 
+async function assertLoadBlogOk(response: Response, actionName: string) {
+	if (response.ok) {
+		return
+	}
+
+	const detail = await response.text().catch(() => '')
+	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
+}
+
+async function readOptionalLoadBlogText(response: Response, actionName: string): Promise<string | null> {
+	if (response.status === 404) {
+		return null
+	}
+	await assertLoadBlogOk(response, actionName)
+	return response.text()
+}
+
+async function readRequiredLoadBlogText(response: Response, actionName: string): Promise<string> {
+	if (response.status === 404) {
+		throw new Error('Blog not found')
+	}
+	await assertLoadBlogOk(response, actionName)
+	return response.text()
+}
+
 /**
  * Load blog data from public/blogs/{slug}
  * Used by both view page and edit page
@@ -36,9 +61,9 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 
 	let config: BlogConfig = {}
 	const storageRes = await fetch('/blogs/storage.json')
-	if (storageRes.ok) {
+	const storageRaw = await readOptionalLoadBlogText(storageRes, '读取博客存储')
+	if (storageRaw !== null) {
 		try {
-			const storageRaw = await storageRes.text()
 			const storage = parseBlogStorageDB(storageRaw)
 			config = toBlogConfigFromStorageRecord(storage.blogs[slug] as Record<string, unknown> | undefined)
 		} catch {
@@ -48,9 +73,10 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 
 	if (Object.keys(config).length === 0) {
 		const configRes = await fetch(`/blogs/${encodeURIComponent(slug)}/config.json`)
-		if (configRes.ok) {
+		const configRaw = await readOptionalLoadBlogText(configRes, '读取博客配置')
+		if (configRaw !== null) {
 			try {
-				config = await configRes.json()
+				config = JSON.parse(configRaw)
 			} catch {
 				config = {}
 			}
@@ -58,10 +84,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 	}
 
 	const mdRes = await fetch(`/blogs/${encodeURIComponent(slug)}/index.md`)
-	if (!mdRes.ok) {
-		throw new Error('Blog not found')
-	}
-	const markdown = await mdRes.text()
+	const markdown = await readRequiredLoadBlogText(mdRes, '读取博客 Markdown')
 
 	return {
 		slug,

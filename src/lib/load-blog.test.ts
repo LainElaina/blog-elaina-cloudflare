@@ -5,45 +5,104 @@ import { loadBlog } from '@/lib/load-blog'
 import { exportStaticBlogArtifacts, parseBlogStorageDB } from '@/lib/content-db/blog-storage'
 
 describe('loadBlog', () => {
-	it('reads folderPath and favorite from storage', async () => {
+	async function withMockFetch(responses: Map<string, Response>, run: () => Promise<void>) {
 		const originalFetch = globalThis.fetch
-		const responses = new Map<string, Response>([
-			[
-				'/blogs/storage.json',
-				new Response(
-					JSON.stringify({
-						version: 1,
-						updatedAt: '2026-03-27T10:00:00.000Z',
-						blogs: {
-							'post-a': {
-								slug: 'post-a',
-								title: 'A',
-								tags: ['x'],
-								date: '2026-03-27T09:00:00.000Z',
-								folderPath: '/写作/技术',
-								favorite: true,
-								status: 'published'
-							}
-						}
-					}),
-					{ status: 200 }
-				)
-			],
-			['/blogs/post-a/index.md', new Response('# hello', { status: 200 })],
-			['/blogs/post-a/config.json', new Response('{}', { status: 200 })]
-		])
 		globalThis.fetch = (async (input: RequestInfo | URL) => {
 			const key = typeof input === 'string' ? input : input.toString()
 			return responses.get(key) ?? new Response(null, { status: 404 })
 		}) as typeof fetch
 
 		try {
-			const loaded = await loadBlog('post-a')
-			assert.equal(loaded.config.folderPath, '/写作/技术')
-			assert.equal(loaded.config.favorite, true)
+			await run()
 		} finally {
 			globalThis.fetch = originalFetch
 		}
+	}
+
+	it('reads folderPath and favorite from storage', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {
+								'post-a': {
+									slug: 'post-a',
+									title: 'A',
+									tags: ['x'],
+									date: '2026-03-27T09:00:00.000Z',
+									folderPath: '/写作/技术',
+									favorite: true,
+									status: 'published'
+								}
+							}
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })],
+				['/blogs/post-a/config.json', new Response('{}', { status: 200 })]
+			]),
+			async () => {
+				const loaded = await loadBlog('post-a')
+				assert.equal(loaded.config.folderPath, '/写作/技术')
+				assert.equal(loaded.config.favorite, true)
+			}
+		)
+	})
+
+	it('aborts when blog storage read fails before falling back to config', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				['/blogs/storage.json', new Response('temporary failure', { status: 500 })],
+				['/blogs/post-a/config.json', new Response('{"title":"Fallback"}', { status: 200 })],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /读取博客存储失败：temporary failure/)
+			}
+		)
+	})
+
+	it('aborts when fallback blog config read fails', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {}
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/config.json', new Response('temporary failure', { status: 500 })],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /读取博客配置失败：temporary failure/)
+			}
+		)
+	})
+
+	it('keeps missing markdown as not found while surfacing read failures', async () => {
+		await withMockFetch(new Map<string, Response>(), async () => {
+			await assert.rejects(() => loadBlog('post-a'), /Blog not found/)
+		})
+
+		await withMockFetch(
+			new Map<string, Response>([
+				['/blogs/post-a/index.md', new Response('temporary failure', { status: 500 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /读取博客 Markdown失败：temporary failure/)
+			}
+		)
 	})
 })
 
