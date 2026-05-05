@@ -15,6 +15,10 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 
+		if (!body || typeof body !== 'object' || Array.isArray(body)) {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
+
 		const { path: filePath } = body as Record<string, unknown>
 
 		if (!filePath || typeof filePath !== 'string') {

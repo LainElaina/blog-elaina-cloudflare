@@ -31,6 +31,10 @@ export async function handleDeleteDir(request: NextRequest) {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 
+		if (!body || typeof body !== 'object' || Array.isArray(body)) {
+			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+		}
+
 		const { path: dirPath } = body as Record<string, unknown>
 
 		if (!dirPath || typeof dirPath !== 'string') {

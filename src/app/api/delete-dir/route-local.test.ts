@@ -45,3 +45,14 @@ test('delete dir route returns 400 when JSON body is malformed', async () => {
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
+
+test('delete dir route returns 400 when JSON body is not an object', async () => {
+	for (const body of [null, []]) {
+		const response = await handleDeleteDir({
+			json: async () => body
+		} as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
+	}
+})
