@@ -32,9 +32,18 @@ async function assertLocalBlogPublishOk(response: Response, actionName: string) 
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+async function assertLocalBlogBackupReadOk(response: Response, path: string) {
+	if (response.ok || response.status === 404) {
+		return
+	}
+
+	await assertLocalBlogPublishOk(response, `读取 ${path} 备份`)
+}
+
 export async function readLocalBlogPublishFileBackup(path: string, fetchLocal: LocalBlogPublishFetch = fetch): Promise<LocalBlogPublishFileBackup> {
 	const response = await fetchLocal(toPublicUrl(path), { cache: 'no-store' })
-	if (!response.ok) {
+	await assertLocalBlogBackupReadOk(response, path)
+	if (response.status === 404) {
 		return { path, existed: false, content: '' }
 	}
 	return { path, existed: true, content: await response.text() }
@@ -42,6 +51,7 @@ export async function readLocalBlogPublishFileBackup(path: string, fetchLocal: L
 
 export async function readLocalBlogPublishUploadBackup(path: string, fetchLocal: LocalBlogPublishFetch = fetch): Promise<LocalBlogPublishUploadBackup> {
 	const response = await fetchLocal(toPublicUrl(path), { cache: 'no-store' })
+	await assertLocalBlogBackupReadOk(response, path)
 	return { path, existed: response.ok }
 }
 

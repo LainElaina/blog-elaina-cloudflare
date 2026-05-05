@@ -13,8 +13,8 @@ type FetchCall = {
 	init?: RequestInit
 }
 
-function textResponse(body: string, ok = true) {
-	return new Response(body, { status: ok ? 200 : 404 })
+function textResponse(body: string, ok = true, status = ok ? 200 : 404) {
+	return new Response(body, { status })
 }
 
 test('local publish file saves record previous content before writing', async () => {
@@ -34,6 +34,47 @@ test('local publish file saves record previous content before writing', async ()
 	assert.equal(calls[0].input, '/blogs/post-a/index.md')
 	assert.equal(calls[1].input, '/api/save-file')
 	assert.equal(calls[1].init?.body, JSON.stringify({ path: 'public/blogs/post-a/index.md', content: 'new markdown' }))
+})
+
+test('local publish file backup read failure aborts before overwriting files', async () => {
+	const calls: FetchCall[] = []
+	const writtenFiles: LocalBlogPublishFileBackup[] = []
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/blogs/post-a/index.md') {
+			return textResponse('temporary failure', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(
+		() => saveLocalBlogPublishFile({ path: 'public/blogs/post-a/index.md', content: 'new markdown' }, '保存 Markdown', writtenFiles, fetchLocal),
+		/读取 public\/blogs\/post-a\/index\.md 备份失败/
+	)
+
+	assert.deepEqual(writtenFiles, [])
+	assert.deepEqual(calls.map(call => call.input), ['/blogs/post-a/index.md'])
+})
+
+test('local publish image backup read failure aborts before uploading image', async () => {
+	const calls: FetchCall[] = []
+	const uploadedFiles: LocalBlogPublishUploadBackup[] = []
+	const image = new File(['image'], 'cover.png', { type: 'image/png' })
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/blogs/post-a/cover.png') {
+			return textResponse('temporary failure', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(
+		() => uploadLocalBlogPublishImage({ file: image, path: 'public/blogs/post-a/cover.png', actionName: '上传图片', uploadedFiles }, fetchLocal),
+		/读取 public\/blogs\/post-a\/cover\.png 备份失败/
+	)
+
+	assert.deepEqual(uploadedFiles, [])
+	assert.deepEqual(calls.map(call => call.input), ['/blogs/post-a/cover.png'])
 })
 
 test('local publish rollback restores previous files and deletes newly created files and images', async () => {
