@@ -38,21 +38,20 @@ async function assertDraftFileMissing(tmpDir: string) {
 	)
 }
 
-test('site config draft rejects oversized JSON without writing draft', async () => {
+test('site config draft rejects oversized JSON before parsing without writing draft', async () => {
 	await withDevelopmentCwd(async tmpDir => {
-		const response = await POST(
-			new Request('http://localhost/api/drafts/site-config', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Content-Length': String(1024 * 1024 + 1)
-				},
-				body: '{}'
-			})
-		)
+		let jsonCalled = false
+		const response = await POST({
+			headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+			json: async () => {
+				jsonCalled = true
+				throw new Error('json should not be called')
+			}
+		} as any)
 		const payload = await response.json()
 
 		assert.equal(response.status, 400)
+		assert.equal(jsonCalled, false)
 		assert.deepEqual(payload, { error: '请求 JSON 过大' })
 		await assertDraftFileMissing(tmpDir)
 	})
