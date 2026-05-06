@@ -8,7 +8,9 @@ import { isValidLayoutConfig } from '../layout/layout-config-validation'
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
 const CARD_STYLES_FILE_NAME = 'card-styles.json'
-const LAYOUT_BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
+function resolveLayoutBackupPath() {
+	return path.join(process.cwd(), 'data/layout.bak.json')
+}
 const CONFIG_WRITE_KEYS = new Set(['siteContent', 'cardStyles', 'customComponents', 'colorPresets'])
 
 function buildAtomicConfigTempPath(fullPath: string) {
@@ -100,8 +102,9 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 		return
 	}
 
-	await fs.mkdir(path.dirname(LAYOUT_BACKUP_PATH), { recursive: true })
-	await writeFileAtomically(LAYOUT_BACKUP_PATH, cardStylesBackup.content)
+	const layoutBackupPath = resolveLayoutBackupPath()
+	await fs.mkdir(path.dirname(layoutBackupPath), { recursive: true })
+	await writeFileAtomically(layoutBackupPath, cardStylesBackup.content)
 }
 
 export async function handleConfigPost(request: NextRequest) {

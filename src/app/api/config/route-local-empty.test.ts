@@ -1,8 +1,22 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { handleConfigPost } from './route-local.ts'
+
+async function withTemporaryCwd<T>(callback: (tmpDir: string) => Promise<T>): Promise<T> {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'config-route-local-'))
+	const previousCwd = process.cwd()
+	try {
+		process.chdir(tmpDir)
+		return await callback(tmpDir)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+}
 
 test('local config write accepts explicit empty array payloads', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
@@ -28,10 +42,52 @@ test('local config write rolls back earlier files when a later write fails', asy
 test('local config write preserves layout undo backup when saving card styles', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
-	assert.match(source, /const LAYOUT_BACKUP_PATH = path\.join\(process\.cwd\(\), 'data\/layout\.bak\.json'\)/)
+	assert.match(source, /function resolveLayoutBackupPath\(\) \{\n\s*return path\.join\(process\.cwd\(\), 'data\/layout\.bak\.json'\)/)
 	assert.match(source, /await writeLayoutBackupIfNeeded\(writes, backups\)/)
-	assert.match(source, /await writeFileAtomically\(LAYOUT_BACKUP_PATH, cardStylesBackup\.content\)/)
-	assert.doesNotMatch(source, /await fs\.writeFile\(LAYOUT_BACKUP_PATH, cardStylesBackup\.content\)/)
+	assert.match(source, /const layoutBackupPath = resolveLayoutBackupPath\(\)/)
+	assert.match(source, /await writeFileAtomically\(layoutBackupPath, cardStylesBackup\.content\)/)
+	assert.doesNotMatch(source, /const LAYOUT_BACKUP_PATH = path\.join\(process\.cwd\(\), 'data\/layout\.bak\.json'\)/)
+	assert.doesNotMatch(source, /await fs\.writeFile\(layoutBackupPath, cardStylesBackup\.content\)/)
+})
+
+test('local config write creates layout undo backup under current cwd', async () => {
+	await withTemporaryCwd(async tmpDir => {
+		const cardStylesPath = path.join(tmpDir, 'src/config/card-styles.json')
+		const previousCardStyles = {
+			musicCard: {
+				width: 120,
+				height: 100,
+				order: 1,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			}
+		}
+		const nextCardStyles = {
+			musicCard: {
+				width: 180,
+				height: 100,
+				order: 1,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			}
+		}
+		await fs.mkdir(path.dirname(cardStylesPath), { recursive: true })
+		await fs.writeFile(cardStylesPath, JSON.stringify(previousCardStyles, null, '\t'))
+
+		const response = await handleConfigPost(
+			new Request('http://localhost/api/config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ cardStyles: nextCardStyles })
+			}) as any
+		)
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(JSON.parse(await fs.readFile(path.join(tmpDir, 'data/layout.bak.json'), 'utf-8')), previousCardStyles)
+		assert.deepEqual(JSON.parse(await fs.readFile(cardStylesPath, 'utf-8')), nextCardStyles)
+	})
 })
 
 test('local config write returns 400 when JSON body is malformed', async () => {
