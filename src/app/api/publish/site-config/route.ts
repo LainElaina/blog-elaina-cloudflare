@@ -1,5 +1,8 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '@/app/api/limited-json-request'
+
+const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
 export async function POST(request: NextRequest) {
 	if (process.env.NODE_ENV !== 'development') {
@@ -12,9 +15,9 @@ export async function POST(request: NextRequest) {
 		const cwd = process.cwd()
 		let payload: unknown
 		try {
-			payload = await request.json()
-		} catch {
-			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
+			payload = await readLimitedJsonRequest(request, SITE_CONFIG_REQUEST_MAX_BYTES)
+		} catch (error) {
+			return NextResponse.json({ error: isJsonRequestBodyTooLargeError(error) ? '请求 JSON 过大' : '请求 JSON 格式错误' }, { status: 400 })
 		}
 		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
 			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
