@@ -15,6 +15,9 @@ const BLOG_ARTIFACT_PATHS = {
 	storage: 'public/blogs/storage.json'
 } as const
 
+const BLOG_ARTIFACT_SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/
+const MAX_BLOG_ARTIFACT_SLUG_LENGTH = 120
+
 type BlogArtifactFailureCode = 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE'
 
 type BlogRuntimeArtifactsText = {
@@ -42,6 +45,10 @@ function isFileNotFoundError(error: unknown) {
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isSafeBlogArtifactSlug(slug: string) {
+	return slug.length <= MAX_BLOG_ARTIFACT_SLUG_LENGTH && BLOG_ARTIFACT_SLUG_PATTERN.test(slug)
 }
 
 function parseStrictJson(raw: string, artifactPath: string) {
@@ -83,10 +90,13 @@ function validateBlogIndexArtifact(raw: string) {
 	const parsed = parseStrictJson(raw, artifactPath)
 	if (!Array.isArray(parsed)) throwInvalidShape(artifactPath)
 
+	const seenSlugs = new Set<string>()
 	for (const item of parsed) {
 		if (
 			!isObject(item) ||
 			typeof item.slug !== 'string' ||
+			!isSafeBlogArtifactSlug(item.slug) ||
+			seenSlugs.has(item.slug) ||
 			typeof item.title !== 'string' ||
 			!Array.isArray(item.tags) ||
 			!item.tags.every(tag => typeof tag === 'string') ||
@@ -100,6 +110,8 @@ function validateBlogIndexArtifact(raw: string) {
 		) {
 			throwInvalidShape(artifactPath)
 		}
+
+		seenSlugs.add(item.slug)
 	}
 }
 
@@ -138,6 +150,7 @@ function validateBlogStorageArtifact(raw: string | null) {
 
 	for (const [slug, record] of Object.entries(parsed.blogs)) {
 		if (
+			!isSafeBlogArtifactSlug(slug) ||
 			!isObject(record) ||
 			record.slug !== slug ||
 			typeof record.title !== 'string' ||

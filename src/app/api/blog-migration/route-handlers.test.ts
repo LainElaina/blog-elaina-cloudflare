@@ -103,6 +103,112 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('preview route 拒绝非法博客 slug', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/index.json'),
+				JSON.stringify(
+					[
+						{
+							slug: '../bad',
+							title: 'Bad',
+							tags: [],
+							date: '2026-04-13T07:00:00.000Z'
+						}
+					],
+					null,
+					2
+				)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/index.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('execute route 拒绝重复博客 slug 且不会写回', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			const duplicateIndex = JSON.stringify(
+				[
+					{
+						slug: 'post-a',
+						title: 'A',
+						tags: [],
+						date: '2026-04-13T07:00:00.000Z'
+					},
+					{
+						slug: 'post-a',
+						title: 'A duplicate',
+						tags: [],
+						date: '2026-04-14T07:00:00.000Z'
+					}
+				],
+				null,
+				2
+			)
+			await writeFile(join(context.repoDir, 'public/blogs/index.json'), duplicateIndex)
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.equal(await readFile(join(context.repoDir, 'public/blogs/index.json'), 'utf8'), duplicateIndex)
+		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('preview route 拒绝非法 storage slug key', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/storage.json'),
+				JSON.stringify(
+					{
+						version: 1,
+						updatedAt: '2026-04-13T07:00:00.000Z',
+						blogs: {
+							'bad/slug': {
+								slug: 'bad/slug',
+								title: 'Bad',
+								tags: [],
+								date: '2026-04-13T07:00:00.000Z',
+								status: 'draft'
+							}
+						}
+					},
+					null,
+					2
+				)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/storage.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 在确认后会同步账本并重建正式产物', async () => {
 		const context = await setupBlogArtifactsRepo()
 
