@@ -5,21 +5,57 @@ import { loadBlog } from '@/lib/load-blog'
 import { exportStaticBlogArtifacts, parseBlogStorageDB } from '@/lib/content-db/blog-storage'
 
 describe('loadBlog', () => {
-	async function withMockFetch(responses: Map<string, Response>, run: () => Promise<void>) {
+	type FetchCall = { input: string; init?: RequestInit }
+
+	async function withMockFetch(responses: Map<string, Response>, run: (calls: FetchCall[]) => Promise<void>) {
 		const originalFetch = globalThis.fetch
-		globalThis.fetch = (async (input: RequestInfo | URL) => {
+		const calls: FetchCall[] = []
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			const key = typeof input === 'string' ? input : input.toString()
+			calls.push({ input: key, init })
 			return responses.get(key) ?? new Response(null, { status: 404 })
 		}) as typeof fetch
 
 		try {
-			await run()
+			await run(calls)
 		} finally {
 			globalThis.fetch = originalFetch
 		}
 	}
 
-	it('reads folderPath and favorite from storage', async () => {
+	it('reads storage, fallback config, and markdown without fetch cache', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {}
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/config.json', new Response('{"title":"Fallback"}', { status: 200 })],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+			]),
+			async calls => {
+				await loadBlog('post-a')
+
+				assert.deepEqual(
+					calls.map(call => ({ input: call.input, cache: call.init?.cache })),
+					[
+						{ input: '/blogs/storage.json', cache: 'no-store' },
+						{ input: '/blogs/post-a/config.json', cache: 'no-store' },
+						{ input: '/blogs/post-a/index.md', cache: 'no-store' }
+					]
+				)
+			}
+		)
+	})
+
+	it('reads storage-backed markdown without fetch cache', async () => {
 		await withMockFetch(
 			new Map<string, Response>([
 				[
@@ -46,10 +82,17 @@ describe('loadBlog', () => {
 				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })],
 				['/blogs/post-a/config.json', new Response('{}', { status: 200 })]
 			]),
-			async () => {
+			async calls => {
 				const loaded = await loadBlog('post-a')
 				assert.equal(loaded.config.folderPath, '/写作/技术')
 				assert.equal(loaded.config.favorite, true)
+				assert.deepEqual(
+					calls.map(call => ({ input: call.input, cache: call.init?.cache })),
+					[
+						{ input: '/blogs/storage.json', cache: 'no-store' },
+						{ input: '/blogs/post-a/index.md', cache: 'no-store' }
+					]
+				)
 			}
 		)
 	})

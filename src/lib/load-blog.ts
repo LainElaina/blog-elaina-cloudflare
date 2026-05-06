@@ -3,6 +3,8 @@ import { parseRequiredBlogStorageDB } from '@/lib/content-db/blog-storage'
 
 export type { BlogConfig } from '@/app/blog/types'
 
+const LOAD_BLOG_FETCH_OPTIONS: RequestInit = { cache: 'no-store' }
+
 export type LoadedBlog = {
 	slug: string
 	config: BlogConfig
@@ -64,7 +66,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 	}
 
 	let config: BlogConfig = {}
-	const storageRes = await fetch('/blogs/storage.json')
+	const storageRes = await fetch('/blogs/storage.json', LOAD_BLOG_FETCH_OPTIONS)
 	const storageRaw = await readOptionalLoadBlogText(storageRes, '读取博客存储')
 	if (storageRaw !== null) {
 		try {
@@ -76,7 +78,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 	}
 
 	if (Object.keys(config).length === 0) {
-		const configRes = await fetch(`/blogs/${encodeURIComponent(slug)}/config.json`)
+		const configRes = await fetch(`/blogs/${encodeURIComponent(slug)}/config.json`, LOAD_BLOG_FETCH_OPTIONS)
 		const configRaw = await readOptionalLoadBlogText(configRes, '读取博客配置')
 		if (configRaw !== null) {
 			try {
@@ -91,7 +93,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 		}
 	}
 
-	const mdRes = await fetch(`/blogs/${encodeURIComponent(slug)}/index.md`)
+	const mdRes = await fetch(`/blogs/${encodeURIComponent(slug)}/index.md`, LOAD_BLOG_FETCH_OPTIONS)
 	const markdown = await readRequiredLoadBlogText(mdRes, '读取博客 Markdown')
 
 	return {
