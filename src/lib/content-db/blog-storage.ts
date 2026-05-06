@@ -1,5 +1,5 @@
 import type { BlogIndexItem } from '@/app/blog/types'
-import { buildBlogFolderTree, type BlogFolderNode } from '@/lib/content-db/blog-folders'
+import { buildBlogFolderTree, normalizeBlogFolderPath, type BlogFolderNode } from '@/lib/content-db/blog-folders'
 
 export type BlogStatus = 'published' | 'draft' | 'archived'
 
@@ -130,8 +130,7 @@ function normalizeParsedFolderPath(value: unknown): string | undefined {
 	if (typeof value !== 'string') {
 		return undefined
 	}
-	const normalized = value.trim()
-	return normalized.length > 0 ? normalized : undefined
+	return normalizeBlogFolderPath(value) ?? undefined
 }
 
 function sanitizeParsedRecord(key: string, value: unknown): BlogStorageRecord {

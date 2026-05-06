@@ -4,7 +4,7 @@ export type BlogFolderNode = {
 	children: BlogFolderNode[]
 }
 
-function normalizeFolderPath(input: string): string | null {
+export function normalizeBlogFolderPath(input: string): string | null {
 	const trimmed = input.trim()
 	if (!trimmed) return null
 	const parts = trimmed
@@ -18,7 +18,7 @@ function normalizeFolderPath(input: string): string | null {
 export function dedupeAndSortFolderPaths(folderPaths: Array<string | undefined | null>): string[] {
 	const normalized = folderPaths
 		.filter((v): v is string => typeof v === 'string')
-		.map(normalizeFolderPath)
+		.map(normalizeBlogFolderPath)
 		.filter((v): v is string => Boolean(v))
 	return Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b))
 }

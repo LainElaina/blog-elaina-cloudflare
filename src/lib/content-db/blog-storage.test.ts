@@ -125,6 +125,32 @@ describe('blog storage model', () => {
 		assert.equal(db.blogs.clean.status, 'draft')
 		assert.equal(db.blogs.clean.favorite, true)
 		assert.equal(db.blogs.clean.folderPath, '/写作/技术')
+
+		const normalized = parseBlogStorageDB(
+			JSON.stringify({
+				version: 1,
+				updatedAt: '2026-03-27T00:00:00.000Z',
+				blogs: {
+					normalized: {
+						slug: 'normalized',
+						title: 'Normalized',
+						tags: [],
+						date: '2026-01-04T00:00:00.000Z',
+						folderPath: ' /写作// 技术/ ',
+						status: 'published'
+					}
+				}
+			})
+		)
+		const artifacts = exportStaticBlogArtifacts(normalized)
+		assert.equal(artifacts.index[0].folderPath, '/写作/技术')
+		assert.deepEqual(artifacts.folders, [
+			{
+				name: '写作',
+				path: '/写作',
+				children: [{ name: '技术', path: '/写作/技术', children: [] }]
+			}
+		])
 	})
 
 	it('parseRequiredBlogStorageDB 会拒绝不安全或不一致的 storage slug', () => {
