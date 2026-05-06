@@ -1,10 +1,61 @@
 import { unlink } from 'fs/promises'
-import { extname, resolve } from 'path'
+import { extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isPathInsideDirectory } from '../local-path'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug'
+import { isPathStrictlyInsideDirectory } from '../local-path'
 
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
+const ALLOWED_EXACT_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
+const ALLOWED_DIRECT_IMAGE_DIRECTORIES = [
+	'public/images/art',
+	'public/images/background',
+	'public/images/custom-components',
+	'public/images/pictures',
+	'public/images/project',
+	'public/images/share',
+	'public/images/social-buttons'
+]
+
+function isSafeUploadedImageFilename(filename: string) {
+	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
+}
+
+function isDirectChildFilePath(baseDir: string, fullPath: string) {
+	if (!isPathStrictlyInsideDirectory(baseDir, fullPath)) {
+		return false
+	}
+
+	return isSafeUploadedImageFilename(relative(baseDir, fullPath))
+}
+
+function isAllowedBlogImagePath(projectDir: string, fullPath: string) {
+	const blogsDir = resolve(projectDir, 'public/blogs')
+	if (!isPathStrictlyInsideDirectory(blogsDir, fullPath)) {
+		return false
+	}
+
+	const relativePath = relative(blogsDir, fullPath).replace(/\\/g, '/')
+	const parts = relativePath.split('/')
+	if (parts.length !== 2 || !isSafeUploadedImageFilename(parts[1])) {
+		return false
+	}
+
+	try {
+		assertSafeBlogSlug(parts[0])
+		return true
+	} catch {
+		return false
+	}
+}
+
+export function isAllowedDeleteImagePath(projectDir: string, fullPath: string) {
+	return (
+		ALLOWED_EXACT_IMAGE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
+		ALLOWED_DIRECT_IMAGE_DIRECTORIES.some(allowedDir => isDirectChildFilePath(resolve(projectDir, allowedDir), fullPath)) ||
+		isAllowedBlogImagePath(projectDir, fullPath)
+	)
+}
 
 export async function handleDeleteImage(request: NextRequest) {
 	try {
@@ -30,11 +81,11 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: `不允许的文件类型: ${ext}` }, { status: 400 })
 		}
 
-		const publicDir = resolve(process.cwd(), 'public')
+		const projectDir = resolve(process.cwd())
 		const fullPath = resolve(process.cwd(), filePath)
 
-		if (!isPathInsideDirectory(publicDir, fullPath)) {
-			return NextResponse.json({ error: '路径不合法，只能删除 public 目录内的图片文件' }, { status: 403 })
+		if (!isAllowedDeleteImagePath(projectDir, fullPath)) {
+			return NextResponse.json({ error: '路径不合法，只能删除本地上传目录内的图片文件' }, { status: 403 })
 		}
 
 		await unlink(fullPath).catch(error => {
