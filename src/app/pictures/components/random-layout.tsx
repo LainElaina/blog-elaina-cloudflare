@@ -7,6 +7,7 @@ import { Picture } from '../page'
 import siteContent from '@/config/site-content.json'
 import { cn } from '@/lib/utils'
 import { useSize } from '@/hooks/use-size'
+import { normalizeSavedPictureOffset } from './random-layout-offset'
 
 interface RandomLayoutProps {
 	pictures: Picture[]
@@ -102,8 +103,7 @@ const loadSavedOffset = (url: string): { x: number; y: number } => {
 	try {
 		const saved = localStorage.getItem(`picture-offset-${url}`)
 		if (saved) {
-			const parsed = JSON.parse(saved)
-			return { x: parsed.x || 0, y: parsed.y || 0 }
+			return normalizeSavedPictureOffset(JSON.parse(saved))
 		}
 	} catch (error) {
 		console.error('Failed to load saved offset:', error)
