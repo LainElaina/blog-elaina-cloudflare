@@ -2,14 +2,32 @@ import { lstat, unlink } from 'fs/promises'
 import { resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isAllowedSaveFilePath } from '../save-file/local-save-file-path.ts'
+
+const MAX_DELETE_FILE_REQUEST_BODY_SIZE = 1024 * 1024
+
+function getContentLength(request: NextRequest) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
 
 export async function handleDeleteFile(request: NextRequest) {
 	try {
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > MAX_DELETE_FILE_REQUEST_BODY_SIZE) {
+			return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
+		}
+
 		let body: unknown
 		try {
-			body = await request.json()
-		} catch {
+			body = await readLimitedJsonRequest(request, MAX_DELETE_FILE_REQUEST_BODY_SIZE)
+		} catch (error) {
+			if (isJsonRequestBodyTooLargeError(error)) {
+				return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
+			}
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 

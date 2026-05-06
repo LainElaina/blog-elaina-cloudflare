@@ -39,6 +39,42 @@ test('delete file local route rejects non-file allowlisted paths', async () => {
 	}
 })
 
+test('delete file local route returns 413 for oversized request before JSON parsing', async () => {
+	let jsonCalled = false
+	const response = await handleDeleteFile({
+		headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+		json: async () => {
+			jsonCalled = true
+			throw new Error('json should not be called')
+		}
+	} as any)
+
+	assert.equal(response.status, 413)
+	assert.equal(jsonCalled, false)
+	assert.deepEqual(await response.json(), { error: '请求体超过 1MB 限制' })
+})
+
+test('delete file local route limits streamed JSON requests without content-length', async () => {
+	let pulled = 0
+	const encoder = new TextEncoder()
+	const response = await handleDeleteFile(
+		new Request('http://localhost/api/delete-file', {
+			method: 'POST',
+			body: new ReadableStream({
+				pull(controller) {
+					pulled += 1
+					controller.enqueue(encoder.encode('x'.repeat(1024 * 1024)))
+				}
+			}),
+			duplex: 'half'
+		} as RequestInit)
+	)
+
+	assert.equal(response.status, 413)
+	assert.equal(pulled <= 2, true)
+	assert.deepEqual(await response.json(), { error: '请求体超过 1MB 限制' })
+})
+
 test('delete file local route returns 400 when JSON body is malformed', async () => {
 	const response = await handleDeleteFile({
 		json: async () => {
