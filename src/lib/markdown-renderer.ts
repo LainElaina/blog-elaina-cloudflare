@@ -16,6 +16,16 @@ export function slugify(text: string): string {
 		.replace(/\s+/g, '-')
 }
 
+function createHeadingIdBuilder() {
+	const counts = new Map<string, number>()
+	return (text: string) => {
+		const base = slugify(text) || 'section'
+		const nextCount = (counts.get(base) ?? 0) + 1
+		counts.set(base, nextCount)
+		return nextCount === 1 ? base : `${base}-${nextCount}`
+	}
+}
+
 const SHIKI_THEME = 'one-light'
 
 const SHIKI_LANGUAGES: Record<string, string> = {
@@ -130,8 +140,9 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 
 	const renderer = new marked.Renderer()
 
+	const headingIds = createHeadingIdBuilder()
 	renderer.heading = (token: Tokens.Heading) => {
-		const id = slugify(token.text || '')
+		const id = headingIds(token.text || '')
 		return `<h${token.depth} id="${id}">${token.text}</h${token.depth}>`
 	}
 
@@ -236,12 +247,13 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 
 	const tokens = marked.lexer(markdown)
 
+	const tocHeadingIds = createHeadingIdBuilder()
 	const toc: TocItem[] = []
 	function extractHeadings(tokenList: typeof tokens) {
 		for (const token of tokenList) {
 			if (token.type === 'heading' && token.depth <= 3) {
 				const text = token.text
-				const id = slugify(text)
+				const id = tocHeadingIds(text)
 				toc.push({ id, text, level: token.depth })
 			}
 			if ('tokens' in token && token.tokens) {
