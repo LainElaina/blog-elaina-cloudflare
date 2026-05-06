@@ -7,7 +7,35 @@ const SITE_ORIGIN = getSiteOrigin()
 const FEED_PATH = '/rss.xml'
 const FEED_URL = toAbsoluteSiteUrl(FEED_PATH)
 
-const blogs = blogIndex as BlogIndexItem[]
+export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
+	if (!Array.isArray(input)) {
+		return []
+	}
+
+	return input.flatMap(item => {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			return []
+		}
+
+		const blog = item as Record<string, unknown>
+		if (typeof blog.slug !== 'string' || !blog.slug.trim()) {
+			return []
+		}
+
+		return [
+			{
+				slug: blog.slug,
+				title: typeof blog.title === 'string' && blog.title.trim() ? blog.title : blog.slug,
+				tags: Array.isArray(blog.tags) ? blog.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+				date: typeof blog.date === 'string' ? blog.date : '',
+				...(typeof blog.summary === 'string' ? { summary: blog.summary } : {}),
+				...(typeof blog.hidden === 'boolean' ? { hidden: blog.hidden } : {})
+			}
+		]
+	})
+}
+
+const blogs = normalizeBlogIndexForRss(blogIndex)
 
 const escapeXml = (value: string): string =>
 	value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')

@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+
+import { normalizeBlogIndexForRss } from './route.ts'
+
+test('rss route normalizes dirty blog index data without throwing', () => {
+	assert.deepEqual(normalizeBlogIndexForRss(null), [])
+	assert.deepEqual(
+		normalizeBlogIndexForRss([
+			null,
+			[],
+			{ title: 'Missing slug', tags: ['skip'], date: '2026-01-01' },
+			{
+				slug: 'valid-post',
+				title: '',
+				tags: ['tech', 123, '', 'life'],
+				date: 123,
+				summary: 456,
+				hidden: 'no'
+			},
+			{
+				slug: 'hidden-post',
+				title: 'Hidden',
+				tags: 'bad',
+				date: '2026-01-02',
+				summary: 'hidden summary',
+				hidden: true
+			}
+		]),
+		[
+			{
+				slug: 'valid-post',
+				title: 'valid-post',
+				tags: ['tech', '', 'life'],
+				date: ''
+			},
+			{
+				slug: 'hidden-post',
+				title: 'Hidden',
+				tags: [],
+				date: '2026-01-02',
+				summary: 'hidden summary',
+				hidden: true
+			}
+		]
+	)
+})
