@@ -2,18 +2,56 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+import { buildUnusedBloggerAvatarDeleteTreeItems, filterExistingBloggerAvatarDeleteTreeItems } from './services/push-bloggers'
+
+test('remote bloggers save filters delete items to existing baseline avatar files', () => {
+	const previousBloggers = [
+		{
+			url: 'https://old.example.com',
+			avatar: '/images/blogger/old.png'
+		},
+		{
+			url: 'https://missing.example.com',
+			avatar: '/images/blogger/missing.png?version=1'
+		},
+		{
+			url: 'https://unsafe.example.com',
+			avatar: '/images/blogger/../secret.png'
+		}
+	]
+	const currentBloggers = [
+		{
+			url: 'https://current.example.com',
+			avatar: '/images/blogger/current.png'
+		}
+	]
+
+	const deleteItems = buildUnusedBloggerAvatarDeleteTreeItems(previousBloggers, currentBloggers)
+
+	assert.deepEqual(filterExistingBloggerAvatarDeleteTreeItems(deleteItems, ['public/images/blogger/old.png']), [
+		{
+			path: 'public/images/blogger/old.png',
+			mode: '100644',
+			type: 'blob',
+			sha: null
+		}
+	])
+})
+
 test('remote bloggers save removes avatar files no longer referenced by list', async () => {
 	const source = (await fs.readFile(new URL('./services/push-bloggers.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /readTextFileFromRepo/)
+	assert.match(source, /listRepoFilesRecursive\([^\n]*'public\/images\/blogger', latestCommitSha\)/)
 	assert.match(source, /function bloggerAvatarRepoDeletePath\(publicPath: string\): string \| null/)
 	assert.match(source, /const pathOnly = publicPath\.split/)
 	assert.match(source, /const filename = pathOnly\.slice\(BLOGGER_AVATAR_PUBLIC_PREFIX\.length\)/)
 	assert.match(source, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
-	assert.match(source, /const currentAvatarPaths = collectBloggerAvatarRepoPaths\(updatedBloggers\)/)
 	assert.match(source, /const previousBloggers: Blogger\[] = JSON\.parse\(previousListJson\)/)
-	assert.match(source, /const previousAvatarPaths = collectBloggerAvatarRepoPaths\(previousBloggers\)/)
-	assert.match(source, /for \(const path of previousAvatarPaths\) \{\n\s*if \(!currentAvatarPaths\.has\(path\)\) \{\n\s*treeItems\.push\(\{[\s\S]*?sha: null/)
+	assert.match(source, /filterExistingBloggerAvatarDeleteTreeItems\(/)
+	assert.match(source, /buildUnusedBloggerAvatarDeleteTreeItems\(previousBloggers, updatedBloggers\)/)
+	assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
+	assert.doesNotMatch(source, /for \(const path of previousAvatarPaths\)/)
 	assert.doesNotMatch(source, /url\.replace\('\/images\/blogger\/', ''\)/)
 	assert.match(source, /throw new Error\('远程友链列表解析失败，请修复 src\/app\/bloggers\/list\.json 后重试'\)/)
 	assert.doesNotMatch(source, /正在检查需要删除的文件/)

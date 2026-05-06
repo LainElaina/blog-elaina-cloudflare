@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, listRepoFilesRecursive, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -35,6 +35,27 @@ function collectBloggerAvatarRepoPaths(bloggers: Blogger[]): Set<string> {
 		if (path) paths.add(path)
 	}
 	return paths
+}
+
+export function buildUnusedBloggerAvatarDeleteTreeItems(previousBloggers: Blogger[], currentBloggers: Blogger[]): TreeItem[] {
+	const currentAvatarPaths = collectBloggerAvatarRepoPaths(currentBloggers)
+	return Array.from(collectBloggerAvatarRepoPaths(previousBloggers)).flatMap(path =>
+		currentAvatarPaths.has(path)
+			? []
+			: [
+					{
+						path,
+						mode: '100644' as const,
+						type: 'blob' as const,
+						sha: null
+					}
+				]
+	)
+}
+
+export function filterExistingBloggerAvatarDeleteTreeItems(deleteItems: TreeItem[], existingRepoPaths: Iterable<string>): TreeItem[] {
+	const existing = new Set(existingRepoPaths)
+	return deleteItems.filter(item => existing.has(item.path))
 }
 
 export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[]> {
@@ -85,8 +106,6 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 		}
 	}
 
-	const currentAvatarPaths = collectBloggerAvatarRepoPaths(updatedBloggers)
-
 	const previousListJson = await readTextFileFromRepo(
 		token,
 		GITHUB_CONFIG.OWNER,
@@ -98,18 +117,12 @@ export async function pushBloggers(params: PushBloggersParams): Promise<Blogger[
 	if (previousListJson) {
 		try {
 			const previousBloggers: Blogger[] = JSON.parse(previousListJson)
-			const previousAvatarPaths = collectBloggerAvatarRepoPaths(previousBloggers)
-
-			for (const path of previousAvatarPaths) {
-				if (!currentAvatarPaths.has(path)) {
-					treeItems.push({
-						path,
-						mode: '100644',
-						type: 'blob',
-						sha: null
-					})
-				}
-			}
+			const existingBloggerAvatarPaths = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/blogger', latestCommitSha)
+			const deleteTreeItems = filterExistingBloggerAvatarDeleteTreeItems(
+				buildUnusedBloggerAvatarDeleteTreeItems(previousBloggers, updatedBloggers),
+				existingBloggerAvatarPaths
+			)
+			treeItems.push(...deleteTreeItems)
 		} catch (error) {
 			console.error('Failed to parse previous bloggers list.json:', error)
 			throw new Error('远程友链列表解析失败，请修复 src/app/bloggers/list.json 后重试')
