@@ -192,6 +192,51 @@ describe('share migration route handlers', () => {
     }
   })
 
+  it('preview returns a structured storage slug mismatch error', async () => {
+    const context = await setupShareArtifactsRepo({
+      malformedArtifacts: {
+        storage: JSON.stringify(
+          {
+            version: 1,
+            updatedAt: '2026-04-19T00:00:00.000Z',
+            shares: {
+              alpha: {
+                slug: 'beta',
+                name: 'Alpha',
+                logo: '/alpha.png',
+                url: 'https://alpha.dev',
+                description: 'alpha',
+                tags: ['tool'],
+                stars: 4,
+                status: 'published'
+              }
+            }
+          },
+          null,
+          2
+        )
+      }
+    })
+
+    try {
+      const response = await previewRoute({
+        nodeEnv: 'development',
+        baseDir: context.repoDir
+      })
+
+      assert.equal(response.status, 400)
+      assert.equal(response.body.ok, false)
+      assert.equal(response.body.operation, 'preview')
+      assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+      assert.equal(response.body.message, 'public/share/storage.json 的内容结构不合法')
+      assert.deepEqual(response.body.details, {
+        artifact: SHARE_ARTIFACT_PATHS.storage
+      })
+    } finally {
+      await context.cleanup()
+    }
+  })
+
   it('execute rejects false, string, number, null, and missing confirmations before touching disk', async () => {
     for (const confirmed of [false, 'true', 1, null, undefined]) {
       let readCalled = false

@@ -658,6 +658,37 @@ describe('share storage model', () => {
 		)
 	})
 
+	it('保存 share 正式产物时拒绝 storage key 与 slug 不一致', () => {
+		assert.throws(
+			() =>
+				buildLocalShareSaveFilePayloads(
+					[
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4
+						}
+					],
+					createStorageRaw({
+						alpha: {
+							slug: 'beta',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						}
+					})
+				),
+			/分享 storage\.json 解析失败/
+		)
+	})
+
 	it('parseShareStorageDB 会最小化清洗非法字段形状', () => {
 		const db = parseShareStorageDB(
 			JSON.stringify({

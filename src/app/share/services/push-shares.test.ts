@@ -288,6 +288,41 @@ describe('buildRemoteShareArtifactContents', () => {
 		)
 	})
 
+	it('远端发布拒绝 storage key 与 slug 不一致', () => {
+		assert.throws(
+			() =>
+				buildRemoteShareArtifactContents({
+					shares: [
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4
+						}
+					],
+					existingStorageRaw: JSON.stringify({
+						version: 1,
+						updatedAt: '2026-04-07T00:00:00.000Z',
+						shares: {
+							alpha: {
+								slug: 'beta',
+								name: 'Alpha',
+								logo: '/alpha.png',
+								url: 'https://alpha.dev',
+								description: 'alpha',
+								tags: ['tool'],
+								stars: 4,
+								status: 'published'
+							}
+						}
+					})
+				}),
+			/分享 storage\.json 解析失败/
+		)
+	})
+
 	it('远端发布遇到 URL 冲突时也会按本地契约失败', async () => {
 		assert.throws(
 			() =>

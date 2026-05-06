@@ -138,6 +138,9 @@ function parseSlug(value: unknown, label: string): string {
 	if (!slug) {
 		throw createInvalidShapeError(label, '期望非空字符串')
 	}
+	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+		throw createInvalidShapeError(label, '期望安全 slug')
+	}
 	return slug
 }
 
@@ -216,7 +219,16 @@ function parseStorage(value: ShareMigrationStorage | string, label: string): Sha
 		throw createInvalidShapeError(`${label}.shares`, '期望对象')
 	}
 	const parsedShares = Object.fromEntries(
-		Object.entries(shares).map(([key, record]) => [key, parseStorageRecord(record, `${label}.shares.${key}`)])
+		Object.entries(shares).map(([key, record]) => {
+			if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key)) {
+				throw createInvalidShapeError(`${label}.shares.${key}`, '期望安全 slug key')
+			}
+			const parsedRecord = parseStorageRecord(record, `${label}.shares.${key}`)
+			if (parsedRecord.slug !== key) {
+				throw createInvalidShapeError(`${label}.shares.${key}.slug`, '期望与 storage key 一致')
+			}
+			return [key, parsedRecord]
+		})
 	) as Record<string, ShareMigrationStorageRecord>
 	assertUniquePublishedStorageUrls(parsedShares, label)
 	return {

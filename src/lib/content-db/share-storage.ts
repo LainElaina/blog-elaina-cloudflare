@@ -73,6 +73,10 @@ function normalizeStatus(value: unknown): ShareStatus {
 	return value === 'draft' || value === 'archived' || value === 'published' ? value : 'published'
 }
 
+function isSafeShareSlug(value: string) {
+	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+}
+
 function sanitizeShareListItem(value: unknown): ShareListItem {
 	const raw = value && typeof value === 'object' ? (value as Partial<ShareListItem>) : {}
 	return {
@@ -89,11 +93,18 @@ function sanitizeShareListItem(value: unknown): ShareListItem {
 }
 
 function sanitizeShareStorageRecord(key: string, value: unknown): ShareStorageRecord {
+	if (!isSafeShareSlug(key)) {
+		throw new Error('invalid share storage slug')
+	}
 	const raw = value && typeof value === 'object' ? (value as Partial<ShareStorageRecord>) : {}
 	const item = sanitizeShareListItem(raw)
+	const slug = normalizeText(raw.slug) ?? key
+	if (!isSafeShareSlug(slug) || slug !== key) {
+		throw new Error('invalid share storage slug')
+	}
 	return {
 		...item,
-		slug: normalizeText(raw.slug) ?? key,
+		slug,
 		status: normalizeStatus(raw.status)
 	}
 }

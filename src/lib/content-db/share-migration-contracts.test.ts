@@ -307,6 +307,49 @@ describe('share migration contracts', () => {
 		assert.deepEqual(verified.artifactsToRebuild, [])
 	})
 
+	it('rebuild 拒绝 storage key 与 slug 不一致', () => {
+		assert.throws(
+			() =>
+				rebuildShareRuntimeArtifactsFromStorage(
+					createStorageRaw({
+						alpha: {
+							slug: 'beta',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						}
+					})
+				),
+			/storage\.shares\.alpha\.slug.*非法 shape/
+		)
+	})
+
+	it('sync 拒绝不安全 storage slug', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: '[]',
+					storage: createStorageRaw({
+						alpha: {
+							slug: '../alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							status: 'published'
+						}
+					})
+				}),
+			/storage\.shares\.alpha\.slug.*非法 shape/
+		)
+	})
+
 	it('对象输入中的 undefined folder 字段按缺失处理，不会触发 shape 错', () => {
 		const synced = syncShareRuntimeArtifactsToLedger({
 			list: [

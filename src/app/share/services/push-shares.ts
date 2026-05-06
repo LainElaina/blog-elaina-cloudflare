@@ -82,7 +82,9 @@ export function buildRemoteShareArtifactContents(params: {
 			renamedUrls.set(mapping.currentUrl, mapping.oldUrl)
 		}
 	}
-	const payloads = buildLocalShareSaveFilePayloads(params.shares, params.existingStorageRaw, renamedUrls, params.deletedPublishedUrls)
+	const payloads = buildLocalShareSaveFilePayloads(params.shares, params.existingStorageRaw, renamedUrls, params.deletedPublishedUrls, {
+		preserveUnlistedPublished: true
+	})
 	const list = payloads.find(payload => payload.path === 'public/share/list.json')?.content
 	const categories = payloads.find(payload => payload.path === 'public/share/categories.json')?.content
 	const folders = payloads.find(payload => payload.path === 'public/share/folders.json')?.content

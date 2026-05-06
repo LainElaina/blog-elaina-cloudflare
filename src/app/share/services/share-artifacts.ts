@@ -104,7 +104,8 @@ export function buildLocalShareSaveFilePayloads(
 	shares: ShareListItem[],
 	existingStorageRaw: string | null = null,
 	renamedUrls: Map<string, string> = new Map(),
-	deletedPublishedUrls: Set<string> = new Set()
+	deletedPublishedUrls: Set<string> = new Set(),
+	options: { preserveUnlistedPublished?: boolean } = {}
 ): ShareSaveFilePayload[] {
 	const now = new Date()
 	let storage = parseRequiredShareStorageDB(existingStorageRaw)
@@ -120,7 +121,11 @@ export function buildLocalShareSaveFilePayloads(
 	}
 	const nextShares = Object.fromEntries(
 		Object.entries(storage.shares).filter(
-			([, record]) => record.status !== 'published' || !deletedPublishedUrls.has(record.url) || publishedUrls.has(record.url) || renamedFromUrls.has(record.url)
+			([, record]) =>
+				record.status !== 'published' ||
+				(options.preserveUnlistedPublished && !deletedPublishedUrls.has(record.url)) ||
+				publishedUrls.has(record.url) ||
+				renamedFromUrls.has(record.url)
 		)
 	)
 	storage = {
