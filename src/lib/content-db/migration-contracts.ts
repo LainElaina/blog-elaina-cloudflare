@@ -115,6 +115,60 @@ function buildBlogFolderTree(folderPaths: Array<string | undefined>): BlogFolder
 	return tree
 }
 
+function stringifyStable(value: unknown): string {
+	const normalizeForStringify = (input: unknown): unknown => {
+		if (Array.isArray(input)) {
+			return input.map(item => normalizeForStringify(item))
+		}
+		if (!input || typeof input !== 'object') {
+			return input
+		}
+		const entries = Object.entries(input as Record<string, unknown>)
+			.filter(([, item]) => item !== undefined)
+			.sort(([left], [right]) => left.localeCompare(right))
+		return Object.fromEntries(entries.map(([key, item]) => [key, normalizeForStringify(item)]))
+	}
+	return JSON.stringify(normalizeForStringify(value))
+}
+
+function parseCategoriesArtifact(raw: string): { categories: string[] } {
+	const parsed = JSON.parse(raw) as { categories?: unknown }
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.categories)) {
+		throw new Error('invalid blog categories artifact')
+	}
+	return {
+		categories: Array.from(new Set(parsed.categories.filter((category): category is string => typeof category === 'string'))).sort((a, b) =>
+			a.localeCompare(b)
+		)
+	}
+}
+
+function sortFolderNodes(nodes: BlogFolderNode[]): BlogFolderNode[] {
+	return [...nodes]
+		.map(node => ({
+			name: node.name,
+			path: normalizeFolderPath(node.path),
+			children: sortFolderNodes(Array.isArray(node.children) ? node.children : [])
+		}))
+		.sort((left, right) => left.path.localeCompare(right.path) || left.name.localeCompare(right.name))
+}
+
+function parseFoldersArtifact(raw: string): BlogFolderNode[] {
+	const parsed = JSON.parse(raw) as unknown
+	if (!Array.isArray(parsed)) {
+		throw new Error('invalid blog folders artifact')
+	}
+	return sortFolderNodes(parsed as BlogFolderNode[])
+}
+
+function parseStorageArtifact(raw: string): BlogStorageDB {
+	return parseBlogStorageDB(raw)
+}
+
+function artifactsAreEquivalent(left: unknown, right: unknown): boolean {
+	return stringifyStable(left) === stringifyStable(right)
+}
+
 export function syncBlogRuntimeArtifactsToLedger(params: {
 	indexRaw: string
 	storageRaw: string | null
@@ -204,16 +258,16 @@ export function verifyBlogLedgerAgainstRuntime(params: {
 	const rebuilt = rebuildBlogRuntimeArtifactsFromStorage(params.storageRaw)
 	const artifactsToRebuild: string[] = []
 
-	if (params.runtimeArtifacts.index !== rebuilt.artifacts.index) {
+	if (!artifactsAreEquivalent(parseBlogIndexItems(params.runtimeArtifacts.index), parseBlogIndexItems(rebuilt.artifacts.index))) {
 		artifactsToRebuild.push('public/blogs/index.json')
 	}
-	if (params.runtimeArtifacts.categories !== rebuilt.artifacts.categories) {
+	if (!artifactsAreEquivalent(parseCategoriesArtifact(params.runtimeArtifacts.categories), parseCategoriesArtifact(rebuilt.artifacts.categories))) {
 		artifactsToRebuild.push('public/blogs/categories.json')
 	}
-	if (params.runtimeArtifacts.folders !== rebuilt.artifacts.folders) {
+	if (!artifactsAreEquivalent(parseFoldersArtifact(params.runtimeArtifacts.folders), parseFoldersArtifact(rebuilt.artifacts.folders))) {
 		artifactsToRebuild.push('public/blogs/folders.json')
 	}
-	if (params.runtimeArtifacts.storage !== rebuilt.artifacts.storage) {
+	if (!artifactsAreEquivalent(parseStorageArtifact(params.runtimeArtifacts.storage), parseStorageArtifact(rebuilt.artifacts.storage))) {
 		artifactsToRebuild.push('public/blogs/storage.json')
 	}
 
