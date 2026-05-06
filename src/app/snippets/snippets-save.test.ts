@@ -2,6 +2,16 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+test('snippets page normalizes dirty list data before using it as state', async () => {
+	const pageSource = await fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8')
+
+	assert.match(pageSource, /function normalizeSnippetList\(input: unknown\): string\[\] \{\n\s*return Array\.isArray\(input\) \? input\.filter\(\(item\): item is string => typeof item === 'string'\) : \[\]\n\s*\}/)
+	assert.match(pageSource, /const initialSnippets = normalizeSnippetList\(initialList\)/)
+	assert.match(pageSource, /useState<string\[\]>\(initialSnippets\)/)
+	assert.match(pageSource, /getRandomSnippet\(initialSnippets\)/)
+	assert.doesNotMatch(pageSource, /initialList as string\[\]/)
+})
+
 test('snippets local save keeps list.json as the same array shape as production publish', async () => {
 	const [pageSource, pushSource, listRaw] = await Promise.all([
 		fs.readFile(new URL('./page.tsx', import.meta.url), 'utf-8'),
