@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import fs from 'node:fs/promises'
-import { listRepoFilesRecursive, readTextFileFromRepo } from './github-client'
+import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo } from './github-client'
 
 async function readSource(relativePath: string) {
 	return (await fs.readFile(new URL(relativePath, import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
@@ -34,6 +34,15 @@ test('createTree resolves a base commit sha to its tree sha before posting', asy
 	assert.match(source, /const baseTree = baseTreeCommitSha \? \(await getCommit\(token, owner, repo, baseTreeCommitSha\)\)\.treeSha : undefined/)
 	assert.match(source, /body: JSON\.stringify\(\{ tree, base_tree: baseTree \}\)/)
 	assert.doesNotMatch(source, /body: JSON\.stringify\(\{ tree, base_tree: baseTreeCommitSha \}\)/)
+})
+
+test('GitHub write helpers reject successful responses without sha', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify({}), { status: 200 })) as typeof fetch
+
+	await assert.rejects(() => getRef('token', 'owner', 'repo', 'heads/main'), /get ref failed: invalid response/)
+	await assert.rejects(() => createTree('token', 'owner', 'repo', []), /create tree failed: invalid response/)
+	await assert.rejects(() => createCommit('token', 'owner', 'repo', 'message', 'tree-sha', ['parent-sha']), /create commit failed: invalid response/)
+	await assert.rejects(() => createBlob('token', 'owner', 'repo', 'content'), /create blob failed: invalid response/)
 })
 
 test('readTextFileFromRepo treats only 404 as missing', async () => {

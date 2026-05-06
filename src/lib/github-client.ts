@@ -19,6 +19,18 @@ function handle422Error(): void {
 	toast.error('操作太快了，请操作慢一点')
 }
 
+function getResponseSha(data: unknown, actionName: string): string {
+	if (!data || typeof data !== 'object' || Array.isArray(data)) {
+		throw new Error(`${actionName} failed: invalid response`)
+	}
+
+	const sha = (data as Record<string, unknown>).sha
+	if (typeof sha !== 'string') {
+		throw new Error(`${actionName} failed: invalid response`)
+	}
+	return sha
+}
+
 export function toBase64Utf8(input: string): string {
 	return btoa(unescape(encodeURIComponent(input)))
 }
@@ -118,6 +130,9 @@ export async function getRef(token: string, owner: string, repo: string, ref: st
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw new Error(`get ref failed: ${res.status}`)
 	const data = await res.json()
+	if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.object?.sha !== 'string') {
+		throw new Error('get ref failed: invalid response')
+	}
 	return { sha: data.object.sha }
 }
 
@@ -163,7 +178,7 @@ export async function createTree(token: string, owner: string, repo: string, tre
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw new Error(`create tree failed: ${res.status}`)
 	const data = await res.json()
-	return { sha: data.sha }
+	return { sha: getResponseSha(data, 'create tree') }
 }
 
 export async function createCommit(token: string, owner: string, repo: string, message: string, tree: string, parents: string[]): Promise<{ sha: string }> {
@@ -181,7 +196,7 @@ export async function createCommit(token: string, owner: string, repo: string, m
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw new Error(`create commit failed: ${res.status}`)
 	const data = await res.json()
-	return { sha: data.sha }
+	return { sha: getResponseSha(data, 'create commit') }
 }
 
 export async function updateRef(token: string, owner: string, repo: string, ref: string, sha: string, force = false): Promise<void> {
@@ -289,5 +304,5 @@ export async function createBlob(
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw new Error(`create blob failed: ${res.status}`)
 	const data = await res.json()
-	return { sha: data.sha }
+	return { sha: getResponseSha(data, 'create blob') }
 }
