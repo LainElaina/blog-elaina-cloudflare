@@ -4,6 +4,13 @@ import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '@/app/ap
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
+function getContentLength(request: Request) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
 export async function POST(request: NextRequest) {
 	if (process.env.NODE_ENV !== 'development') {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
@@ -13,6 +20,11 @@ export async function POST(request: NextRequest) {
 
 	try {
 		const cwd = process.cwd()
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > SITE_CONFIG_REQUEST_MAX_BYTES) {
+			return NextResponse.json({ error: '请求 JSON 过大' }, { status: 400 })
+		}
+
 		let payload: unknown
 		try {
 			payload = await readLimitedJsonRequest(request, SITE_CONFIG_REQUEST_MAX_BYTES)

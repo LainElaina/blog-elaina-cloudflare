@@ -55,25 +55,24 @@ test('site config publish rejects malformed JSON without publishing saved draft'
 	})
 })
 
-test('site config publish rejects oversized JSON without publishing saved draft', async () => {
+test('site config publish rejects oversized JSON before parsing without publishing saved draft', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
 		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
 		await writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'saved draft' } } })
 
-		const response = await POST(
-			new Request('http://localhost/api/publish/site-config', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Content-Length': String(1024 * 1024 + 1)
-				},
-				body: '{}'
-			})
-		)
+		let jsonCalled = false
+		const response = await POST({
+			headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+			json: async () => {
+				jsonCalled = true
+				throw new Error('json should not be called')
+			}
+		} as any)
 		const payload = await response.json()
 
 		assert.equal(response.status, 400)
+		assert.equal(jsonCalled, false)
 		assert.deepEqual(payload, { error: '请求 JSON 过大' })
 		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
 		assert.equal((await fs.readFile(path.join(tmpDir, 'data/site-config.draft.json'), 'utf-8')).includes('saved draft'), true)
