@@ -1,5 +1,5 @@
 import { mkdir, rename, rm, writeFile } from 'fs/promises'
-import { dirname, extname, resolve } from 'path'
+import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
@@ -29,17 +29,238 @@ async function writeFileAtomically(fullPath: string, content: string) {
 	}
 }
 
-function isValidJsonFileContent(fullPath: string, content: string) {
-	if (extname(fullPath) !== '.json') {
-		return true
-	}
+type JsonFileContentValidationResult = 'valid' | 'invalid-json' | 'invalid-shape'
 
-	try {
-		JSON.parse(content)
-		return true
-	} catch {
+const BLOG_ARTIFACT_SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/
+const CONTENT_STATUS_VALUES = new Set(['published', 'draft', 'archived'])
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isStringArray(value: unknown) {
+	return Array.isArray(value) && value.every(item => typeof item === 'string')
+}
+
+function isFiniteNumber(value: unknown) {
+	return typeof value === 'number' && Number.isFinite(value)
+}
+
+function hasOptionalStringFields(value: Record<string, unknown>, fields: string[]) {
+	return fields.every(field => !(field in value) || typeof value[field] === 'string')
+}
+
+function hasOptionalBooleanFields(value: Record<string, unknown>, fields: string[]) {
+	return fields.every(field => !(field in value) || typeof value[field] === 'boolean')
+}
+
+function isSafeBlogArtifactSlug(slug: string) {
+	return BLOG_ARTIFACT_SLUG_PATTERN.test(slug)
+}
+
+function isCategoryConfig(value: unknown) {
+	return isObject(value) && isStringArray(value.categories)
+}
+
+function isFolderNode(value: unknown): value is { name: string; path: string; children: unknown[] } {
+	return isObject(value) && typeof value.name === 'string' && typeof value.path === 'string' && Array.isArray(value.children)
+}
+
+function isFolderNodeArray(value: unknown): value is unknown[] {
+	return Array.isArray(value) && value.every(node => isFolderNode(node) && isFolderNodeArray(node.children))
+}
+
+function isBlogListItem(value: unknown, seenSlugs: Set<string>) {
+	if (
+		!isObject(value) ||
+		typeof value.slug !== 'string' ||
+		!isSafeBlogArtifactSlug(value.slug) ||
+		seenSlugs.has(value.slug) ||
+		typeof value.title !== 'string' ||
+		!isStringArray(value.tags) ||
+		typeof value.date !== 'string' ||
+		!hasOptionalStringFields(value, ['summary', 'cover', 'category', 'folder', 'folderPath']) ||
+		!hasOptionalBooleanFields(value, ['hidden', 'favorite'])
+	) {
 		return false
 	}
+
+	seenSlugs.add(value.slug)
+	return true
+}
+
+function isBlogIndexConfig(value: unknown) {
+	if (!Array.isArray(value)) {
+		return false
+	}
+
+	const seenSlugs = new Set<string>()
+	return value.every(item => isBlogListItem(item, seenSlugs))
+}
+
+function isBlogStorageConfig(value: unknown) {
+	if (!isObject(value) || value.version !== 1 || typeof value.updatedAt !== 'string' || !isObject(value.blogs)) {
+		return false
+	}
+
+	return Object.entries(value.blogs).every(([slug, record]) => {
+		return (
+			isSafeBlogArtifactSlug(slug) &&
+			isObject(record) &&
+			record.slug === slug &&
+			typeof record.title === 'string' &&
+			isStringArray(record.tags) &&
+			typeof record.date === 'string' &&
+			typeof record.status === 'string' &&
+			CONTENT_STATUS_VALUES.has(record.status) &&
+			hasOptionalStringFields(record, ['summary', 'cover', 'category', 'folder', 'folderPath']) &&
+			hasOptionalBooleanFields(record, ['hidden', 'favorite'])
+		)
+	})
+}
+
+function isBlogPostConfig(value: unknown) {
+	return (
+		isObject(value) &&
+		typeof value.title === 'string' &&
+		isStringArray(value.tags) &&
+		typeof value.date === 'string' &&
+		hasOptionalStringFields(value, ['summary', 'cover', 'category', 'folderPath']) &&
+		hasOptionalBooleanFields(value, ['hidden', 'favorite'])
+	)
+}
+
+function isShareListItem(value: unknown) {
+	return (
+		isObject(value) &&
+		typeof value.name === 'string' &&
+		typeof value.logo === 'string' &&
+		typeof value.url === 'string' &&
+		typeof value.description === 'string' &&
+		isStringArray(value.tags) &&
+		isFiniteNumber(value.stars) &&
+		hasOptionalStringFields(value, ['category', 'folder', 'folderPath'])
+	)
+}
+
+function isShareListConfig(value: unknown) {
+	return Array.isArray(value) && value.every(isShareListItem)
+}
+
+function isShareStorageConfig(value: unknown) {
+	if (!isObject(value) || value.version !== 1 || typeof value.updatedAt !== 'string' || !isObject(value.shares)) {
+		return false
+	}
+
+	return Object.entries(value.shares).every(([slug, record]) => {
+		return (
+			slug.length > 0 &&
+			isObject(record) &&
+			record.slug === slug &&
+			typeof record.status === 'string' &&
+			CONTENT_STATUS_VALUES.has(record.status) &&
+			isShareListItem(record)
+		)
+	})
+}
+
+function isAboutConfig(value: unknown) {
+	return isObject(value) && typeof value.title === 'string' && typeof value.description === 'string' && typeof value.content === 'string'
+}
+
+function isBloggerListConfig(value: unknown) {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			item =>
+				isObject(item) &&
+				typeof item.name === 'string' &&
+				typeof item.avatar === 'string' &&
+				typeof item.url === 'string' &&
+				typeof item.description === 'string' &&
+				isFiniteNumber(item.stars) &&
+				hasOptionalStringFields(item, ['status'])
+		)
+	)
+}
+
+function isPictureListConfig(value: unknown) {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			item =>
+				isObject(item) &&
+				typeof item.id === 'string' &&
+				typeof item.uploadedAt === 'string' &&
+				hasOptionalStringFields(item, ['description', 'image']) &&
+				(!('images' in item) || isStringArray(item.images))
+		)
+	)
+}
+
+function isProjectListConfig(value: unknown) {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			item =>
+				isObject(item) &&
+				typeof item.name === 'string' &&
+				isFiniteNumber(item.year) &&
+				typeof item.description === 'string' &&
+				typeof item.image === 'string' &&
+				typeof item.url === 'string' &&
+				isStringArray(item.tags) &&
+				hasOptionalStringFields(item, ['github', 'npm'])
+		)
+	)
+}
+
+function isJsonFileShapeValid(projectDir: string, fullPath: string, parsed: unknown) {
+	const relativePath = relative(projectDir, fullPath).replace(/\\/g, '/')
+
+	switch (relativePath) {
+		case 'src/app/about/list.json':
+			return isAboutConfig(parsed)
+		case 'src/app/bloggers/list.json':
+			return isBloggerListConfig(parsed)
+		case 'src/app/pictures/list.json':
+			return isPictureListConfig(parsed)
+		case 'src/app/projects/list.json':
+			return isProjectListConfig(parsed)
+		case 'src/app/snippets/list.json':
+			return isStringArray(parsed)
+		case 'public/blogs/index.json':
+			return isBlogIndexConfig(parsed)
+		case 'public/blogs/categories.json':
+		case 'public/share/categories.json':
+			return isCategoryConfig(parsed)
+		case 'public/blogs/folders.json':
+		case 'public/share/folders.json':
+			return isFolderNodeArray(parsed)
+		case 'public/blogs/storage.json':
+			return isBlogStorageConfig(parsed)
+		case 'public/share/list.json':
+			return isShareListConfig(parsed)
+		case 'public/share/storage.json':
+			return isShareStorageConfig(parsed)
+		default:
+			return /^public\/blogs\/[^/]+\/config\.json$/.test(relativePath) && isBlogPostConfig(parsed)
+	}
+}
+
+function validateJsonFileContent(projectDir: string, fullPath: string, content: string): JsonFileContentValidationResult {
+	if (extname(fullPath) !== '.json') {
+		return 'valid'
+	}
+
+	let parsed: unknown
+	try {
+		parsed = JSON.parse(content)
+	} catch {
+		return 'invalid-json'
+	}
+
+	return isJsonFileShapeValid(projectDir, fullPath, parsed) ? 'valid' : 'invalid-shape'
 }
 
 export async function handleSaveFile(request: NextRequest) {
@@ -77,8 +298,12 @@ export async function handleSaveFile(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 
-		if (!isValidJsonFileContent(fullPath, content)) {
+		const jsonValidation = validateJsonFileContent(projectDir, fullPath, content)
+		if (jsonValidation === 'invalid-json') {
 			return NextResponse.json({ error: 'JSON 内容格式错误' }, { status: 400 })
+		}
+		if (jsonValidation === 'invalid-shape') {
+			return NextResponse.json({ error: 'JSON 内容结构错误' }, { status: 400 })
 		}
 
 		const dir = dirname(fullPath)

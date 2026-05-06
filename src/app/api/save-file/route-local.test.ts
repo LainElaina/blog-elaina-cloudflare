@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
 import { handleSaveFile } from './route-local.ts'
 
@@ -69,6 +69,52 @@ test('save-file local route rejects invalid JSON content without replacing exist
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: 'JSON 内容格式错误' })
 		assert.equal(await readFile(join(repoDir, 'public/share/storage.json'), 'utf-8'), '{"ok":true}')
+	} finally {
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('save-file local route rejects invalid allowlisted JSON shapes without replacing existing files', async () => {
+	for (const [filePath, previousContent, nextContent] of [
+		['public/share/storage.json', '{"version":1,"updatedAt":"now","shares":{}}', '[]'],
+		['src/app/snippets/list.json', '["old"]', '{"snippet":"bad"}'],
+		['public/blogs/post-a/config.json', '{"title":"old","tags":[],"date":"2026-01-01"}', '[]']
+	] as const) {
+		const previousCwd = process.cwd()
+		const repoDir = await mkdtemp(join(tmpdir(), 'save-file-json-shape-'))
+		try {
+			await mkdir(join(repoDir, dirname(filePath)), { recursive: true })
+			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
+			process.chdir(repoDir)
+
+			const response = await handleSaveFile({
+				json: async () => ({ path: filePath, content: nextContent })
+			} as any)
+
+			assert.equal(response.status, 400, filePath)
+			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, filePath)
+			assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), previousContent, filePath)
+		} finally {
+			process.chdir(previousCwd)
+			await rm(repoDir, { recursive: true, force: true })
+		}
+	}
+})
+
+test('save-file local route keeps blog markdown writes outside JSON shape validation', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-md-'))
+	try {
+		process.chdir(repoDir)
+
+		const response = await handleSaveFile({
+			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'not json' })
+		} as any)
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		assert.equal(await readFile(join(repoDir, 'public/blogs/post-a/index.md'), 'utf-8'), 'not json')
 	} finally {
 		process.chdir(previousCwd)
 		await rm(repoDir, { recursive: true, force: true })
