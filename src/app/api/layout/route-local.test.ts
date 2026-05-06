@@ -31,14 +31,15 @@ test('layout local route returns 400 when JSON body is malformed', async () => {
 test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
-	const validationIndex = source.indexOf('if (!isObject(layout) || !isLayoutPayload(layout))')
+	const validationIndex = source.indexOf('if (!isValidLayoutConfig(layout))')
 	const backupIndex = source.indexOf('if (fs.existsSync(LAYOUT_PATH))')
 	const writeIndex = source.indexOf("writeFileAtomically(LAYOUT_PATH, JSON.stringify(layout, null, '\\t'))")
 
 	assert.match(source, /const CARD_STYLE_KEYS = new Set\(\[/)
 	assert.match(source, /function isLayoutCardStyle\(value: unknown\)/)
 	assert.match(source, /function isLayoutPayload\(value: Record<string, unknown>\)/)
-	assert.match(source, /if \(!isObject\(layout\) \|\| !isLayoutPayload\(layout\)\) \{\n\s*return NextResponse\.json\(\{ error: '布局配置格式错误' \}, \{ status: 400 \}\)\n\s*\}/)
+	assert.match(source, /export function isValidLayoutConfig\(value: unknown\) \{\n\s*return isObject\(value\) && isLayoutPayload\(value\)\n\s*\}/)
+	assert.match(source, /if \(!isValidLayoutConfig\(layout\)\) \{\n\s*return NextResponse\.json\(\{ error: '布局配置格式错误' \}, \{ status: 400 \}\)\n\s*\}/)
 	assert.ok(validationIndex > 0)
 	assert.ok(backupIndex > validationIndex)
 	assert.ok(writeIndex > validationIndex)

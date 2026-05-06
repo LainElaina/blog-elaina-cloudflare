@@ -54,6 +54,10 @@ function isLayoutPayload(value: Record<string, unknown>) {
 	return entries.length > 0 && entries.every(([key, cardStyle]) => CARD_STYLE_KEYS.has(key) && isLayoutCardStyle(cardStyle))
 }
 
+export function isValidLayoutConfig(value: unknown) {
+	return isObject(value) && isLayoutPayload(value)
+}
+
 function buildAtomicLayoutTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -86,7 +90,7 @@ export async function handleLayoutPost(request: Request) {
 		} catch {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
-		if (!isObject(layout) || !isLayoutPayload(layout)) {
+		if (!isValidLayoutConfig(layout)) {
 			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })
 		}
 
