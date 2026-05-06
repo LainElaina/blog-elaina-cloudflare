@@ -119,7 +119,9 @@ export function buildLocalShareSaveFilePayloads(
 		}
 	}
 	const nextShares = Object.fromEntries(
-		Object.entries(storage.shares).filter(([, record]) => record.status !== 'published' || publishedUrls.has(record.url) || renamedFromUrls.has(record.url))
+		Object.entries(storage.shares).filter(
+			([, record]) => record.status !== 'published' || !deletedPublishedUrls.has(record.url) || publishedUrls.has(record.url) || renamedFromUrls.has(record.url)
+		)
 	)
 	storage = {
 		...storage,

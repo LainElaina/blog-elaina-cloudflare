@@ -239,6 +239,55 @@ describe('buildRemoteShareArtifactContents', () => {
 		assert.equal(localStorage.updatedAt.length > 0, true)
 	})
 
+	it('远端发布保留当前 UI 列表未感知的既有 published 记录', () => {
+		const artifacts = buildRemoteShareArtifactContents({
+			shares: [
+				{
+					name: 'Current',
+					logo: '/current.png',
+					url: 'https://current.dev',
+					description: 'current',
+					tags: ['tool'],
+					stars: 5
+				}
+			],
+			existingStorageRaw: JSON.stringify({
+				version: 1,
+				updatedAt: '2026-04-07T00:00:00.000Z',
+				shares: {
+					current: {
+						slug: 'current',
+						name: 'Current',
+						logo: '/current-old.png',
+						url: 'https://current.dev',
+						description: 'current old',
+						tags: ['tool'],
+						stars: 4,
+						status: 'published'
+					},
+					unseen: {
+						slug: 'unseen',
+						name: 'Unseen',
+						logo: '/unseen.png',
+						url: 'https://unseen.dev',
+						description: 'unseen',
+						tags: ['design'],
+						stars: 3,
+						status: 'published'
+					}
+				}
+			})
+		})
+
+		const storage = JSON.parse(artifacts.storage)
+		const list = JSON.parse(artifacts.list)
+		assert.equal(storage.shares.unseen.url, 'https://unseen.dev')
+		assert.deepEqual(
+			list.map((share: { url: string }) => share.url).sort(),
+			['https://current.dev', 'https://unseen.dev']
+		)
+	})
+
 	it('远端发布遇到 URL 冲突时也会按本地契约失败', async () => {
 		assert.throws(
 			() =>
