@@ -42,7 +42,8 @@ test('layout config import filters invalid cached item arrays', async () => {
 	const source = await fs.readFile(new URL('./import-layout-button.tsx', import.meta.url), 'utf-8')
 
 	assert.match(source, /function sanitizeCustomComponents\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\.filter\(component => isObject\(component\) && typeof component\.id === 'string' && isComponentLike\(component\)\)/)
-	assert.match(source, /function sanitizeComponentFavorites\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\.filter\(favorite => isObject\(favorite\) && typeof favorite\.name === 'string' && isComponentLike\(favorite\.component\)\)/)
+	assert.match(source, /function sanitizeComponentFavorites\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\n\s*\.filter\(favorite => isObject\(favorite\) && typeof favorite\.name === 'string' && isComponentLike\(favorite\.component\)\)\n\s*\.map\(\(favorite, index\) => \(\{\n\s*id: typeof favorite\.id === 'string' \? favorite\.id : `fav-import-\$\{index\}`/)
+	assert.match(source, /name: favorite\.name,\n\s*component: favorite\.component,\n\s*\.\.\.\(typeof favorite\.preview === 'string' \? \{ preview: favorite\.preview \} : \{\}\)/)
 	assert.match(source, /function sanitizeTemplates\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\.filter\(template => isObject\(template\) && typeof template\.id === 'string' && typeof template\.name === 'string' && isObject\(template\.styles\)\)/)
 	assert.doesNotMatch(source, /JSON\.stringify\(config\.customComponents\)/)
 	assert.doesNotMatch(source, /JSON\.stringify\(config\.componentFavorites\)/)

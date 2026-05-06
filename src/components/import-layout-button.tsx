@@ -77,7 +77,14 @@ function sanitizeCustomComponents(value: unknown): unknown[] | null {
 
 function sanitizeComponentFavorites(value: unknown): unknown[] | null {
 	if (!Array.isArray(value)) return null
-	return value.filter(favorite => isObject(favorite) && typeof favorite.name === 'string' && isComponentLike(favorite.component))
+	return value
+		.filter(favorite => isObject(favorite) && typeof favorite.name === 'string' && isComponentLike(favorite.component))
+		.map((favorite, index) => ({
+			id: typeof favorite.id === 'string' ? favorite.id : `fav-import-${index}`,
+			name: favorite.name,
+			component: favorite.component,
+			...(typeof favorite.preview === 'string' ? { preview: favorite.preview } : {})
+		}))
 }
 
 function sanitizeTemplates(value: unknown): unknown[] | null {
