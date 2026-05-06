@@ -17,6 +17,11 @@ const BLOG_ARTIFACT_PATHS = {
 
 const BLOG_ARTIFACT_SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/
 const MAX_BLOG_ARTIFACT_SLUG_LENGTH = 120
+const EMPTY_BLOG_STORAGE_ARTIFACT = JSON.stringify({
+	version: 1,
+	updatedAt: '',
+	blogs: {}
+})
 
 type BlogArtifactFailureCode = 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE'
 
@@ -265,13 +270,14 @@ export async function previewRoute(params: { nodeEnv: string; baseDir?: string }
 			indexRaw: runtimeArtifacts.index,
 			storageRaw: runtimeArtifacts.storageRaw
 		})
+		const runtimeStorageArtifact = runtimeArtifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
 		const verification = verifyBlogLedgerAgainstRuntime({
 			storageRaw: synced.storageRaw,
 			runtimeArtifacts: {
 				index: runtimeArtifacts.index,
 				categories: runtimeArtifacts.categories,
 				folders: runtimeArtifacts.folders,
-				storage: runtimeArtifacts.storageRaw ?? ''
+				storage: runtimeStorageArtifact
 			}
 		})
 
@@ -307,13 +313,14 @@ export async function executeRoute(params: { nodeEnv: string; confirmed: boolean
 			indexRaw: runtimeArtifacts.index,
 			storageRaw: runtimeArtifacts.storageRaw
 		})
+		const runtimeStorageArtifact = runtimeArtifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
 		const verificationBeforeExecute = verifyBlogLedgerAgainstRuntime({
 			storageRaw: synced.storageRaw,
 			runtimeArtifacts: {
 				index: runtimeArtifacts.index,
 				categories: runtimeArtifacts.categories,
 				folders: runtimeArtifacts.folders,
-				storage: runtimeArtifacts.storageRaw ?? ''
+				storage: runtimeStorageArtifact
 			}
 		})
 		const rebuilt = rebuildBlogRuntimeArtifactsFromStorage(synced.storageRaw)
