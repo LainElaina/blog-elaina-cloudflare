@@ -262,6 +262,8 @@ test('site config publish keeps unrelated saved draft keys after explicit partia
 		assert.equal(response.status, 200)
 		assert.deepEqual(payload.touchedFormal, ['site-content.json'])
 		assert.equal(saved.meta.title, 'current publish')
+		assert.equal(payload.clearedDraft, 'data/site-config.draft.json')
+		assert.equal(JSON.stringify(payload).includes(tmpDir), false)
 		assert.deepEqual(await readSiteConfigDraft(tmpDir), { colorPresets: [{ name: 'saved colors' }] })
 	})
 })

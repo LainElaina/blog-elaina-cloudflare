@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { isSiteConfigLocalValidationError, publishSiteConfigDraft, resolveSiteConfigDraftPath, resolveSiteConfigPublishPayload } = await import('@/app/api/site-config-local-shared')
+	const { isSiteConfigLocalValidationError, publishSiteConfigDraft, resolveSiteConfigPublishPayload } = await import('@/app/api/site-config-local-shared')
 
 	try {
 		const cwd = process.cwd()
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 		}
 		const publishPayload = await resolveSiteConfigPublishPayload(cwd, payload as Record<string, unknown>)
 		const touchedFormal = await publishSiteConfigDraft(cwd, publishPayload)
-		return NextResponse.json({ success: true, touchedFormal, clearedDraft: resolveSiteConfigDraftPath(cwd) })
+		return NextResponse.json({ success: true, touchedFormal, clearedDraft: 'data/site-config.draft.json' })
 	} catch (error: any) {
 		return NextResponse.json({ error: error.message }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
 	}
