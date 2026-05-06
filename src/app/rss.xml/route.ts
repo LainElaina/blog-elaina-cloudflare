@@ -40,7 +40,7 @@ const blogs = normalizeBlogIndexForRss(blogIndex)
 const escapeXml = (value: string): string =>
 	value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 
-const wrapCdata = (value: string): string => `<![CDATA[${value}]]>`
+export const wrapCdata = (value: string): string => `<![CDATA[${value.replaceAll(']]>', ']]]]><![CDATA[>')}]]>`
 
 const serializeItem = (item: BlogIndexItem): string => {
 	const link = toAbsoluteSiteUrl(`/blog/${item.slug}`)

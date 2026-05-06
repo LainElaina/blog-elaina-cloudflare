@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { normalizeBlogIndexForRss } from './route.ts'
+import { normalizeBlogIndexForRss, wrapCdata } from './route.ts'
+
+test('rss route wraps CDATA values without allowing embedded terminators', () => {
+	assert.equal(wrapCdata('safe summary'), '<![CDATA[safe summary]]>')
+	assert.equal(wrapCdata('before ]]> after'), '<![CDATA[before ]]]]><![CDATA[> after]]>')
+})
 
 test('rss route normalizes dirty blog index data without throwing', () => {
 	assert.deepEqual(normalizeBlogIndexForRss(null), [])
