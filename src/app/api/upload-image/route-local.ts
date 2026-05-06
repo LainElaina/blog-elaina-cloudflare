@@ -7,6 +7,14 @@ import { isPathInsideDirectory } from '../local-path'
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
 const MAX_FILE_SIZE = 10 * 1024 * 1024
+const MAX_REQUEST_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024
+
+function getContentLength(request: NextRequest) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
 
 function startsWithBytes(buffer: Buffer, bytes: number[]) {
 	return buffer.length >= bytes.length && bytes.every((byte, index) => buffer[index] === byte)
@@ -67,6 +75,11 @@ async function writeImageAtomically(fullPath: string, buffer: Buffer) {
 
 export async function handleUploadImage(request: NextRequest) {
 	try {
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > MAX_REQUEST_BODY_SIZE) {
+			return NextResponse.json({ error: '文件大小超过 10MB 限制' }, { status: 413 })
+		}
+
 		let formData: FormData
 		try {
 			formData = await request.formData()

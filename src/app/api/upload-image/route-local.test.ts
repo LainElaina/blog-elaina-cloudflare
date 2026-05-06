@@ -48,6 +48,21 @@ test('upload image local route returns 400 for non-string path field', async () 
 	assert.deepEqual(await response.json(), { error: 'Missing file or path' })
 })
 
+test('upload image local route returns 413 for oversized request before multipart parsing', async () => {
+	let formDataCalled = false
+	const response = await handleUploadImage({
+		headers: new Headers({ 'content-length': String(11 * 1024 * 1024 + 1) }),
+		formData: async () => {
+			formDataCalled = true
+			throw new Error('formData should not be called')
+		}
+	} as any)
+
+	assert.equal(response.status, 413)
+	assert.equal(formDataCalled, false)
+	assert.deepEqual(await response.json(), { error: '文件大小超过 10MB 限制' })
+})
+
 test('upload image local route returns 400 when multipart body is malformed', async () => {
 	const response = await handleUploadImage({
 		formData: async () => {
