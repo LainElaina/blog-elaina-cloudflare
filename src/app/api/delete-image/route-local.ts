@@ -3,8 +3,10 @@ import { extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isPathStrictlyInsideDirectory } from '../local-path'
 
+const MAX_DELETE_IMAGE_REQUEST_BODY_SIZE = 1024 * 1024
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
 const ALLOWED_EXACT_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
 const ALLOWED_DIRECT_IMAGE_DIRECTORIES = [
@@ -17,6 +19,13 @@ const ALLOWED_DIRECT_IMAGE_DIRECTORIES = [
 	'public/images/share',
 	'public/images/social-buttons'
 ]
+
+function getContentLength(request: NextRequest) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
 
 function isSafeUploadedImageFilename(filename: string) {
 	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
@@ -60,10 +69,18 @@ export function isAllowedDeleteImagePath(projectDir: string, fullPath: string) {
 
 export async function handleDeleteImage(request: NextRequest) {
 	try {
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > MAX_DELETE_IMAGE_REQUEST_BODY_SIZE) {
+			return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
+		}
+
 		let body: unknown
 		try {
-			body = await request.json()
-		} catch {
+			body = await readLimitedJsonRequest(request, MAX_DELETE_IMAGE_REQUEST_BODY_SIZE)
+		} catch (error) {
+			if (isJsonRequestBodyTooLargeError(error)) {
+				return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
+			}
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 
