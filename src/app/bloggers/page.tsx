@@ -9,6 +9,7 @@ import { pushBloggers } from './services/push-bloggers'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import initialList from './list.json'
+import { normalizeBloggersRuntimeItems } from './bloggers-runtime'
 import type { AvatarItem } from './components/avatar-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
@@ -28,9 +29,11 @@ const assertOk = async (response: Response, actionName: string) => {
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+const initialBloggers = normalizeBloggersRuntimeItems(initialList)
+
 export default function Page() {
-	const [bloggers, setBloggers] = useState<Blogger[]>(initialList as Blogger[])
-	const [originalBloggers, setOriginalBloggers] = useState<Blogger[]>(initialList as Blogger[])
+	const [bloggers, setBloggers] = useState<Blogger[]>(initialBloggers)
+	const [originalBloggers, setOriginalBloggers] = useState<Blogger[]>(initialBloggers)
 	const [isEditMode, setIsEditMode] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 	const [editingBlogger, setEditingBlogger] = useState<Blogger | null>(null)
