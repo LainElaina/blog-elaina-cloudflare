@@ -1,5 +1,4 @@
-import { existsSync } from 'fs'
-import { mkdir, rename, rm, writeFile } from 'fs/promises'
+import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -50,6 +49,31 @@ function hasSvgSignature(buffer: Buffer) {
 
 function isSafeUploadedImageFilename(filename: string) {
 	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
+}
+
+async function findExistingAncestorDirectory(dir: string): Promise<string> {
+	try {
+		await realpath(dir)
+		return dir
+	} catch (error: any) {
+		if (error?.code !== 'ENOENT') {
+			throw error
+		}
+	}
+
+	const parentDir = dirname(dir)
+	if (parentDir === dir) {
+		return dir
+	}
+	return findExistingAncestorDirectory(parentDir)
+}
+
+async function assertSafeExistingParentDirectory(projectDir: string, dir: string) {
+	const existingDir = await findExistingAncestorDirectory(dir)
+	const realParentDir = await realpath(existingDir)
+	if (!isPathInsideDirectory(projectDir, realParentDir)) {
+		throw new Error('unsafe-parent-directory')
+	}
 }
 
 function isDirectChildFilePath(baseDir: string, fullPath: string) {
@@ -181,9 +205,8 @@ export async function handleUploadImage(request: NextRequest) {
 		}
 
 		const dir = dirname(fullPath)
-		if (!existsSync(dir)) {
-			await mkdir(dir, { recursive: true })
-		}
+		await assertSafeExistingParentDirectory(projectDir, dir)
+		await mkdir(dir, { recursive: true })
 
 		await writeImageAtomically(fullPath, buffer)
 

@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import { handleUploadImage, isAllowedImageContent, isAllowedUploadImagePath } from './route-local.ts'
 
 test('upload image local route writes uploaded image atomically', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
-	assert.match(source, /import \{ mkdir, rename, rm, writeFile \} from 'fs\/promises'/)
+	assert.match(source, /import \{ mkdir, realpath, rename, rm, writeFile \} from 'fs\/promises'/)
 	assert.match(source, /function buildAtomicUploadTempPath\(fullPath: string\)/)
 	assert.match(source, /async function writeImageAtomically\(fullPath: string, buffer: Buffer\)/)
 	assert.match(source, /await writeFile\(tempPath, buffer\)\n\t\tawait rename\(tempPath, fullPath\)/)
@@ -117,6 +118,31 @@ test('upload image local route allows only upload-managed image paths', () => {
 	}
 
 	assert.equal(isAllowedUploadImagePath(projectDir, resolve('/repo/blog-backup/public/images/share/logo.png')), false)
+})
+
+test('upload image local route rejects allowlisted paths under symlinked parent directories', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-symlink-'))
+	const outsideDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-outside-'))
+	try {
+		await fs.mkdir(join(repoDir, 'public/images'), { recursive: true })
+		await fs.symlink(outsideDir, join(repoDir, 'public/images/share'))
+		process.chdir(repoDir)
+
+		const formData = new FormData()
+		formData.set('file', new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'test.png', { type: 'image/png' }))
+		formData.set('path', 'public/images/share/test.png')
+
+		const response = await handleUploadImage({ formData: async () => formData } as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '上传失败' })
+		await assert.rejects(() => fs.readFile(join(outsideDir, 'test.png')), /ENOENT/)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
 })
 
 test('upload image local route rejects disguised image extensions', async () => {
