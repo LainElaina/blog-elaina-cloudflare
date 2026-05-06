@@ -1,5 +1,5 @@
 import { mkdir, rename, rm, writeFile } from 'fs/promises'
-import { dirname, resolve } from 'path'
+import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
@@ -16,6 +16,19 @@ async function writeFileAtomically(fullPath: string, content: string) {
 	} catch (error) {
 		await rm(tempPath, { force: true }).catch(() => undefined)
 		throw error
+	}
+}
+
+function isValidJsonFileContent(fullPath: string, content: string) {
+	if (extname(fullPath) !== '.json') {
+		return true
+	}
+
+	try {
+		JSON.parse(content)
+		return true
+	} catch {
+		return false
 	}
 }
 
@@ -43,6 +56,10 @@ export async function handleSaveFile(request: NextRequest) {
 
 		if (!isAllowedSaveFilePath(projectDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
+		}
+
+		if (!isValidJsonFileContent(fullPath, content)) {
+			return NextResponse.json({ error: 'JSON 内容格式错误' }, { status: 400 })
 		}
 
 		const dir = dirname(fullPath)

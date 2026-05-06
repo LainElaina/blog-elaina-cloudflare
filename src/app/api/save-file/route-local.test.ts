@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { resolve } from 'node:path'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
 import { handleSaveFile } from './route-local.ts'
 
@@ -47,6 +49,27 @@ test('save-file local route replaces files atomically', async () => {
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 	assert.match(source, /await writeFileAtomically\(fullPath, content\)/)
 	assert.doesNotMatch(source, /await writeFile\(fullPath, content, 'utf-8'\)/)
+})
+
+test('save-file local route rejects invalid JSON content without replacing existing files', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-json-'))
+	try {
+		await mkdir(join(repoDir, 'public/share'), { recursive: true })
+		await writeFile(join(repoDir, 'public/share/storage.json'), '{"ok":true}', 'utf-8')
+		process.chdir(repoDir)
+
+		const response = await handleSaveFile({
+			json: async () => ({ path: 'public/share/storage.json', content: '{bad' })
+		} as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: 'JSON 内容格式错误' })
+		assert.equal(await readFile(join(repoDir, 'public/share/storage.json'), 'utf-8'), '{"ok":true}')
+	} finally {
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
+	}
 })
 
 test('save-file local route returns 400 when JSON body is malformed', async () => {
