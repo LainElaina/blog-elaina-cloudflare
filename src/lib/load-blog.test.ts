@@ -133,15 +133,26 @@ describe('loadBlog', () => {
 		)
 	})
 
-	it('aborts when blog storage JSON is malformed', async () => {
+	it('falls back to blog config when storage JSON is malformed', async () => {
 		await withMockFetch(
 			new Map<string, Response>([
 				['/blogs/storage.json', new Response('{bad json', { status: 200 })],
-				['/blogs/post-a/config.json', new Response('{"title":"Fallback"}', { status: 200 })],
+				['/blogs/post-a/config.json', new Response('{"title":"Fallback","tags":["x"],"date":"2026-03-27"}', { status: 200 })],
 				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
 			]),
-			async () => {
-				await assert.rejects(() => loadBlog('post-a'), /博客存储格式错误/)
+			async calls => {
+				const loaded = await loadBlog('post-a')
+
+				assert.deepEqual(loaded.config, { title: 'Fallback', tags: ['x'], date: '2026-03-27' })
+				assert.equal(loaded.markdown, '# hello')
+				assert.deepEqual(
+					calls.map(call => ({ input: call.input, cache: call.init?.cache })),
+					[
+						{ input: '/blogs/storage.json', cache: 'no-store' },
+						{ input: '/blogs/post-a/config.json', cache: 'no-store' },
+						{ input: '/blogs/post-a/index.md', cache: 'no-store' }
+					]
+				)
 			}
 		)
 	})
