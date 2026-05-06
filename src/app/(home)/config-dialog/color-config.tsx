@@ -23,6 +23,41 @@ type ColorPreset = {
 	backgroundColors: string[]
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function normalizeTheme(value: unknown): Partial<SiteContent['theme']> {
+	if (!isObject(value)) return {}
+
+	return Object.fromEntries(
+		Object.entries(value).filter(([key, color]) => key in DEFAULT_THEME_COLORS && typeof color === 'string')
+	) as Partial<SiteContent['theme']>
+}
+
+function normalizeBackgroundColors(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((color): color is string => typeof color === 'string') : []
+}
+
+function normalizeColorPreset(value: unknown, fallbackName = ''): ColorPreset | null {
+	if (!isObject(value)) return null
+
+	const name = typeof value.name === 'string' && value.name.trim() ? value.name.trim() : fallbackName.trim()
+	if (!name) return null
+
+	return {
+		name,
+		theme: normalizeTheme(value.theme),
+		backgroundColors: normalizeBackgroundColors(value.backgroundColors)
+	}
+}
+
+function normalizeColorPresets(value: unknown): ColorPreset[] {
+	return Array.isArray(value)
+		? value.map(preset => normalizeColorPreset(preset)).filter((preset): preset is ColorPreset => Boolean(preset))
+		: []
+}
+
 const BUILTIN_PRESETS: ColorPreset[] = [
 	{
 		name: '春暖',
@@ -65,15 +100,15 @@ const BUILTIN_PRESETS: ColorPreset[] = [
 
 // 加载自定义预设：优先 localStorage，否则用项目 JSON
 const loadCustomPresets = (): ColorPreset[] => {
-	if (typeof window === 'undefined') return colorPresetsDefault as ColorPreset[]
+	if (typeof window === 'undefined') return normalizeColorPresets(colorPresetsDefault)
 	try {
 		const saved = localStorage.getItem('color-presets')
 		if (saved) {
 			const parsed = JSON.parse(saved)
-			if (Array.isArray(parsed)) return parsed
+			if (Array.isArray(parsed)) return normalizeColorPresets(parsed)
 		}
 	} catch {}
-	return colorPresetsDefault as ColorPreset[]
+	return normalizeColorPresets(colorPresetsDefault)
 }
 
 export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
@@ -212,17 +247,10 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 		reader.onload = (event) => {
 			try {
 				const config = JSON.parse(event.target?.result as string)
-				const hasTheme = config.theme && typeof config.theme === 'object' && !Array.isArray(config.theme)
-				const hasBackgroundColors = Array.isArray(config.backgroundColors)
-				if (hasTheme || hasBackgroundColors) {
-					const name = config.name || file.name.replace(/\.json$/, '')
-					const newPreset: ColorPreset = {
-						name,
-						theme: hasTheme ? config.theme : {},
-						backgroundColors: hasBackgroundColors ? config.backgroundColors : []
-					}
+				const newPreset = normalizeColorPreset(config, file.name.replace(/\.json$/, ''))
+				if (newPreset && (Object.keys(newPreset.theme).length > 0 || newPreset.backgroundColors.length > 0)) {
 					saveCustomPresetsLocal([...customPresets, newPreset])
-					toast.success(`已导入预设"${name}"`)
+					toast.success(`已导入预设"${newPreset.name}"`)
 				} else {
 					toast.error('文件中未找到配色数据')
 				}
