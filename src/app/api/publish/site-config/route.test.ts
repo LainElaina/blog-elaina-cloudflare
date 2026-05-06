@@ -15,7 +15,7 @@ registerHooks({
 })
 
 const { POST } = await import('./route.ts')
-const { writeSiteConfigDraft } = await import('../../site-config-local-shared.ts')
+const { readSiteConfigDraft, writeSiteConfigDraft } = await import('../../site-config-local-shared.ts')
 
 async function withDevelopmentCwd<T>(callback: (tmpDir: string) => Promise<T>): Promise<T> {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'publish-site-config-route-'))
@@ -167,6 +167,31 @@ test('site config publish rejects invalid saved draft values without touching fo
 		assert.equal(response.status, 400)
 		assert.deepEqual(payload, { error: '自定义组件草稿格式错误' })
 		assert.deepEqual(JSON.parse(await fs.readFile(formalPath, 'utf-8')), [{ name: 'formal' }])
+	})
+})
+
+test('site config publish keeps unrelated saved draft keys after explicit partial publish', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		await fs.writeFile(path.join(tmpDir, 'src/config/site-content.json'), JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+		await writeSiteConfigDraft(tmpDir, {
+			siteContent: { meta: { title: 'saved draft' } },
+			colorPresets: [{ name: 'saved colors' }]
+		})
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: { meta: { title: 'current publish' } } })
+			})
+		)
+		const payload = await response.json()
+		const saved = JSON.parse(await fs.readFile(path.join(tmpDir, 'src/config/site-content.json'), 'utf-8'))
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(payload.touchedFormal, ['site-content.json'])
+		assert.equal(saved.meta.title, 'current publish')
+		assert.deepEqual(await readSiteConfigDraft(tmpDir), { colorPresets: [{ name: 'saved colors' }] })
 	})
 })
 

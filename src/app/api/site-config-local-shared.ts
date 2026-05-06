@@ -106,6 +106,10 @@ function hasSiteConfigDraftPayload(payload: SiteConfigDraftPayload) {
 	return SITE_CONFIG_DRAFT_KEYS.some(key => payload[key] !== undefined && payload[key] !== null)
 }
 
+function getSiteConfigDraftPayloadKeys(payload: SiteConfigDraftPayload) {
+	return SITE_CONFIG_DRAFT_KEYS.filter(key => payload[key] !== undefined && payload[key] !== null)
+}
+
 function parseSiteConfigDraftRaw(raw: string): SiteConfigDraftPayload {
 	let parsed: unknown
 	try {
@@ -179,6 +183,34 @@ export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDr
 
 export async function clearSiteConfigDraft(baseDir: string) {
 	await fs.rm(resolveSiteConfigDraftPath(baseDir), { force: true })
+}
+
+async function clearPublishedSiteConfigDraftKeys(baseDir: string, publishedKeys: SiteConfigDraftKey[]) {
+	if (publishedKeys.length === 0) {
+		return
+	}
+
+	const draftPath = resolveSiteConfigDraftPath(baseDir)
+	let current: SiteConfigDraftPayload
+	try {
+		current = parseSiteConfigDraftRaw(await fs.readFile(draftPath, 'utf-8'))
+	} catch (error) {
+		if (isFileNotFoundError(error)) {
+			return
+		}
+		throw error
+	}
+
+	for (const key of publishedKeys) {
+		delete current[key]
+	}
+
+	if (!hasSiteConfigDraftPayload(current)) {
+		await fs.rm(draftPath, { force: true })
+		return
+	}
+
+	await writeSiteConfigFileAtomically(draftPath, JSON.stringify(current, null, '\t'))
 }
 
 export async function canPublishSiteConfigDraft(baseDir: string) {
@@ -360,6 +392,7 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 	)
 	const configDir = path.join(baseDir, 'src/config')
 	const writes = buildSiteConfigFormalWrites(draft)
+	const publishedKeys = getSiteConfigDraftPayloadKeys(draft)
 	if (writes.length === 0) {
 		throw new SiteConfigLocalValidationError('没有可发布的草稿')
 	}
@@ -374,7 +407,7 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 			touchedFormal.push(write.fileName)
 		}
 
-		await clearSiteConfigDraft(baseDir)
+		await clearPublishedSiteConfigDraftKeys(baseDir, publishedKeys)
 	} catch (error) {
 		await rollbackSiteConfigFormalWrites(backups)
 		throw error
