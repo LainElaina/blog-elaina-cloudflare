@@ -2,6 +2,42 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+import { buildUnusedPictureImageDeleteTreeItems, filterExistingPictureImageDeleteTreeItems } from './services/push-pictures'
+
+test('remote pictures publish filters delete items to existing baseline image files', () => {
+	const previousPictures = [
+		{
+			id: 'old',
+			title: 'Old',
+			image: '/images/pictures/old.png',
+			images: ['/images/pictures/missing.png?version=1']
+		},
+		{
+			id: 'unsafe',
+			title: 'Unsafe',
+			image: '/images/pictures/../secret.png'
+		}
+	]
+	const currentPictures = [
+		{
+			id: 'current',
+			title: 'Current',
+			image: '/images/pictures/current.png'
+		}
+	]
+
+	const deleteItems = buildUnusedPictureImageDeleteTreeItems(previousPictures, currentPictures)
+
+	assert.deepEqual(filterExistingPictureImageDeleteTreeItems(deleteItems, ['public/images/pictures/old.png']), [
+		{
+			path: 'public/images/pictures/old.png',
+			mode: '100644',
+			type: 'blob',
+			sha: null
+		}
+	])
+})
+
 test('remote pictures publish blocks when previous list cannot be parsed', async () => {
 	const source = await fs.readFile(new URL('./services/push-pictures.ts', import.meta.url), 'utf-8')
 
@@ -16,9 +52,13 @@ test('remote pictures save only deletes safe local image paths', async () => {
 	assert.match(source, /const pathOnly = publicPath\.split/)
 	assert.match(source, /const filename = pathOnly\.slice\(PICTURE_IMAGE_PUBLIC_PREFIX\.length\)/)
 	assert.match(source, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
-	assert.match(source, /const currentImagePaths = collectPictureImageRepoPaths\(updatedPictures\)/)
-	assert.match(source, /const previousImagePaths = collectPictureImageRepoPaths\(previousPictures\)/)
-	assert.match(source, /for \(const path of previousImagePaths\) \{\n\s*if \(!currentImagePaths\.has\(path\)\) \{\n\s*treeItems\.push\(\{[\s\S]*?sha: null/)
+	assert.match(source, /const existingPictureImagePaths = await listRepoFilesRecursive\([^\n]*'public\/images\/pictures', latestCommitSha\)/)
+	assert.match(
+		source,
+		/const deleteTreeItems = filterExistingPictureImageDeleteTreeItems\(\n\s*buildUnusedPictureImageDeleteTreeItems\(previousPictures, updatedPictures\),\n\s*existingPictureImagePaths\n\s*\)/
+	)
+	assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
+	assert.doesNotMatch(source, /for \(const path of previousImagePaths\)/)
 	assert.doesNotMatch(source, /url\.replace\('\/images\/pictures\/', ''\)/)
 })
 

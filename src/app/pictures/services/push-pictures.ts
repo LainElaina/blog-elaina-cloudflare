@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, listRepoFilesRecursive, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -41,6 +41,27 @@ function collectPictureImageRepoPaths(pictures: Picture[]): Set<string> {
 		}
 	}
 	return paths
+}
+
+export function buildUnusedPictureImageDeleteTreeItems(previousPictures: Picture[], currentPictures: Picture[]): TreeItem[] {
+	const currentImagePaths = collectPictureImageRepoPaths(currentPictures)
+	return Array.from(collectPictureImageRepoPaths(previousPictures)).flatMap(path =>
+		currentImagePaths.has(path)
+			? []
+			: [
+					{
+						path,
+						mode: '100644' as const,
+						type: 'blob' as const,
+						sha: null
+					}
+				]
+	)
+}
+
+export function filterExistingPictureImageDeleteTreeItems(deleteItems: TreeItem[], existingRepoPaths: Iterable<string>): TreeItem[] {
+	const existing = new Set(existingRepoPaths)
+	return deleteItems.filter(item => existing.has(item.path))
 }
 
 export async function pushPictures(params: PushPicturesParams): Promise<Picture[]> {
@@ -90,9 +111,6 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 		updatedPictures = applyPictureImagePathReplacements(updatedPictures, pathReplacements)
 	}
 
-	// 收集当前所有使用的本地图片仓库路径
-	const currentImagePaths = collectPictureImageRepoPaths(updatedPictures)
-
 	// 读取之前的 list.json，找出不再使用的图片文件
 	toast.info('正在检查需要删除的文件...')
 	const previousListJson = await readTextFileFromRepo(
@@ -106,19 +124,12 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 	if (previousListJson) {
 		try {
 			const previousPictures: Picture[] = JSON.parse(previousListJson)
-			const previousImagePaths = collectPictureImageRepoPaths(previousPictures)
-
-			// 找出不再使用的本地图片仓库路径
-			for (const path of previousImagePaths) {
-				if (!currentImagePaths.has(path)) {
-					treeItems.push({
-						path,
-						mode: '100644',
-						type: 'blob',
-						sha: null
-					})
-				}
-			}
+			const existingPictureImagePaths = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/pictures', latestCommitSha)
+			const deleteTreeItems = filterExistingPictureImageDeleteTreeItems(
+				buildUnusedPictureImageDeleteTreeItems(previousPictures, updatedPictures),
+				existingPictureImagePaths
+			)
+			treeItems.push(...deleteTreeItems)
 		} catch (error) {
 			console.error('Failed to parse previous list.json:', error)
 			throw new Error('远程图床列表解析失败，请修复 src/app/pictures/list.json 后重试')
