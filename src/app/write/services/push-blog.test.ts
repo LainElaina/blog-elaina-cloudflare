@@ -175,6 +175,23 @@ describe('pushBlog create slug checks', () => {
 		assert.match(source, /buildUnusedBlogImageDeleteTreeItems\(\{\n\s*slug: form\.slug,\n\s*existingRepoFiles,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths: new Set\(treeItems\.map\(item => item\.path\)\)\n\s*\}\)/)
 	})
 
+	it('远端发布应在创建任何 blob 前完成最终产物构建', async () => {
+		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const artifactIndex = source.indexOf('const artifactContents = await buildRemoteArtifactContents')
+		const firstBlobIndex = source.indexOf('await createBlob')
+		const uploadToastIndex = source.indexOf("toast.info('正在上传图片...')")
+		const createFileToastIndex = source.indexOf("toast.info('正在创建文件...')")
+
+		assert.notEqual(artifactIndex, -1)
+		assert.notEqual(firstBlobIndex, -1)
+		assert.notEqual(uploadToastIndex, -1)
+		assert.notEqual(createFileToastIndex, -1)
+		assert.ok(artifactIndex < firstBlobIndex)
+		assert.ok(artifactIndex < uploadToastIndex)
+		assert.ok(artifactIndex < createFileToastIndex)
+		assert.match(source, /const plannedImageUploads = new Map<string, \{ path: string; img: Extract<ImageItem, \{ type: 'file' \}> \}>\(\)/)
+	})
+
 	it('本地创建模式应在图片上传前检查重复 slug', async () => {
 		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 		const checkIndex = source.indexOf("if (mode === 'create')")

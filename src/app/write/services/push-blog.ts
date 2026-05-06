@@ -221,32 +221,24 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 	toast.info('正在准备文件...')
 
 	const uploadedImagePaths = new Map<string, string>()
+	const plannedImageUploads = new Map<string, { path: string; img: Extract<ImageItem, { type: 'file' }> }>()
 	const imagePaths = new Map<string, string>()
 	let mdToUpload = form.md
 	let coverPath: string | undefined
 	const treeItems: TreeItem[] = []
 
 	if (allLocalImages.length > 0) {
-		toast.info('正在上传图片...')
 		const placeholderReplacements = new Map<string, string>()
 		for (const { img, id } of allLocalImages) {
-				const hash = img.hash || (await hashFileSHA256(img.file))
-				const ext = getFileExt(img.file.name)
-				const filename = `${hash}${ext}`
-				const publicPath = `/blogs/${form.slug}/${filename}`
-				const uploadKey = filename
+			const hash = img.hash || (await hashFileSHA256(img.file))
+			const ext = getFileExt(img.file.name)
+			const filename = `${hash}${ext}`
+			const publicPath = `/blogs/${form.slug}/${filename}`
+			const uploadKey = filename
 
 			if (!uploadedImagePaths.has(uploadKey)) {
-				const path = `${basePath}/${filename}`
-				const contentBase64 = await fileToBase64NoPrefix(img.file)
-				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: blobData.sha
-				})
 				uploadedImagePaths.set(uploadKey, publicPath)
+				plannedImageUploads.set(uploadKey, { path: `${basePath}/${filename}`, img })
 			}
 
 			const uploadedPath = uploadedImagePaths.get(uploadKey)!
@@ -264,17 +256,7 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 		coverPath = cover.url
 	}
 
-	toast.info('正在创建文件...')
-
 	assertPublishableOutput({ form: { ...form, md: mdToUpload }, images: [] })
-
-	const mdBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(mdToUpload), 'base64')
-	treeItems.push({
-		path: `${basePath}/index.md`,
-		mode: '100644',
-		type: 'blob',
-		sha: mdBlob.sha
-	})
 
 	const dateStr = form.date || formatDateTimeLocal()
 	const config = {
@@ -289,20 +271,44 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 		favorite: form.favorite
 	}
 
-	const configBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(JSON.stringify(config, null, 2)), 'base64')
-	treeItems.push({
-		path: `${basePath}/config.json`,
-		mode: '100644',
-		type: 'blob',
-		sha: configBlob.sha
-	})
-
 	const artifactContents = await buildRemoteArtifactContents({
 		form,
 		dateStr,
 		coverPath,
 		readStorageRaw: async () => storageRaw,
 		fallbackReadIndexRaw: async () => indexRaw
+	})
+
+	if (plannedImageUploads.size > 0) {
+		toast.info('正在上传图片...')
+		for (const { path, img } of plannedImageUploads.values()) {
+			const contentBase64 = await fileToBase64NoPrefix(img.file)
+			const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
+			treeItems.push({
+				path,
+				mode: '100644',
+				type: 'blob',
+				sha: blobData.sha
+			})
+		}
+	}
+
+	toast.info('正在创建文件...')
+
+	const mdBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(mdToUpload), 'base64')
+	treeItems.push({
+		path: `${basePath}/index.md`,
+		mode: '100644',
+		type: 'blob',
+		sha: mdBlob.sha
+	})
+
+	const configBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(JSON.stringify(config, null, 2)), 'base64')
+	treeItems.push({
+		path: `${basePath}/config.json`,
+		mode: '100644',
+		type: 'blob',
+		sha: configBlob.sha
 	})
 
 	const indexBlob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(artifactContents.index), 'base64')
