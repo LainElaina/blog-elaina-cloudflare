@@ -2,7 +2,7 @@
 
 import { Store, X, Plus, Star, Copy, Save } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useTemplateStore } from '../app/(home)/stores/template-store'
+import { normalizeTemplates, useTemplateStore } from '../app/(home)/stores/template-store'
 import { normalizeCustomComponents, useCustomComponentStore } from '../app/(home)/stores/custom-component-store'
 import { normalizeComponentFavoriteImports, normalizeComponentFavorites, useComponentFavoriteStore } from '../app/(home)/stores/component-favorite-store'
 import { useConfigStore } from '../app/(home)/stores/config-store'
@@ -121,7 +121,7 @@ export function ComponentStore() {
 		// 加载模板
 		const savedTemplates = readCachedList('templates')
 		if (savedTemplates) {
-			useTemplateStore.setState({ templates: savedTemplates })
+			useTemplateStore.setState({ templates: normalizeTemplates(savedTemplates) })
 		}
 
 		// 加载自定义组件（localStorage 有数据则用，否则用项目 JSON 文件）

@@ -7,6 +7,18 @@ export interface Template {
 	styles: CardStyles
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+export function normalizeTemplates(value: unknown): Template[] {
+	if (!Array.isArray(value)) return []
+
+	return value
+		.filter(template => isObject(template) && typeof template.id === 'string' && typeof template.name === 'string' && isObject(template.styles))
+		.map(template => ({ id: template.id, name: template.name, styles: template.styles as CardStyles }))
+}
+
 interface TemplateStore {
 	templates: Template[]
 	addTemplate: (name: string, styles: CardStyles) => void
