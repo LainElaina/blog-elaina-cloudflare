@@ -242,8 +242,11 @@ export async function updateRef(token: string, owner: string, repo: string, ref:
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) {
-		handle422Error()
-		throw new GitHubUpdateRefError(res.status, await readGitHubErrorMessage(res))
+		const error = new GitHubUpdateRefError(res.status, await readGitHubErrorMessage(res))
+		if (!isGitHubUpdateRefConflictError(error)) {
+			handle422Error()
+		}
+		throw error
 	}
 	if (!res.ok) throw new GitHubUpdateRefError(res.status, await readGitHubErrorMessage(res))
 }

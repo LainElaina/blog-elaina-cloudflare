@@ -75,8 +75,12 @@ test('updateRef exposes non-fast-forward 422 errors for publish retries', async 
 			return true
 		}
 	)
-	assert.equal(isGitHubUpdateRefConflictError(new GitHubUpdateRefError(422, 'Validation Failed')), false)
-	assert.equal(isGitHubUpdateRefConflictError(new GitHubUpdateRefError(500, 'Reference update failed')), false)
+	const source = await readSource('./github-client.ts')
+	assert.match(
+		source,
+		/if \(res\.status === 422\) \{\n\s*const error = new GitHubUpdateRefError\(res\.status, await readGitHubErrorMessage\(res\)\)\n\s*if \(!isGitHubUpdateRefConflictError\(error\)\) \{\n\s*handle422Error\(\)\n\s*\}\n\s*throw error\n\s*\}/
+	)
+	assert.doesNotMatch(source, /if \(res\.status === 422\) \{\n\s*handle422Error\(\)/)
 })
 
 test('readTextFileFromRepo treats only 404 as missing', async () => {
