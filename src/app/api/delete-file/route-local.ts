@@ -1,4 +1,4 @@
-import { unlink } from 'fs/promises'
+import { lstat, unlink } from 'fs/promises'
 import { resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -28,6 +28,21 @@ export async function handleDeleteFile(request: NextRequest) {
 
 		if (!isAllowedSaveFilePath(projectDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
+		}
+
+		const fileStats = await lstat(fullPath).catch(error => {
+			if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+				return null
+			}
+			throw error
+		})
+
+		if (fileStats === null) {
+			return NextResponse.json({ success: true })
+		}
+
+		if (!fileStats.isFile()) {
+			return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
 		}
 
 		await unlink(fullPath).catch(error => {

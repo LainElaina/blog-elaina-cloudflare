@@ -53,7 +53,25 @@ test('delete image route treats missing files as successful deletion', async () 
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.doesNotMatch(source, /existsSync/)
-	assert.match(source, /await unlink\(fullPath\)\.catch\(error => \{\n\s*if \(\(error as NodeJS\.ErrnoException\)\?\.code !== 'ENOENT'\) \{\n\s*throw error\n\s*\}\n\s*\}\)/)
+	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(\(error as NodeJS\.ErrnoException\)\?\.code === 'ENOENT'\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
+	assert.match(source, /if \(fileStats === null\) \{\n\s*return NextResponse\.json\(\{ success: true \}\)\n\s*\}/)
+})
+
+test('delete image route rejects non-file allowlisted paths', async () => {
+	const slug = `delete-image-nonfile-${process.pid}-${Date.now()}`
+	const filePath = `public/blogs/${slug}/cover.png`
+
+	await fs.mkdir(filePath, { recursive: true })
+	try {
+		const response = await handleDeleteImage({
+			json: async () => ({ path: filePath })
+		} as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '只能删除普通文件' })
+	} finally {
+		await fs.rm(`public/blogs/${slug}`, { recursive: true, force: true })
+	}
 })
 
 test('delete image route returns 400 when JSON body is malformed', async () => {
