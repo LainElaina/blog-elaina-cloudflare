@@ -1,5 +1,6 @@
 import siteContent from '@/config/site-content.json'
 import blogIndex from '@/../public/blogs/index.json'
+import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import type { BlogIndexItem } from '@/app/blog/types'
 import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
 
@@ -18,7 +19,12 @@ export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
 		}
 
 		const blog = item as Record<string, unknown>
-		if (typeof blog.slug !== 'string' || !blog.slug.trim()) {
+		if (typeof blog.slug !== 'string') {
+			return []
+		}
+		try {
+			assertSafeBlogSlug(blog.slug)
+		} catch {
 			return []
 		}
 
@@ -44,6 +50,7 @@ export const wrapCdata = (value: string): string => `<![CDATA[${value.replaceAll
 
 const serializeItem = (item: BlogIndexItem): string => {
 	const link = toAbsoluteSiteUrl(`/blog/${item.slug}`)
+	const escapedLink = escapeXml(link)
 	const title = escapeXml(item.title || item.slug)
 	const description = wrapCdata(item.summary || '')
 	const parsedPubDate = item.date ? new Date(item.date) : null
@@ -56,8 +63,8 @@ const serializeItem = (item: BlogIndexItem): string => {
 	return `
 		<item>
 			<title>${title}</title>
-			<link>${link}</link>
-			<guid isPermaLink="false">${escapeXml(link)}</guid>
+			<link>${escapedLink}</link>
+			<guid isPermaLink="false">${escapedLink}</guid>
 			<description>${description}</description>
 			${pubDate}
 			${categories}

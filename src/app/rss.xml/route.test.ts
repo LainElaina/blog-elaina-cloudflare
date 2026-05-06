@@ -15,6 +15,10 @@ test('rss route normalizes dirty blog index data without throwing', () => {
 			null,
 			[],
 			{ title: 'Missing slug', tags: ['skip'], date: '2026-01-01' },
+			{ slug: 'Bad-Slug', title: 'Bad case slug' },
+			{ slug: 'bad/slash', title: 'Bad slash slug' },
+			{ slug: 'bad&slug', title: 'Bad XML slug' },
+			{ slug: 'x'.repeat(121), title: 'Too long slug' },
 			{
 				slug: 'valid-post',
 				title: '',
