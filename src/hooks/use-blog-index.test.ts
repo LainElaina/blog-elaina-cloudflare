@@ -39,6 +39,7 @@ describe('fetchBlogIndex', () => {
 			status: 200,
 			json: async () => [
 				{ slug: 'valid', title: 'Valid', date: '2026-04-01T00:00:00.000Z', tags: ['a', 1, 'b'], hidden: 'false', favorite: true },
+				{ slug: 'bad-date', title: 'Bad Date', date: 'not-a-date', tags: ['x'] },
 				{ slug: 'missing-title', date: '2026-04-01T00:00:00.000Z', tags: ['x'] },
 				null
 			]
@@ -68,10 +69,11 @@ describe('fetchBlogIndex', () => {
 
 
 describe('normalizeBlogIndexItems', () => {
-	it('过滤缺少核心字段的索引项并丢弃非字符串可选字段', () => {
+	it('过滤缺少核心字段、无效日期的索引项并丢弃非字符串可选字段', () => {
 		const items = normalizeBlogIndexItems([
 			{ slug: 'a', title: 'A', date: '2026-01-01T00:00:00.000Z', tags: ['x', false], summary: 1, folderPath: '/技术', hidden: false },
 			{ slug: 'b', title: 'B', tags: [] },
+			{ slug: 'bad-date', title: 'Bad Date', date: 'not-a-date', tags: ['x'] },
 			'bad'
 		])
 
@@ -105,6 +107,22 @@ describe('getLatestBlogItem', () => {
 		assert.deepEqual(
 			items.map(item => item.slug),
 			['old', 'new']
+		)
+	})
+
+	it('归一化后计算最新文章不会被无效日期干扰', () => {
+		const items = normalizeBlogIndexItems([
+			{ slug: 'bad-date', title: 'Bad Date', date: 'not-a-date' },
+			{ slug: 'new', title: 'New', date: '2026-02-01T00:00:00.000Z' },
+			{ slug: 'old', title: 'Old', date: '2026-01-01T00:00:00.000Z' }
+		])
+
+		const latest = getLatestBlogItem(items)
+
+		assert.equal(latest?.slug, 'new')
+		assert.deepEqual(
+			items.map(item => item.slug),
+			['new', 'old']
 		)
 	})
 })

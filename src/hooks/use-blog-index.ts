@@ -24,8 +24,12 @@ function normalizeHidden(value: unknown) {
 	return true
 }
 
+function isValidDateString(value: string) {
+	return Number.isFinite(new Date(value).getTime())
+}
+
 function normalizeBlogIndexItem(value: unknown): BlogIndexItem | null {
-	if (!isObject(value) || typeof value.slug !== 'string' || typeof value.title !== 'string' || typeof value.date !== 'string') {
+	if (!isObject(value) || typeof value.slug !== 'string' || typeof value.title !== 'string' || typeof value.date !== 'string' || !isValidDateString(value.date)) {
 		return null
 	}
 
