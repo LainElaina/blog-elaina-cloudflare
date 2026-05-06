@@ -66,6 +66,11 @@ type PictureImagePathReplacementInput = {
 	images?: string[]
 }
 
+export function isPictureImageReplacementKey(key: string): boolean {
+	const [pictureId, imageIndex, ...rest] = key.split('::')
+	return rest.length === 0 && pictureId.length > 0 && typeof imageIndex === 'string' && /^(0|[1-9]\d*)$/.test(imageIndex)
+}
+
 export function applyPictureImagePathReplacements<TPicture extends PictureImagePathReplacementInput>(
 	pictures: TPicture[],
 	replacements: Map<string, string>

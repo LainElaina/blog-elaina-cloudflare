@@ -6,6 +6,7 @@ import type { ImageItem } from '../../projects/components/image-upload-dialog'
 import { getFileExt } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Picture } from '../page'
+import { applyPictureImagePathReplacements, isPictureImageReplacementKey } from '../page-view-model'
 
 export type PushPicturesParams = {
 	pictures: Picture[]
@@ -61,8 +62,9 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 
 	if (imageItems && imageItems.size > 0) {
 		toast.info('正在上传图片...')
+		const pathReplacements = new Map<string, string>()
 		for (const [key, imageItem] of imageItems.entries()) {
-			if (imageItem.type === 'file') {
+			if (imageItem.type === 'file' && isPictureImageReplacementKey(key)) {
 				const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))
 				const ext = getFileExt(imageItem.file.name)
 				const filename = `${hash}${ext}`
@@ -82,25 +84,10 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 					uploadedPicturePaths.set(uploadKey, publicPath)
 				}
 
-				const uploadedPath = uploadedPicturePaths.get(uploadKey)!
-				const [groupId, indexStr] = key.split('::')
-				const imageIndex = Number(indexStr) || 0
-
-				updatedPictures = updatedPictures.map(p => {
-					if (p.id !== groupId) return p
-
-					const currentImages = p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : []
-
-					const nextImages = currentImages.map((img, idx) => (idx === imageIndex ? uploadedPath : img))
-
-					return {
-						...p,
-						image: undefined,
-						images: nextImages
-					}
-				})
+				pathReplacements.set(key, uploadedPicturePaths.get(uploadKey)!)
 			}
 		}
+		updatedPictures = applyPictureImagePathReplacements(updatedPictures, pathReplacements)
 	}
 
 	// 收集当前所有使用的本地图片仓库路径

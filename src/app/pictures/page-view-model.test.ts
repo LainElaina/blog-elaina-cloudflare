@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import fs from 'node:fs/promises'
 
-import { applyPictureImagePathReplacements, buildPicturesPageDisplayModeState, normalizePicturesRuntimeItems } from './page-view-model.ts'
+import {
+	applyPictureImagePathReplacements,
+	buildPicturesPageDisplayModeState,
+	isPictureImageReplacementKey,
+	normalizePicturesRuntimeItems
+} from './page-view-model.ts'
 
 describe('pictures page display mode wiring', () => {
 	it('keeps page-level onDisplayModeChange connected to preferred display mode state', () => {
@@ -141,6 +146,16 @@ describe('pictures save path replacement', () => {
 				images: ['/images/pictures/one.webp', '/images/pictures/two.webp']
 			}
 		])
+	})
+
+	it('rejects malformed picture replacement keys before upload mapping', () => {
+		assert.equal(isPictureImageReplacementKey('group-1::0'), true)
+		assert.equal(isPictureImageReplacementKey('group-1::12'), true)
+		assert.equal(isPictureImageReplacementKey('group-1'), false)
+		assert.equal(isPictureImageReplacementKey('group-1::'), false)
+		assert.equal(isPictureImageReplacementKey('group-1::abc'), false)
+		assert.equal(isPictureImageReplacementKey('group-1::-1'), false)
+		assert.equal(isPictureImageReplacementKey('group-1::0::extra'), false)
 	})
 
 	it('development save rolls back uploaded picture files when list saving fails', async () => {

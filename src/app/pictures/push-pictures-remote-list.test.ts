@@ -29,9 +29,17 @@ test('remote pictures save dedupes image uploads by filename to avoid hash exten
 	assert.match(source, /const publicPath = `\/images\/pictures\/\$\{filename\}`/)
 	assert.match(source, /const filename = `\$\{hash\}\$\{ext\}`\n\s*const publicPath = `\/images\/pictures\/\$\{filename\}`\n\s*const uploadKey = filename/)
 	assert.match(source, /if \(!uploadedPicturePaths\.has\(uploadKey\)\) \{[\s\S]*?uploadedPicturePaths\.set\(uploadKey, publicPath\)[\s\S]*?\}/)
-	assert.match(source, /const uploadedPath = uploadedPicturePaths\.get\(uploadKey\)!\n\s*const \[groupId, indexStr\] = key\.split\('::'\)/)
-	assert.match(source, /const nextImages = currentImages\.map\(\(img, idx\) => \(idx === imageIndex \? uploadedPath : img\)\)/)
+	assert.match(source, /pathReplacements\.set\(key, uploadedPicturePaths\.get\(uploadKey\)!\)/)
+	assert.match(source, /updatedPictures = applyPictureImagePathReplacements\(updatedPictures, pathReplacements\)/)
 	assert.doesNotMatch(source, /uploadedPicturePaths\.has\(hash\)/)
 	assert.doesNotMatch(source, /uploadedPicturePaths\.set\(hash, publicPath\)/)
 	assert.doesNotMatch(source, /uploadedHashes/)
+})
+
+test('remote pictures save rejects malformed image item keys before replacement', async () => {
+	const source = (await fs.readFile(new URL('./services/push-pictures.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+	assert.match(source, /imageItem\.type === 'file' && isPictureImageReplacementKey\(key\)/)
+	assert.doesNotMatch(source, /const imageIndex = Number\(indexStr\) \|\| 0/)
+	assert.doesNotMatch(source, /const \[groupId, indexStr\] = key\.split\('::'\)/)
 })
