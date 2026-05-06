@@ -3,7 +3,7 @@
 import { Store, X, Plus, Star, Copy, Save } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTemplateStore } from '../app/(home)/stores/template-store'
-import { useCustomComponentStore, type CustomComponent } from '../app/(home)/stores/custom-component-store'
+import { normalizeCustomComponents, useCustomComponentStore, type CustomComponent } from '../app/(home)/stores/custom-component-store'
 import { useComponentFavoriteStore } from '../app/(home)/stores/component-favorite-store'
 import { useConfigStore } from '../app/(home)/stores/config-store'
 import { useLayoutEditStore } from '../app/(home)/stores/layout-edit-store'
@@ -151,7 +151,7 @@ export function ComponentStore() {
 		// 加载自定义组件（localStorage 有数据则用，否则用项目 JSON 文件）
 		const savedCustom = readCachedList('custom-components')
 		if (savedCustom) {
-			useCustomComponentStore.setState({ components: savedCustom })
+			useCustomComponentStore.setState({ components: normalizeCustomComponents(savedCustom) })
 		}
 
 		// 加载收藏

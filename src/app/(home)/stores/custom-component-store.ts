@@ -31,17 +31,47 @@ interface CustomComponentStore {
 	getComponent: (id: string) => CustomComponent | undefined
 }
 
+const CUSTOM_COMPONENT_TYPES = new Set(['text', 'image', 'link', 'iframe', 'custom'])
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isCustomComponent(value: unknown): value is CustomComponent {
+	if (!isObject(value) || !isObject(value.style) || !isObject(value.content)) return false
+
+	return typeof value.id === 'string' &&
+		typeof value.name === 'string' &&
+		typeof value.templateId === 'string' &&
+		typeof value.type === 'string' &&
+		CUSTOM_COMPONENT_TYPES.has(value.type) &&
+		isFiniteNumber(value.style.width) &&
+		isFiniteNumber(value.style.height) &&
+		isFiniteNumber(value.style.order) &&
+		(isFiniteNumber(value.style.offsetX) || value.style.offsetX === null) &&
+		(isFiniteNumber(value.style.offsetY) || value.style.offsetY === null) &&
+		typeof value.style.enabled === 'boolean'
+}
+
+export function normalizeCustomComponents(value: unknown): CustomComponent[] {
+	return Array.isArray(value) ? value.filter(isCustomComponent) : []
+}
+
 // 初始化：优先用 localStorage（本地编辑缓存），否则用项目 JSON 文件（部署数据源）
 const getInitialComponents = (): CustomComponent[] => {
-	if (typeof window === 'undefined') return customComponentsDefault as CustomComponent[]
+	if (typeof window === 'undefined') return normalizeCustomComponents(customComponentsDefault)
 	try {
 		const saved = localStorage.getItem('custom-components')
 		if (saved) {
 			const parsed = JSON.parse(saved)
-			if (Array.isArray(parsed)) return parsed
+			if (Array.isArray(parsed)) return normalizeCustomComponents(parsed)
 		}
 	} catch {}
-	return customComponentsDefault as CustomComponent[]
+	return normalizeCustomComponents(customComponentsDefault)
 }
 
 export const useCustomComponentStore = create<CustomComponentStore>((set, get) => ({
