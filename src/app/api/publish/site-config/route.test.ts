@@ -77,6 +77,50 @@ test('site config publish rejects non-object JSON without publishing saved draft
 	})
 })
 
+test('site config publish returns 400 when there is no draft payload', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '没有可发布的草稿' })
+		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
+	})
+})
+
+test('site config publish returns 400 when draft references missing local assets', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					siteContent: {
+						artImages: [{ url: '/images/art/missing.png' }]
+					}
+				})
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '草稿引用的本地资源不存在：首页图片 /images/art/missing.png' })
+		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
+	})
+})
+
 test('site config publish accepts object-shaped local asset collections', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		await fs.mkdir(path.join(tmpDir, 'public/images/art'), { recursive: true })

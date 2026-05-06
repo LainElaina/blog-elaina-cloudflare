@@ -8,6 +8,17 @@ export type SiteConfigDraftPayload = {
 	colorPresets?: unknown
 }
 
+export class SiteConfigLocalValidationError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'SiteConfigLocalValidationError'
+	}
+}
+
+export function isSiteConfigLocalValidationError(error: unknown) {
+	return error instanceof SiteConfigLocalValidationError
+}
+
 type LocalAssetReference = {
 	label: string
 	url: string
@@ -156,7 +167,7 @@ export async function resolveSiteConfigPublishPayload(baseDir: string, payload: 
 
 	const draft = await readSiteConfigDraft(baseDir)
 	if (!draft || !hasSiteConfigDraftPayload(draft)) {
-		throw new Error('没有可发布的草稿')
+		throw new SiteConfigLocalValidationError('没有可发布的草稿')
 	}
 	return draft
 }
@@ -310,7 +321,7 @@ async function deleteSiteConfigSocialButtonImages(baseDir: string, paths: string
 
 export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
 	if (!draft || Object.keys(draft).length === 0) {
-		throw new Error('没有可发布的草稿')
+		throw new SiteConfigLocalValidationError('没有可发布的草稿')
 	}
 
 	await assertSiteConfigDraftLocalAssetsExist(baseDir, draft)
@@ -323,7 +334,7 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 	const configDir = path.join(baseDir, 'src/config')
 	const writes = buildSiteConfigFormalWrites(draft)
 	if (writes.length === 0) {
-		throw new Error('没有可发布的草稿')
+		throw new SiteConfigLocalValidationError('没有可发布的草稿')
 	}
 	const touchedFormal: string[] = []
 	const backups: SiteConfigFormalBackup[] = []
@@ -382,19 +393,20 @@ async function assertSiteConfigDraftLocalAssetsExist(baseDir: string, draft: Sit
 		const repoPath = projectLocalAssetRepoPath(asset.url)
 		if (!repoPath) {
 			if (hasProjectLocalAssetPrefix(asset.url)) {
-				throw new Error(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
+				throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
 			}
 			continue
 		}
 
 		const assetPath = path.join(baseDir, repoPath)
-		try {
-			const stat = await fs.stat(assetPath)
-			if (!stat.isFile()) {
-				throw new Error('not a file')
+		const stat = await fs.stat(assetPath).catch(error => {
+			if (isFileNotFoundError(error)) {
+				throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
 			}
-		} catch {
-			throw new Error(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
+			throw error
+		})
+		if (!stat.isFile()) {
+			throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
 		}
 	}
 }
