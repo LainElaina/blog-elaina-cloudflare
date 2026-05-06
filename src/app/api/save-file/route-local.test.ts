@@ -75,6 +75,30 @@ test('save-file local route rejects invalid JSON content without replacing exist
 	}
 })
 
+test('save-file local route returns 413 for oversized request before JSON parsing', async () => {
+	let jsonCalled = false
+	const response = await handleSaveFile({
+		headers: new Headers({ 'content-length': String(11 * 1024 * 1024 + 1) }),
+		json: async () => {
+			jsonCalled = true
+			throw new Error('json should not be called')
+		}
+	} as any)
+
+	assert.equal(response.status, 413)
+	assert.equal(jsonCalled, false)
+	assert.deepEqual(await response.json(), { error: '文件内容超过 10MB 限制' })
+})
+
+test('save-file local route returns 413 for oversized file content after JSON parsing', async () => {
+	const response = await handleSaveFile({
+		json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'x'.repeat(10 * 1024 * 1024 + 1) })
+	} as any)
+
+	assert.equal(response.status, 413)
+	assert.deepEqual(await response.json(), { error: '文件内容超过 10MB 限制' })
+})
+
 test('save-file local route returns 400 when JSON body is malformed', async () => {
 	const response = await handleSaveFile({
 		json: async () => {
