@@ -102,6 +102,59 @@ test('save-file local route rejects invalid allowlisted JSON shapes without repl
 	}
 })
 
+test('save-file local route rejects unsafe blog artifact slugs without replacing existing files', async () => {
+	for (const [filePath, nextContent] of [
+		[
+			'public/blogs/index.json',
+			JSON.stringify([
+				{
+					slug: 'Post-A',
+					title: 'Post A',
+					tags: [],
+					date: '2026-01-01'
+				}
+			])
+		],
+		[
+			'public/blogs/storage.json',
+			JSON.stringify({
+				version: 1,
+				updatedAt: 'now',
+				blogs: {
+					'Post-A': {
+						slug: 'Post-A',
+						title: 'Post A',
+						tags: [],
+						date: '2026-01-01',
+						status: 'published'
+					}
+				}
+			})
+		]
+	] as const) {
+		const previousCwd = process.cwd()
+		const repoDir = await mkdtemp(join(tmpdir(), 'save-file-blog-slug-'))
+		const previousContent = filePath.endsWith('index.json') ? '[]' : '{"version":1,"updatedAt":"now","blogs":{}}'
+
+		try {
+			await mkdir(join(repoDir, dirname(filePath)), { recursive: true })
+			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
+			process.chdir(repoDir)
+
+			const response = await handleSaveFile({
+				json: async () => ({ path: filePath, content: nextContent })
+			} as any)
+
+			assert.equal(response.status, 400, filePath)
+			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, filePath)
+			assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), previousContent, filePath)
+		} finally {
+			process.chdir(previousCwd)
+			await rm(repoDir, { recursive: true, force: true })
+		}
+	}
+})
+
 test('save-file local route rejects unsafe share storage slugs without replacing existing files', async () => {
 	for (const slug of ['../alpha', 'Alpha']) {
 		const previousCwd = process.cwd()
