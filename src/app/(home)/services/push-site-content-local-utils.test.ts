@@ -29,6 +29,19 @@ const {
 	buildRemovedSiteConfigSocialButtonImagePaths
 } = await import(new URL('../../api/site-config-local-shared.ts', import.meta.url).href)
 
+function buildValidLayout(width: number) {
+	return {
+		musicCard: {
+			width,
+			height: 100,
+			order: 1,
+			offsetX: null,
+			offsetY: null,
+			enabled: true
+		}
+	}
+}
+
 test('buildLocalConfigPayload only includes changed site content', () => {
 	const originalSiteContent = { meta: { title: 'A' }, theme: { colorBrand: '#000' } }
 	const currentSiteContent = { meta: { title: 'B' }, theme: { colorBrand: '#000' } }
@@ -278,7 +291,7 @@ test('保存草稿不直接触碰正式源', async () => {
 
 test('保存草稿可清除已回到正式值的站点设置并保留布局草稿', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-clear-'))
-	const layoutDraft = { musicCard: { width: 120 } }
+	const layoutDraft = buildValidLayout(120)
 	try {
 		await writeSiteConfigDraft(tmpDir, {
 			siteContent: { meta: { title: 'old draft' } },
@@ -299,7 +312,7 @@ test('站点设置草稿保存可清除已回到正式值的布局草稿', async
 	try {
 		await writeSiteConfigDraft(tmpDir, {
 			siteContent: { meta: { title: 'old draft' } },
-			cardStyles: { musicCard: { width: 120 } }
+			cardStyles: buildValidLayout(120)
 		})
 
 		const draft = await writeSiteConfigDraft(
@@ -411,7 +424,7 @@ test('正式保存失败时会回滚已写入的正式源并保留草稿', async
 		const originalSiteContent = JSON.stringify({ meta: { title: 'formal' } }, null, '\t')
 		const draft = {
 			siteContent: { meta: { title: 'draft' } },
-			cardStyles: { musicCard: { width: 120 } }
+			cardStyles: buildValidLayout(120)
 		}
 
 		await fs.writeFile(siteContentPath, originalSiteContent)

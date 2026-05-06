@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isValidLayoutConfig } from './layout/layout-config-validation'
 
 export type SiteConfigDraftPayload = {
 	siteContent?: unknown
@@ -78,7 +79,10 @@ function assertSiteConfigDraftValueShape(key: SiteConfigDraftKey, value: unknown
 	}
 
 	const label = SITE_CONFIG_DRAFT_VALUE_LABELS[key]
-	if ((key === 'siteContent' || key === 'cardStyles') && !isSiteConfigObject(value)) {
+	if (key === 'siteContent' && !isSiteConfigObject(value)) {
+		throw new SiteConfigLocalValidationError(`${label}草稿格式错误`)
+	}
+	if (key === 'cardStyles' && !isValidLayoutConfig(value)) {
 		throw new SiteConfigLocalValidationError(`${label}草稿格式错误`)
 	}
 	if ((key === 'customComponents' || key === 'colorPresets') && !Array.isArray(value)) {

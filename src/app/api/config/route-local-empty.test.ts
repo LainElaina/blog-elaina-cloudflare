@@ -56,6 +56,17 @@ test('local config write rejects non-object JSON payloads', async () => {
 	}
 })
 
+test('local config write rejects invalid card styles payloads', async () => {
+	for (const cardStyles of [[], {}, { musicCard: { width: 120 } }]) {
+		const response = await handleConfigPost({
+			json: async () => ({ cardStyles })
+		} as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '卡片布局配置格式错误' })
+	}
+})
+
 test('local config write rejects empty config payloads', async () => {
 	const response = await handleConfigPost({
 		json: async () => ({})

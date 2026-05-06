@@ -35,10 +35,8 @@ test('layout local route rejects invalid layout payloads before writing layout',
 	const backupIndex = source.indexOf('if (fs.existsSync(LAYOUT_PATH))')
 	const writeIndex = source.indexOf("writeFileAtomically(LAYOUT_PATH, JSON.stringify(layout, null, '\\t'))")
 
-	assert.match(source, /const CARD_STYLE_KEYS = new Set\(\[/)
-	assert.match(source, /function isLayoutCardStyle\(value: unknown\)/)
-	assert.match(source, /function isLayoutPayload\(value: Record<string, unknown>\)/)
-	assert.match(source, /export function isValidLayoutConfig\(value: unknown\) \{\n\s*return isObject\(value\) && isLayoutPayload\(value\)\n\s*\}/)
+	assert.match(source, /import \{ isValidLayoutConfig \} from '\.\/layout-config-validation'/)
+	assert.match(source, /export \{ isValidLayoutConfig \} from '\.\/layout-config-validation'/)
 	assert.match(source, /if \(!isValidLayoutConfig\(layout\)\) \{\n\s*return NextResponse\.json\(\{ error: '布局配置格式错误' \}, \{ status: 400 \}\)\n\s*\}/)
 	assert.ok(validationIndex > 0)
 	assert.ok(backupIndex > validationIndex)

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
-import { isValidLayoutConfig } from '../route-local.ts'
+import { isValidLayoutConfig } from '../layout-config-validation'
 
 function getLayoutPath() {
 	return path.join(process.cwd(), 'src/config/card-styles.json')

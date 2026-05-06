@@ -125,6 +125,7 @@ test('site config publish rejects invalid request payload values without touchin
 	for (const [body, message] of [
 		[{ siteContent: [] }, '站点设置草稿格式错误'],
 		[{ cardStyles: [] }, '卡片布局草稿格式错误'],
+		[{ cardStyles: { musicCard: { width: 120 } } }, '卡片布局草稿格式错误'],
 		[{ customComponents: {} }, '自定义组件草稿格式错误'],
 		[{ colorPresets: {} }, '色彩预设草稿格式错误']
 	] as const) {

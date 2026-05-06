@@ -2,6 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isValidLayoutConfig } from '../layout/layout-config-validation'
 
 const CARD_STYLES_FILE_NAME = 'card-styles.json'
 const LAYOUT_BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
@@ -66,6 +67,13 @@ function hasOnlyConfigWriteKeys(payload: Record<string, unknown>) {
 	return Object.keys(payload).every(key => CONFIG_WRITE_KEYS.has(key))
 }
 
+function assertConfigPayloadShape(payload: { cardStyles?: unknown }) {
+	if (payload.cardStyles !== undefined && !isValidLayoutConfig(payload.cardStyles)) {
+		return NextResponse.json({ error: '卡片布局配置格式错误' }, { status: 400 })
+	}
+	return null
+}
+
 function buildConfigWrites(payload: { siteContent?: unknown; cardStyles?: unknown; customComponents?: unknown; colorPresets?: unknown }): ConfigWrite[] {
 	const writes: ConfigWrite[] = []
 	if (payload.siteContent) {
@@ -107,6 +115,11 @@ export async function handleConfigPost(request: NextRequest) {
 
 		if (!hasOnlyConfigWriteKeys(payload as Record<string, unknown>)) {
 			return NextResponse.json({ error: '请求体包含未知配置项' }, { status: 400 })
+		}
+
+		const shapeErrorResponse = assertConfigPayloadShape(payload as { cardStyles?: unknown })
+		if (shapeErrorResponse) {
+			return shapeErrorResponse
 		}
 
 		const configDir = path.join(process.cwd(), 'src/config')
