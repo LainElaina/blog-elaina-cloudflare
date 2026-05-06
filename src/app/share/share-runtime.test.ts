@@ -346,6 +346,16 @@ describe('share runtime', () => {
 					folderPath: '/design/images'
 				},
 				{
+					name: 'Broken Stars',
+					logo: '/logos/broken-stars.png',
+					url: 'https://broken-stars.dev',
+					description: 'compress dirty score',
+					tags: ['image'],
+					stars: Number.POSITIVE_INFINITY,
+					category: 'tool',
+					folderPath: '/design/images'
+				},
+				{
 					logo: '/logos/missing-name.png',
 					url: 'https://missing-name.dev',
 					description: 'missing name',

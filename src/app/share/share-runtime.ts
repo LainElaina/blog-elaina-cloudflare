@@ -36,7 +36,7 @@ export function normalizeShareRuntimeItems(items: unknown): ShareRuntimeItem[] {
 			typeof share.description !== 'string' ||
 			!Array.isArray(share.tags) ||
 			!share.tags.every(tag => typeof tag === 'string') ||
-			typeof share.stars !== 'number'
+			!Number.isFinite(share.stars)
 		) {
 			return []
 		}
