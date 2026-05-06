@@ -104,6 +104,49 @@ function isAllowedBlogUploadImagePath(projectDir: string, fullPath: string) {
 	}
 }
 
+class MultipartRequestBodyTooLargeError extends Error {
+	constructor() {
+		super('Multipart request body is too large')
+		this.name = 'MultipartRequestBodyTooLargeError'
+	}
+}
+
+function isMultipartRequestBodyTooLargeError(error: unknown) {
+	return error instanceof MultipartRequestBodyTooLargeError
+}
+
+async function buildLimitedMultipartRequest(request: NextRequest, maxBytes: number): Promise<Request | NextRequest> {
+	if (!('body' in request) || !request.body) {
+		return request
+	}
+
+	const reader = request.body.getReader()
+	const chunks: Uint8Array[] = []
+	let totalBytes = 0
+
+	while (true) {
+		const { done, value } = await reader.read()
+		if (done) {
+			break
+		}
+		if (!value) {
+			continue
+		}
+		totalBytes += value.byteLength
+		if (totalBytes > maxBytes) {
+			await reader.cancel().catch(() => undefined)
+			throw new MultipartRequestBodyTooLargeError()
+		}
+		chunks.push(value)
+	}
+
+	return new Request(request.url, {
+		method: request.method,
+		headers: request.headers,
+		body: new Blob(chunks)
+	})
+}
+
 export function isAllowedUploadImagePath(projectDir: string, fullPath: string) {
 	return (
 		ALLOWED_EXACT_UPLOAD_IMAGE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
@@ -158,8 +201,12 @@ export async function handleUploadImage(request: NextRequest) {
 
 		let formData: FormData
 		try {
-			formData = await request.formData()
-		} catch {
+			const limitedRequest = await buildLimitedMultipartRequest(request, MAX_REQUEST_BODY_SIZE)
+			formData = await limitedRequest.formData()
+		} catch (error) {
+			if (isMultipartRequestBodyTooLargeError(error)) {
+				return NextResponse.json({ error: '文件大小超过 10MB 限制' }, { status: 413 })
+			}
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 
