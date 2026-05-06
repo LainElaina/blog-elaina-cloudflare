@@ -65,6 +65,17 @@ test('upload image local route returns 413 for oversized request before multipar
 	assert.deepEqual(await response.json(), { error: '文件大小超过 10MB 限制' })
 })
 
+test('upload image local route returns 413 for oversized file after multipart parsing', async () => {
+	const formData = new FormData()
+	formData.set('file', new File(['x'.repeat(10 * 1024 * 1024 + 1)], 'large.png', { type: 'image/png' }))
+	formData.set('path', 'public/images/share/large.png')
+
+	const response = await handleUploadImage({ formData: async () => formData } as any)
+
+	assert.equal(response.status, 413)
+	assert.deepEqual(await response.json(), { error: '文件大小超过 10MB 限制' })
+})
+
 test('upload image local route returns 400 when multipart body is malformed', async () => {
 	const response = await handleUploadImage({
 		formData: async () => {

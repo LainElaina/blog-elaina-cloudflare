@@ -175,7 +175,7 @@ export async function handleUploadImage(request: NextRequest) {
 		}
 
 		if (file.size > MAX_FILE_SIZE) {
-			return NextResponse.json({ error: '文件大小超过 10MB 限制' }, { status: 400 })
+			return NextResponse.json({ error: '文件大小超过 10MB 限制' }, { status: 413 })
 		}
 
 		const ext = extname(path).toLowerCase()
