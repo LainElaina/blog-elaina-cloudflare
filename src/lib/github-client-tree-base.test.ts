@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import fs from 'node:fs/promises'
-import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo } from './github-client'
+import {
+	createBlob,
+	createCommit,
+	createTree,
+	getRef,
+	GitHubUpdateRefError,
+	isGitHubUpdateRefConflictError,
+	listRepoFilesRecursive,
+	readTextFileFromRepo,
+	updateRef
+} from './github-client'
 
 async function readSource(relativePath: string) {
 	return (await fs.readFile(new URL(relativePath, import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
@@ -26,11 +36,17 @@ afterEach(() => {
 test('createTree resolves a base commit sha to its tree sha before posting', async () => {
 	const source = await readSource('./github-client.ts')
 
-	assert.match(source, /export async function getCommit\(token: string, owner: string, repo: string, commitSha: string\): Promise<\{ sha: string; treeSha: string \}>/)
+	assert.match(
+		source,
+		/export async function getCommit\(token: string, owner: string, repo: string, commitSha: string\): Promise<\{ sha: string; treeSha: string \}>/
+	)
 	assert.match(source, /\/git\/commits\/\$\{encodeURIComponent\(commitSha\)\}/)
 	assert.match(source, /typeof data\?\.sha !== 'string' \|\| typeof data\?\.tree\?\.sha !== 'string'/)
 	assert.match(source, /return \{ sha: data\.sha, treeSha: data\.tree\.sha \}/)
-	assert.match(source, /export async function createTree\(token: string, owner: string, repo: string, tree: TreeItem\[\], baseTreeCommitSha\?: string\): Promise<\{ sha: string \}>/)
+	assert.match(
+		source,
+		/export async function createTree\(token: string, owner: string, repo: string, tree: TreeItem\[\], baseTreeCommitSha\?: string\): Promise<\{ sha: string \}>/
+	)
 	assert.match(source, /const baseTree = baseTreeCommitSha \? \(await getCommit\(token, owner, repo, baseTreeCommitSha\)\)\.treeSha : undefined/)
 	assert.match(source, /body: JSON\.stringify\(\{ tree, base_tree: baseTree \}\)/)
 	assert.doesNotMatch(source, /body: JSON\.stringify\(\{ tree, base_tree: baseTreeCommitSha \}\)/)
@@ -43,6 +59,24 @@ test('GitHub write helpers reject successful responses without sha', async () =>
 	await assert.rejects(() => createTree('token', 'owner', 'repo', []), /create tree failed: invalid response/)
 	await assert.rejects(() => createCommit('token', 'owner', 'repo', 'message', 'tree-sha', ['parent-sha']), /create commit failed: invalid response/)
 	await assert.rejects(() => createBlob('token', 'owner', 'repo', 'content'), /create blob failed: invalid response/)
+})
+
+test('updateRef exposes non-fast-forward 422 errors for publish retries', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'Reference update failed' }), { status: 422 })) as typeof fetch
+
+	await assert.rejects(
+		async () => {
+			await updateRef('token', 'owner', 'repo', 'heads/main', 'next-sha')
+		},
+		error => {
+			assert.equal(error instanceof GitHubUpdateRefError, true)
+			assert.equal(isGitHubUpdateRefConflictError(error), true)
+			assert.match((error as Error).message, /Reference update failed/)
+			return true
+		}
+	)
+	assert.equal(isGitHubUpdateRefConflictError(new GitHubUpdateRefError(422, 'Validation Failed')), false)
+	assert.equal(isGitHubUpdateRefConflictError(new GitHubUpdateRefError(500, 'Reference update failed')), false)
 })
 
 test('readTextFileFromRepo treats only 404 as missing', async () => {
@@ -63,10 +97,7 @@ test('readTextFileFromRepo rejects successful directory payloads instead of trea
 test('readTextFileFromRepo rejects successful file payloads without content', async () => {
 	globalThis.fetch = (async () => new Response(JSON.stringify({ type: 'file', path: 'public/blogs/index.json' }), { status: 200 })) as typeof fetch
 
-	await assert.rejects(
-		() => readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'),
-		/read file failed: invalid response/
-	)
+	await assert.rejects(() => readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'), /read file failed: invalid response/)
 })
 
 test('listRepoFilesRecursive treats only 404 as an empty directory', async () => {
@@ -78,19 +109,13 @@ test('listRepoFilesRecursive treats only 404 as an empty directory', async () =>
 test('listRepoFilesRecursive rejects unknown successful payloads instead of returning an empty list', async () => {
 	globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'unexpected' }), { status: 200 })) as typeof fetch
 
-	await assert.rejects(
-		() => listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'),
-		/read directory failed: invalid response/
-	)
+	await assert.rejects(() => listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'), /read directory failed: invalid response/)
 })
 
 test('listRepoFilesRecursive rejects directory entries without paths', async () => {
 	globalThis.fetch = (async () => new Response(JSON.stringify([{ type: 'file' }]), { status: 200 })) as typeof fetch
 
-	await assert.rejects(
-		() => listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'),
-		/read directory failed: invalid response/
-	)
+	await assert.rejects(() => listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/post-a', 'main'), /read directory failed: invalid response/)
 })
 
 test('remote save flows read existing artifacts from the captured base commit', async () => {

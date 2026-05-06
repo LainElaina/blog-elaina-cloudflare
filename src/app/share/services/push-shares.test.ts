@@ -3,7 +3,12 @@ import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildLocalShareSaveFilePayloads } from './share-artifacts.ts'
-import { buildRemoteShareArtifactContents, buildUnusedShareLogoDeleteTreeItems, buildUnusedShareLogoDeleteTreeItemsForStorage, filterExistingShareLogoDeleteTreeItems } from './push-shares.ts'
+import {
+	buildRemoteShareArtifactContents,
+	buildUnusedShareLogoDeleteTreeItems,
+	buildUnusedShareLogoDeleteTreeItemsForStorage,
+	filterExistingShareLogoDeleteTreeItems
+} from './push-shares.ts'
 
 describe('buildUnusedShareLogoDeleteTreeItems', () => {
 	it('只删除旧列表中不再被当前分享引用的 share 图标文件', () => {
@@ -239,11 +244,7 @@ describe('buildRemoteShareArtifactContents', () => {
 				}
 			}
 		})
-		const localPayloads = buildLocalShareSaveFilePayloads(
-			shares,
-			existingStorageRaw,
-			new Map([['https://alpha-next.dev', 'https://alpha.dev']])
-		)
+		const localPayloads = buildLocalShareSaveFilePayloads(shares, existingStorageRaw, new Map([['https://alpha-next.dev', 'https://alpha.dev']]))
 
 		const artifacts = buildRemoteShareArtifactContents({
 			shares,
@@ -308,10 +309,7 @@ describe('buildRemoteShareArtifactContents', () => {
 		const storage = JSON.parse(artifacts.storage)
 		const list = JSON.parse(artifacts.list)
 		assert.equal(storage.shares.unseen.url, 'https://unseen.dev')
-		assert.deepEqual(
-			list.map((share: { url: string }) => share.url).sort(),
-			['https://current.dev', 'https://unseen.dev']
-		)
+		assert.deepEqual(list.map((share: { url: string }) => share.url).sort(), ['https://current.dev', 'https://unseen.dev'])
 	})
 
 	it('远端发布拒绝 storage key 与 slug 不一致', () => {
@@ -448,6 +446,29 @@ describe('buildRemoteShareArtifactContents', () => {
 		assert.match(source, /buildRemoteShareArtifactContents\(\{[\s\S]*deletedPublishedUrls[\s\S]*\}\)/)
 	})
 
+	it('pushShares 遇到分支并发更新时会重跑完整发布流程一次', async () => {
+		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
+		const attemptStart = source.indexOf('async function attemptPushShares(): Promise<PushSharesResult>')
+		const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
+		const refIndex = source.indexOf('const refData = await getRef', attemptStart)
+		const artifactIndex = source.indexOf('const artifactContents = buildRemoteShareArtifactContents', attemptStart)
+		const updateRefIndex = source.indexOf('await updateRef', attemptStart)
+
+		assert.notEqual(attemptStart, -1)
+		assert.notEqual(retryIndex, -1)
+		assert.notEqual(refIndex, -1)
+		assert.notEqual(artifactIndex, -1)
+		assert.notEqual(updateRefIndex, -1)
+		assert.ok(attemptStart < refIndex)
+		assert.ok(refIndex < artifactIndex)
+		assert.ok(artifactIndex < updateRefIndex)
+		assert.match(
+			source,
+			/try \{\n\s*return await attemptPushShares\(\)\n\s*\} catch \(error\) \{[\s\S]*isGitHubUpdateRefConflictError\(error\)[\s\S]*return attemptPushShares\(\)/
+		)
+		assert.doesNotMatch(source, /isGitHubUpdateRefConflictError\(error\)[\s\S]{0,240}await updateRef/)
+	})
+
 	it('pushShares 图标上传按文件名去重，避免同 hash 不同扩展名混用', async () => {
 		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
 
@@ -465,7 +486,10 @@ describe('buildRemoteShareArtifactContents', () => {
 		assert.match(source, /readTextFileFromRepo\([^\n]*'public\/share\/list\.json', latestCommitSha\)/)
 		assert.match(source, /const previousShares = parsePreviousShareList\(previousListJson\)/)
 		assert.match(source, /const existingShareLogoPaths = await listRepoFilesRecursive\([^\n]*'public\/images\/share', latestCommitSha\)/)
-		assert.match(source, /const deleteTreeItems = filterExistingShareLogoDeleteTreeItems\([\s\S]*buildUnusedShareLogoDeleteTreeItemsForStorage\(previousShares, updatedShares, artifactContents\.storage\)[\s\S]*existingShareLogoPaths[\s\S]*\)/)
+		assert.match(
+			source,
+			/const deleteTreeItems = filterExistingShareLogoDeleteTreeItems\([\s\S]*buildUnusedShareLogoDeleteTreeItemsForStorage\(previousShares, updatedShares, artifactContents\.storage\)[\s\S]*existingShareLogoPaths[\s\S]*\)/
+		)
 		assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
 		assert.match(source, /远程分享列表解析失败/)
 	})

@@ -199,6 +199,36 @@ export async function createCommit(token: string, owner: string, repo: string, m
 	return { sha: getResponseSha(data, 'create commit') }
 }
 
+export class GitHubUpdateRefError extends Error {
+	constructor(
+		readonly status: number,
+		readonly responseMessage?: string
+	) {
+		super(responseMessage ? `update ref failed: ${status} ${responseMessage}` : `update ref failed: ${status}`)
+		this.name = 'GitHubUpdateRefError'
+	}
+}
+
+function isNonFastForwardUpdateRefMessage(message: string | undefined) {
+	return !message || /reference update failed|fast[- ]?forward/i.test(message)
+}
+
+export function isGitHubUpdateRefConflictError(error: unknown) {
+	return error instanceof GitHubUpdateRefError && error.status === 422 && isNonFastForwardUpdateRefMessage(error.responseMessage)
+}
+
+async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
+	try {
+		const data = (await response.clone().json()) as { message?: unknown }
+		if (typeof data.message === 'string') {
+			return data.message
+		}
+	} catch {
+		return undefined
+	}
+	return undefined
+}
+
 export async function updateRef(token: string, owner: string, repo: string, ref: string, sha: string, force = false): Promise<void> {
 	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/git/refs/${encodeURIComponent(ref)}`, {
 		method: 'PATCH',
@@ -211,8 +241,11 @@ export async function updateRef(token: string, owner: string, repo: string, ref:
 		body: JSON.stringify({ sha, force })
 	})
 	if (res.status === 401) handle401Error()
-	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`update ref failed: ${res.status}`)
+	if (res.status === 422) {
+		handle422Error()
+		throw new GitHubUpdateRefError(res.status, await readGitHubErrorMessage(res))
+	}
+	if (!res.ok) throw new GitHubUpdateRefError(res.status, await readGitHubErrorMessage(res))
 }
 
 export async function readTextFileFromRepo(token: string, owner: string, repo: string, path: string, ref: string): Promise<string | null> {

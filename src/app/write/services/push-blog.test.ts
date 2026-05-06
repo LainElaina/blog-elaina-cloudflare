@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
-import { assertCreateBlogSlugAvailable, assertPublishableBlog, buildBlogUpsertItem, buildRemoteArtifactContents, buildUnusedBlogImageDeleteTreeItems, hasExistingBlogSlug, type PushBlogParams } from './push-blog'
+import {
+	assertCreateBlogSlugAvailable,
+	assertPublishableBlog,
+	buildBlogUpsertItem,
+	buildRemoteArtifactContents,
+	buildUnusedBlogImageDeleteTreeItems,
+	hasExistingBlogSlug,
+	type PushBlogParams
+} from './push-blog'
 
 describe('assertPublishableBlog', () => {
 	it('阻止失效本地图片占位符进入正式发布链路', () => {
@@ -77,10 +85,7 @@ describe('create blog slug availability', () => {
 	})
 
 	it('创建模式发现既有文章文件或元数据时应阻止发布', () => {
-		assert.throws(
-			() => assertCreateBlogSlugAvailable({ slug: 'post-1', storageRaw: null, indexRaw: null, hasExistingFiles: true }),
-			/slug 已存在/
-		)
+		assert.throws(() => assertCreateBlogSlugAvailable({ slug: 'post-1', storageRaw: null, indexRaw: null, hasExistingFiles: true }), /slug 已存在/)
 		assert.throws(
 			() =>
 				assertCreateBlogSlugAvailable({
@@ -158,7 +163,10 @@ describe('pushBlog create slug checks', () => {
 		assert.ok(checkIndex < uploadIndex)
 		assert.ok(checkIndex < createFileIndex)
 		assert.match(source, /listRepoFilesRecursive\([\s\S]*?basePath,[^\n]*latestCommitSha\)/)
-		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw,\n\s*indexRaw,\n\s*hasExistingFiles: existingFiles\.length > 0\n\s*\}\)/)
+		assert.match(
+			source,
+			/assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw,\n\s*indexRaw,\n\s*hasExistingFiles: existingFiles\.length > 0\n\s*\}\)/
+		)
 		assert.match(source, /readStorageRaw: async \(\) => storageRaw/)
 		assert.match(source, /fallbackReadIndexRaw: async \(\) => indexRaw/)
 	})
@@ -172,7 +180,10 @@ describe('pushBlog create slug checks', () => {
 		assert.notEqual(createTreeIndex, -1)
 		assert.ok(cleanupIndex < createTreeIndex)
 		assert.match(source, /const existingRepoFiles = await listRepoFilesRecursive\([\s\S]*?basePath,[^\n]*latestCommitSha\)/)
-		assert.match(source, /buildUnusedBlogImageDeleteTreeItems\(\{\n\s*slug: form\.slug,\n\s*existingRepoFiles,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths: new Set\(treeItems\.map\(item => item\.path\)\)\n\s*\}\)/)
+		assert.match(
+			source,
+			/buildUnusedBlogImageDeleteTreeItems\(\{\n\s*slug: form\.slug,\n\s*existingRepoFiles,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths: new Set\(treeItems\.map\(item => item\.path\)\)\n\s*\}\)/
+		)
 	})
 
 	it('远端发布应在创建任何 blob 前完成最终产物构建', async () => {
@@ -192,6 +203,29 @@ describe('pushBlog create slug checks', () => {
 		assert.match(source, /const plannedImageUploads = new Map<string, \{ path: string; img: Extract<ImageItem, \{ type: 'file' \}> \}>\(\)/)
 	})
 
+	it('远端发布遇到分支并发更新时会重跑完整发布流程一次', async () => {
+		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const attemptStart = source.indexOf('async function attemptPushBlog(): Promise<WriteSafetySnapshot>')
+		const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
+		const refIndex = source.indexOf('const refData = await getRef', attemptStart)
+		const artifactIndex = source.indexOf('const artifactContents = await buildRemoteArtifactContents', attemptStart)
+		const updateRefIndex = source.indexOf('await updateRef', attemptStart)
+
+		assert.notEqual(attemptStart, -1)
+		assert.notEqual(retryIndex, -1)
+		assert.notEqual(refIndex, -1)
+		assert.notEqual(artifactIndex, -1)
+		assert.notEqual(updateRefIndex, -1)
+		assert.ok(attemptStart < refIndex)
+		assert.ok(refIndex < artifactIndex)
+		assert.ok(artifactIndex < updateRefIndex)
+		assert.match(
+			source,
+			/try \{\n\s*return await attemptPushBlog\(\)\n\s*\} catch \(error\) \{[\s\S]*isGitHubUpdateRefConflictError\(error\)[\s\S]*return attemptPushBlog\(\)/
+		)
+		assert.doesNotMatch(source, /isGitHubUpdateRefConflictError\(error\)[\s\S]{0,240}await updateRef/)
+	})
+
 	it('本地创建模式应在图片上传前检查重复 slug', async () => {
 		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 		const checkIndex = source.indexOf("if (mode === 'create')")
@@ -202,22 +236,46 @@ describe('pushBlog create slug checks', () => {
 		assert.ok(checkIndex < uploadIndex)
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/index\.md`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /fetch\(`\/blogs\/\$\{form\.slug\}\/config\.json`, \{ cache: 'no-store' \}\)/)
-		assert.match(source, /async function readOptionalLocalBlogText\(response: Response, actionName: string\): Promise<string \| null> \{\n\s*if \(response\.status === 404\) \{\n\s*return null\n\s*\}\n\s*await assertOk\(response, actionName\)/)
-		assert.match(source, /async function assertOptionalLocalBlogFileReadable\(response: Response, actionName: string\): Promise<boolean> \{\n\s*if \(response\.status === 404\) \{\n\s*return false\n\s*\}\n\s*await assertOk\(response, actionName\)/)
-		assert.match(source, /const hasExistingMarkdown = await assertOptionalLocalBlogFileReadable\(mdResponse, '读取文章 Markdown'\)\n\s*const hasExistingConfig = await assertOptionalLocalBlogFileReadable\(configResponse, '读取文章配置'\)/)
-		assert.match(source, /assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: await readOptionalLocalBlogText\(storageResponse, '读取博客存储'\),\n\s*indexRaw: await readOptionalLocalBlogText\(indexResponse, '读取博客索引'\),\n\s*hasExistingFiles: hasExistingMarkdown \|\| hasExistingConfig\n\s*\}\)/)
+		assert.match(
+			source,
+			/async function readOptionalLocalBlogText\(response: Response, actionName: string\): Promise<string \| null> \{\n\s*if \(response\.status === 404\) \{\n\s*return null\n\s*\}\n\s*await assertOk\(response, actionName\)/
+		)
+		assert.match(
+			source,
+			/async function assertOptionalLocalBlogFileReadable\(response: Response, actionName: string\): Promise<boolean> \{\n\s*if \(response\.status === 404\) \{\n\s*return false\n\s*\}\n\s*await assertOk\(response, actionName\)/
+		)
+		assert.match(
+			source,
+			/const hasExistingMarkdown = await assertOptionalLocalBlogFileReadable\(mdResponse, '读取文章 Markdown'\)\n\s*const hasExistingConfig = await assertOptionalLocalBlogFileReadable\(configResponse, '读取文章配置'\)/
+		)
+		assert.match(
+			source,
+			/assertCreateBlogSlugAvailable\(\{\n\s*slug: form\.slug,\n\s*storageRaw: await readOptionalLocalBlogText\(storageResponse, '读取博客存储'\),\n\s*indexRaw: await readOptionalLocalBlogText\(indexResponse, '读取博客索引'\),\n\s*hasExistingFiles: hasExistingMarkdown \|\| hasExistingConfig\n\s*\}\)/
+		)
 		assert.doesNotMatch(source, /storageRaw: storageResponse\.ok \? await storageResponse\.text\(\) : null/)
 		assert.doesNotMatch(source, /indexRaw: indexResponse\.ok \? await indexResponse\.text\(\) : null/)
 		assert.doesNotMatch(source, /hasExistingFiles: mdResponse\.ok \|\| configResponse\.ok/)
-		assert.match(source, /readStorageRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/storage\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客存储'\)/)
-		assert.match(source, /fallbackReadIndexRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/index\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客索引'\)/)
+		assert.match(
+			source,
+			/readStorageRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/storage\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客存储'\)/
+		)
+		assert.match(
+			source,
+			/fallbackReadIndexRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/index\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客索引'\)/
+		)
 	})
 
 	it('本地删除模式应在重建产物前安全读取现有索引', async () => {
 		const source = (await fs.readFile(new URL('../hooks/use-publish.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-		assert.match(source, /const artifactContents = await buildDeleteArtifactContents\(\{\n\s*slug: targetSlug,\n\s*readStorageRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/storage\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客存储'\)/)
-		assert.match(source, /fallbackReadIndexRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/index\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客索引'\)/)
+		assert.match(
+			source,
+			/const artifactContents = await buildDeleteArtifactContents\(\{\n\s*slug: targetSlug,\n\s*readStorageRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/storage\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客存储'\)/
+		)
+		assert.match(
+			source,
+			/fallbackReadIndexRaw: async \(\) => \{\n\s*const response = await fetch\('\/blogs\/index\.json', \{ cache: 'no-store' \}\)\n\s*return readOptionalLocalBlogText\(response, '读取博客索引'\)/
+		)
 		assert.doesNotMatch(source, /return response\.ok \? response\.text\(\) : null/)
 	})
 
@@ -235,9 +293,15 @@ describe('pushBlog create slug checks', () => {
 		assert.ok(readPreviousIndex < savePayloadIndex)
 		assert.ok(savePayloadIndex < cleanupIndex)
 		assert.ok(cleanupIndex < snapshotIndex)
-		assert.match(source, /function buildLocalUnusedBlogImagePaths\(params: \{[\s\S]*?const previousRepoPaths = collectBlogImageRepoPaths\(\{[\s\S]*?previousMarkdown[\s\S]*?previousCoverPath[\s\S]*?return buildUnusedBlogImageDeleteTreeItems\(\{[\s\S]*?existingRepoFiles: Array\.from\(previousRepoPaths\),[\s\S]*?markdown: params\.markdown,[\s\S]*?protectedRepoPaths: params\.protectedRepoPaths[\s\S]*?\}\)\.map\(item => item\.path\)/)
+		assert.match(
+			source,
+			/function buildLocalUnusedBlogImagePaths\(params: \{[\s\S]*?const previousRepoPaths = collectBlogImageRepoPaths\(\{[\s\S]*?previousMarkdown[\s\S]*?previousCoverPath[\s\S]*?return buildUnusedBlogImageDeleteTreeItems\(\{[\s\S]*?existingRepoFiles: Array\.from\(previousRepoPaths\),[\s\S]*?markdown: params\.markdown,[\s\S]*?protectedRepoPaths: params\.protectedRepoPaths[\s\S]*?\}\)\.map\(item => item\.path\)/
+		)
 		assert.match(source, /const filePath = `\$\{basePath\}\/\$\{filename\}`\n\s*protectedRepoPaths\.add\(filePath\)\n\s*await uploadLocalBlogPublishImage/)
-		assert.match(source, /if \(mode === 'edit' && previousImageState\) \{\n\s*await cleanupUnusedLocalBlogImages\(\n\s*buildLocalUnusedBlogImagePaths\(\{\n\s*slug: form\.slug,\n\s*previousMarkdown: previousImageState\.markdown,\n\s*previousCoverPath: previousImageState\.coverPath,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths\n\s*\}\)\n\s*\)\n\s*\}/)
+		assert.match(
+			source,
+			/if \(mode === 'edit' && previousImageState\) \{\n\s*await cleanupUnusedLocalBlogImages\(\n\s*buildLocalUnusedBlogImagePaths\(\{\n\s*slug: form\.slug,\n\s*previousMarkdown: previousImageState\.markdown,\n\s*previousCoverPath: previousImageState\.coverPath,\n\s*markdown: mdToUpload,\n\s*coverPath,\n\s*protectedRepoPaths\n\s*\}\)\n\s*\)\n\s*\}/
+		)
 		assert.match(source, /fetch\(`\/blogs\/\$\{slug\}\/index\.md`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /fetch\(`\/blogs\/\$\{slug\}\/config\.json`, \{ cache: 'no-store' \}\)/)
 		assert.match(source, /const previousMarkdown = await readOptionalLocalBlogText\(markdownResponse, '读取旧文章 Markdown'\)/)
@@ -287,7 +351,10 @@ describe('pushBlog image upload de-duplication', () => {
 		assert.match(source, /const uploadedImagePaths = new Map<string, string>\(\)/)
 		assert.match(source, /const publicPath = `\/blogs\/\$\{form\.slug\}\/\$\{filename\}`\n\s*const uploadKey = filename/)
 		assert.match(source, /if \(!uploadedImagePaths\.has\(uploadKey\)\) \{[\s\S]*?uploadedImagePaths\.set\(uploadKey, publicPath\)[\s\S]*?\}/)
-		assert.match(source, /const uploadedPath = uploadedImagePaths\.get\(uploadKey\)!\n\s*placeholderReplacements\.set\(id, uploadedPath\)\n\s*imagePaths\.set\(id, uploadedPath\)/)
+		assert.match(
+			source,
+			/const uploadedPath = uploadedImagePaths\.get\(uploadKey\)!\n\s*placeholderReplacements\.set\(id, uploadedPath\)\n\s*imagePaths\.set\(id, uploadedPath\)/
+		)
 		assert.match(source, /coverPath = uploadedPath/)
 		assert.doesNotMatch(source, /uploadedImagePaths\.has\(hash\)/)
 		assert.doesNotMatch(source, /uploadedImagePaths\.set\(hash, publicPath\)/)
