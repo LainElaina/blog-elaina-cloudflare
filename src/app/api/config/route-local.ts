@@ -72,14 +72,34 @@ function hasOnlyConfigWriteKeys(payload: Record<string, unknown>) {
 	return Object.keys(payload).every(key => CONFIG_WRITE_KEYS.has(key))
 }
 
-function assertConfigPayloadShape(payload: { cardStyles?: unknown }) {
+type ConfigWritePayload = {
+	siteContent?: unknown
+	cardStyles?: unknown
+	customComponents?: unknown
+	colorPresets?: unknown
+}
+
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function assertConfigPayloadShape(payload: ConfigWritePayload) {
+	if (payload.siteContent !== undefined && !isConfigObject(payload.siteContent)) {
+		return NextResponse.json({ error: '站点设置配置格式错误' }, { status: 400 })
+	}
 	if (payload.cardStyles !== undefined && !isValidLayoutConfig(payload.cardStyles)) {
 		return NextResponse.json({ error: '卡片布局配置格式错误' }, { status: 400 })
+	}
+	if (payload.customComponents !== undefined && !Array.isArray(payload.customComponents)) {
+		return NextResponse.json({ error: '自定义组件配置格式错误' }, { status: 400 })
+	}
+	if (payload.colorPresets !== undefined && !Array.isArray(payload.colorPresets)) {
+		return NextResponse.json({ error: '色彩预设配置格式错误' }, { status: 400 })
 	}
 	return null
 }
 
-function buildConfigWrites(payload: { siteContent?: unknown; cardStyles?: unknown; customComponents?: unknown; colorPresets?: unknown }): ConfigWrite[] {
+function buildConfigWrites(payload: ConfigWritePayload): ConfigWrite[] {
 	const writes: ConfigWrite[] = []
 	if (payload.siteContent) {
 		writes.push({ fileName: 'site-content.json', content: JSON.stringify(payload.siteContent, null, '\t') })
@@ -123,13 +143,14 @@ export async function handleConfigPost(request: NextRequest) {
 			return NextResponse.json({ error: '请求体包含未知配置项' }, { status: 400 })
 		}
 
-		const shapeErrorResponse = assertConfigPayloadShape(payload as { cardStyles?: unknown })
+		const configPayload = payload as ConfigWritePayload
+		const shapeErrorResponse = assertConfigPayloadShape(configPayload)
 		if (shapeErrorResponse) {
 			return shapeErrorResponse
 		}
 
 		const configDir = path.join(process.cwd(), 'src/config')
-		const writes = buildConfigWrites(payload)
+		const writes = buildConfigWrites(configPayload)
 		if (writes.length === 0) {
 			return NextResponse.json({ error: '缺少可写配置项' }, { status: 400 })
 		}

@@ -139,6 +139,47 @@ test('local config write rejects invalid card styles payloads', async () => {
 	}
 })
 
+test('local config write rejects invalid config payload values without touching formal files', async () => {
+	for (const { body, targetFile, original, message } of [
+		{
+			body: { siteContent: [] },
+			targetFile: 'site-content.json',
+			original: { meta: { title: 'formal' } },
+			message: '站点设置配置格式错误'
+		},
+		{
+			body: { customComponents: {} },
+			targetFile: 'custom-components.json',
+			original: [{ name: 'formal' }],
+			message: '自定义组件配置格式错误'
+		},
+		{
+			body: { colorPresets: {} },
+			targetFile: 'color-presets.json',
+			original: [{ name: 'formal' }],
+			message: '色彩预设配置格式错误'
+		}
+	] as const) {
+		await withTemporaryCwd(async tmpDir => {
+			const formalPath = path.join(tmpDir, 'src/config', targetFile)
+			await fs.mkdir(path.dirname(formalPath), { recursive: true })
+			await fs.writeFile(formalPath, JSON.stringify(original, null, '\t'))
+
+			const response = await handleConfigPost(
+				new Request('http://localhost/api/config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body)
+				}) as any
+			)
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(await response.json(), { error: message })
+			assert.deepEqual(JSON.parse(await fs.readFile(formalPath, 'utf-8')), original)
+		})
+	}
+})
+
 test('local config write rejects empty config payloads', async () => {
 	const response = await handleConfigPost({
 		json: async () => ({})
