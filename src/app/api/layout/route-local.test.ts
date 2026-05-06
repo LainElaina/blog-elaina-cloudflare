@@ -28,15 +28,27 @@ test('layout local route returns 400 when JSON body is malformed', async () => {
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
 
-test('layout local route rejects non-object JSON before writing layout', async () => {
+test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
-	const validationIndex = source.indexOf("if (!layout || typeof layout !== 'object' || Array.isArray(layout))")
+	const validationIndex = source.indexOf('if (!isObject(layout) || !isLayoutPayload(layout))')
 	const backupIndex = source.indexOf('if (fs.existsSync(LAYOUT_PATH))')
 	const writeIndex = source.indexOf("writeFileAtomically(LAYOUT_PATH, JSON.stringify(layout, null, '\\t'))")
 
-	assert.match(source, /if \(!layout \|\| typeof layout !== 'object' \|\| Array\.isArray\(layout\)\) \{\n\s*return NextResponse\.json\(\{ error: '请求体格式错误' \}, \{ status: 400 \}\)\n\s*\}/)
+	assert.match(source, /const CARD_STYLE_KEYS = new Set\(\[/)
+	assert.match(source, /function isLayoutCardStyle\(value: unknown\)/)
+	assert.match(source, /function isLayoutPayload\(value: Record<string, unknown>\)/)
+	assert.match(source, /if \(!isObject\(layout\) \|\| !isLayoutPayload\(layout\)\) \{\n\s*return NextResponse\.json\(\{ error: '布局配置格式错误' \}, \{ status: 400 \}\)\n\s*\}/)
 	assert.ok(validationIndex > 0)
 	assert.ok(backupIndex > validationIndex)
 	assert.ok(writeIndex > validationIndex)
+
+	for (const payload of [null, [], {}, { badCard: { width: 1, height: 1, order: 1, offsetX: null, offsetY: null, enabled: true } }, { artCard: { width: Number.NaN, height: 1, order: 1, offsetX: null, offsetY: null, enabled: true } }]) {
+		const response = await handleLayoutPost({
+			json: async () => payload
+		} as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '布局配置格式错误' })
+	}
 })
