@@ -9,6 +9,7 @@ import { pushProjects } from './services/push-projects'
 import { useAuthStore } from '@/hooks/use-auth'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
 import initialList from './list.json'
+import { normalizeProjectRuntimeItems } from './projects-runtime'
 import type { ImageItem } from './components/image-upload-dialog'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { getFileExt } from '@/lib/utils'
@@ -28,9 +29,11 @@ const assertOk = async (response: Response, actionName: string) => {
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
+const initialProjects = normalizeProjectRuntimeItems(initialList)
+
 export default function Page() {
-	const [projects, setProjects] = useState<Project[]>(initialList as Project[])
-	const [originalProjects, setOriginalProjects] = useState<Project[]>(initialList as Project[])
+	const [projects, setProjects] = useState<Project[]>(initialProjects)
+	const [originalProjects, setOriginalProjects] = useState<Project[]>(initialProjects)
 	const [isEditMode, setIsEditMode] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 	const [editingProject, setEditingProject] = useState<Project | null>(null)
