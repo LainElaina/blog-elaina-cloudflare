@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { fetchBlogIndex, getLatestBlogItem } from './use-blog-index.ts'
+import { fetchBlogIndex, getLatestBlogItem, normalizeBlogIndexItems } from './use-blog-index.ts'
 
 function mockFetchResponse(response: { ok: boolean; status: number; json?: () => Promise<unknown> }) {
 	const originalFetch = globalThis.fetch
@@ -31,6 +31,64 @@ describe('fetchBlogIndex', () => {
 		} finally {
 			restoreFetch()
 		}
+	})
+
+	it('读取成功后会过滤无效索引项并归一化标签', async () => {
+		const restoreFetch = mockFetchResponse({
+			ok: true,
+			status: 200,
+			json: async () => [
+				{ slug: 'valid', title: 'Valid', date: '2026-04-01T00:00:00.000Z', tags: ['a', 1, 'b'], hidden: 'false', favorite: true },
+				{ slug: 'missing-title', date: '2026-04-01T00:00:00.000Z', tags: ['x'] },
+				null
+			]
+		})
+		try {
+			const items = await fetchBlogIndex('/blogs/index.json')
+
+			assert.deepEqual(items, [
+				{
+					slug: 'valid',
+					title: 'Valid',
+					date: '2026-04-01T00:00:00.000Z',
+					tags: ['a', 'b'],
+					summary: undefined,
+					cover: undefined,
+					hidden: false,
+					category: undefined,
+					folderPath: undefined,
+					favorite: true
+				}
+			])
+		} finally {
+			restoreFetch()
+		}
+	})
+})
+
+
+describe('normalizeBlogIndexItems', () => {
+	it('过滤缺少核心字段的索引项并丢弃非字符串可选字段', () => {
+		const items = normalizeBlogIndexItems([
+			{ slug: 'a', title: 'A', date: '2026-01-01T00:00:00.000Z', tags: ['x', false], summary: 1, folderPath: '/技术', hidden: false },
+			{ slug: 'b', title: 'B', tags: [] },
+			'bad'
+		])
+
+		assert.deepEqual(items, [
+			{
+				slug: 'a',
+				title: 'A',
+				date: '2026-01-01T00:00:00.000Z',
+				tags: ['x'],
+				summary: undefined,
+				cover: undefined,
+				hidden: false,
+				category: undefined,
+				folderPath: '/技术',
+				favorite: undefined
+			}
+		])
 	})
 })
 
