@@ -223,9 +223,18 @@ export async function canPublishSiteConfigDraft(baseDir: string) {
 }
 
 export async function resolveSiteConfigPublishPayload(baseDir: string, payload: SiteConfigDraftPayload) {
+	const requestKeys = Object.keys(payload as Record<string, unknown>)
+	const unsupportedKey = requestKeys.find(key => !SITE_CONFIG_DRAFT_KEYS.includes(key as SiteConfigDraftKey))
+	if (unsupportedKey) {
+		throw new SiteConfigLocalValidationError(`站点配置发布请求包含不支持的字段：${unsupportedKey}`)
+	}
+
 	const pickedPayload = pickSiteConfigDraftPayload(payload)
 	if (hasSiteConfigDraftPayload(pickedPayload)) {
 		return pickedPayload
+	}
+	if (requestKeys.length > 0) {
+		throw new SiteConfigLocalValidationError('没有可发布的草稿')
 	}
 
 	const draft = await readSiteConfigDraft(baseDir)
