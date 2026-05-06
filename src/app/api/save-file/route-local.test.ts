@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
@@ -46,7 +46,7 @@ test('save-file local route creates parent directories without an existence prec
 test('save-file local route replaces files atomically', async () => {
 	const source = await import('node:fs/promises').then(fs => fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8'))
 
-	assert.match(source, /import \{ mkdir, rename, rm, writeFile \} from 'fs\/promises'/)
+	assert.match(source, /import \{ mkdir, realpath, rename, rm, writeFile \} from 'fs\/promises'/)
 	assert.match(source, /function buildAtomicSaveTempPath\(fullPath: string\)/)
 	assert.match(source, /await writeFile\(tempPath, content, 'utf-8'\)\n\t\tawait rename\(tempPath, fullPath\)/)
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
@@ -194,6 +194,29 @@ test('save-file local route rejects unsafe share storage slugs without replacing
 			process.chdir(previousCwd)
 			await rm(repoDir, { recursive: true, force: true })
 		}
+	}
+})
+
+test('save-file local route rejects allowlisted paths under symlinked parent directories', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-symlink-'))
+	const outsideDir = await mkdtemp(join(tmpdir(), 'save-file-outside-'))
+	try {
+		await mkdir(join(repoDir, 'public'), { recursive: true })
+		await symlink(outsideDir, join(repoDir, 'public/blogs'))
+		process.chdir(repoDir)
+
+		const response = await handleSaveFile({
+			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'escaped' })
+		} as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '保存失败' })
+		await assert.rejects(() => readFile(join(outsideDir, 'post-a/index.md'), 'utf-8'), /ENOENT/)
+	} finally {
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
+		await rm(outsideDir, { recursive: true, force: true })
 	}
 })
 
