@@ -28,6 +28,20 @@ export type SharePageState = {
 	runtime: ShareRuntimeSnapshot
 }
 
+function normalizeShareCategoriesArtifact(input: unknown): ShareCategoriesArtifact {
+	if (Array.isArray(input)) {
+		return { categories: normalizeShareRuntimeCategories(input) }
+	}
+
+	if (!input || typeof input !== 'object') {
+		return { categories: [] }
+	}
+
+	return {
+		categories: normalizeShareRuntimeCategories((input as Record<string, unknown>).categories)
+	}
+}
+
 function createDefaultFilters(overrides: Partial<ShareRuntimeFilters> = {}): ShareRuntimeFilters {
 	return {
 		activeDirectory: overrides.activeDirectory ?? SHARE_DIRECTORY_ALL,
@@ -195,9 +209,7 @@ export function createSharePageState(input: {
 	return rebuildSharePageState({
 		artifacts: {
 			list: normalizeShareRuntimeItems(input.listArtifact),
-			categories: {
-				categories: normalizeShareRuntimeCategories(input.categoriesArtifact.categories)
-			},
+			categories: normalizeShareCategoriesArtifact(input.categoriesArtifact),
 			folders: normalizeShareFolderNodes(input.foldersArtifact)
 		},
 		filters: createDefaultFilters(input.filters),
@@ -219,9 +231,7 @@ export function replaceSharePageArtifacts(
 	return rebuildSharePageState({
 		artifacts: {
 			list: normalizeShareRuntimeItems(nextArtifacts.listArtifact),
-			categories: {
-				categories: normalizeShareRuntimeCategories(nextArtifacts.categoriesArtifact.categories)
-			},
+			categories: normalizeShareCategoriesArtifact(nextArtifacts.categoriesArtifact),
 			folders: normalizeShareFolderNodes(nextArtifacts.foldersArtifact)
 		},
 		filters: state.filters,

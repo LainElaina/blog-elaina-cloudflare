@@ -230,6 +230,30 @@ describe('share page state', () => {
 		assert.deepEqual(state.runtime.availableCategories, ['all', 'inspiration', 'tool'])
 	})
 
+	it('初始 state 兼容 null 或旧数组格式的 categories artifact', () => {
+		const nullCategoriesState = createSharePageState({
+			listArtifact,
+			categoriesArtifact: null as unknown as ShareCategoriesArtifact,
+			foldersArtifact
+		})
+		const legacyCategoriesState = createSharePageState({
+			listArtifact,
+			categoriesArtifact: ['tool', 1, 'inspiration'] as unknown as ShareCategoriesArtifact,
+			foldersArtifact,
+			filters: {
+				activeDirectory: '/design',
+				activeCategory: 'tool',
+				searchTerm: '',
+				selectedTag: SHARE_CATEGORY_ALL
+			}
+		})
+
+		assert.deepEqual(nullCategoriesState.artifacts.categories, { categories: [] })
+		assert.deepEqual(nullCategoriesState.runtime.availableCategories, ['all'])
+		assert.deepEqual(legacyCategoriesState.artifacts.categories, { categories: ['tool', 'inspiration'] })
+		assert.deepEqual(legacyCategoriesState.runtime.availableCategories, ['all', 'tool', 'inspiration'])
+	})
+
 	it('目录树直接消费 folders.json', () => {
 		const state = createState()
 
