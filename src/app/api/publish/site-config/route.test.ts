@@ -174,6 +174,30 @@ test('site config publish rejects invalid request payload values without touchin
 	}
 })
 
+test('site config publish rejects malformed saved draft without touching formal config', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, '{invalid json')
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: { meta: { title: 'current publish' } } })
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '站点配置草稿解析失败，请修复 data/site-config.draft.json 后重试' })
+		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
+		assert.equal(await fs.readFile(draftPath, 'utf-8'), '{invalid json')
+	})
+})
+
 test('site config publish rejects invalid saved draft values without touching formal config', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		const formalPath = path.join(tmpDir, 'src/config/custom-components.json')

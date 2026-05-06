@@ -9,13 +9,17 @@ export async function GET() {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { buildSiteConfigDraftItems, readSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
-	const draft = await readSiteConfigDraft(process.cwd())
-	if (!draft) {
-		return NextResponse.json({ hasDraft: false, items: [] })
-	}
+	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, readSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
+	try {
+		const draft = await readSiteConfigDraft(process.cwd())
+		if (!draft) {
+			return NextResponse.json({ hasDraft: false, items: [] })
+		}
 
-	return NextResponse.json({ hasDraft: true, items: buildSiteConfigDraftItems(draft) })
+		return NextResponse.json({ hasDraft: true, items: buildSiteConfigDraftItems(draft) })
+	} catch (error: any) {
+		return NextResponse.json({ error: error.message }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
+	}
 }
 
 export async function POST(request: NextRequest) {

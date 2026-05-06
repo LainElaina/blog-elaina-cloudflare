@@ -94,6 +94,40 @@ test('site config draft rejects non-object JSON without writing draft', async ()
 	}
 })
 
+test('site config draft returns 400 for malformed saved draft instead of 500', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'data/site-config.draft.json'), '{invalid json')
+
+		const response = await GET()
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '站点配置草稿解析失败，请修复 data/site-config.draft.json 后重试' })
+	})
+})
+
+test('site config draft rejects writes when saved draft is malformed', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, '{invalid json')
+
+		const response = await POST(
+			new Request('http://localhost/api/drafts/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: { meta: { title: 'new draft' } } })
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '站点配置草稿解析失败，请修复 data/site-config.draft.json 后重试' })
+		assert.equal(await fs.readFile(draftPath, 'utf-8'), '{invalid json')
+	})
+})
+
 test('site config draft ignores unknown keys instead of keeping ghost drafts', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })

@@ -119,11 +119,11 @@ function parseSiteConfigDraftRaw(raw: string): SiteConfigDraftPayload {
 	try {
 		parsed = JSON.parse(raw)
 	} catch {
-		throw new Error('站点配置草稿解析失败，请修复 data/site-config.draft.json 后重试')
+		throw new SiteConfigLocalValidationError('站点配置草稿解析失败，请修复 data/site-config.draft.json 后重试')
 	}
 
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-		throw new Error('站点配置草稿格式错误，请修复 data/site-config.draft.json 后重试')
+		throw new SiteConfigLocalValidationError('站点配置草稿格式错误，请修复 data/site-config.draft.json 后重试')
 	}
 
 	return pickSiteConfigDraftPayload(parsed as SiteConfigDraftPayload)
