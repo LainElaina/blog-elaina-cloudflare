@@ -1,4 +1,4 @@
-import { rm, stat } from 'fs/promises'
+import { lstat, rm } from 'fs/promises'
 import { relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -49,7 +49,7 @@ export async function handleDeleteDir(request: NextRequest) {
 		}
 
 		try {
-			const targetStat = await stat(fullPath)
+			const targetStat = await lstat(fullPath)
 			if (!targetStat.isDirectory()) {
 				return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
 			}
