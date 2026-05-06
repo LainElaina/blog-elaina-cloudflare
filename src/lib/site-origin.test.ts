@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 import blogIndex from '@/../public/blogs/index.json'
 import { siteMetadata } from '@/app/site-metadata'
 import { GET as getRss } from '@/app/rss.xml/route'
-import sitemap from '@/app/sitemap'
+import { buildSitemapEntries, default as sitemap } from '@/app/sitemap'
 import { CANONICAL_SITE_ORIGIN, getSiteOrigin, toAbsoluteSiteUrl } from './site-origin'
 
 describe('site origin helper', () => {
@@ -89,5 +89,24 @@ describe('site canonical URL generation', () => {
 		} finally {
 			;(blogIndex as Array<{ slug: string; title?: string; hidden?: boolean }>).pop()
 		}
+	})
+
+	it('ignores malformed sitemap blog index data instead of failing generation', () => {
+		const entriesFromObject = buildSitemapEntries({ blogs: [] })
+		assert.deepEqual(
+			entriesFromObject.map(entry => entry.url),
+			[getSiteOrigin()]
+		)
+
+		const entries = buildSitemapEntries([
+			null,
+			{ slug: 'valid-post', date: '2026-01-01T00:00:00.000Z' },
+			{ slug: '', date: '2026-01-01T00:00:00.000Z' },
+			{ title: 'missing slug' },
+			{ slug: 'hidden-post', hidden: true }
+		])
+
+		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/valid-post')), true)
+		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/hidden-post')), false)
 	})
 })
