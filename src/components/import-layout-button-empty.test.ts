@@ -49,3 +49,15 @@ test('layout config import filters invalid cached item arrays', async () => {
 	assert.doesNotMatch(source, /JSON\.stringify\(config\.componentFavorites\)/)
 	assert.doesNotMatch(source, /JSON\.stringify\(config\.templates\)/)
 })
+
+test('layout config import rejects non-finite style numbers', async () => {
+	const source = await fs.readFile(new URL('./import-layout-button.tsx', import.meta.url), 'utf-8')
+
+	assert.match(source, /function isFiniteNumber\(value: unknown\): value is number \{\n\s*return typeof value === 'number' && Number\.isFinite\(value\)\n\}/)
+	assert.match(source, /return isFiniteNumber\(value\.width\) &&\n\s*isFiniteNumber\(value\.height\) &&\n\s*isFiniteNumber\(value\.order\) &&\n\s*\(isFiniteNumber\(value\.offsetX\) \|\| value\.offsetX === null\) &&\n\s*\(isFiniteNumber\(value\.offsetY\) \|\| value\.offsetY === null\)/)
+	assert.match(source, /isFiniteNumber\(style\.width\) &&\n\s*isFiniteNumber\(style\.height\) &&\n\s*isFiniteNumber\(style\.order\) &&\n\s*\(isFiniteNumber\(style\.offsetX\) \|\| style\.offsetX === null\) &&\n\s*\(isFiniteNumber\(style\.offsetY\) \|\| style\.offsetY === null\)/)
+	assert.match(source, /'offset' in currentStyle && isFiniteNumber\(style\.offset\)/)
+	assert.doesNotMatch(source, /typeof value\.width === 'number'/)
+	assert.doesNotMatch(source, /typeof style\.width === 'number'/)
+	assert.doesNotMatch(source, /typeof style\.offset === 'number'/)
+})

@@ -13,14 +13,18 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value)
+}
+
 function isCardStyleLike(value: unknown): value is { width: number; height: number; order: number; offsetX: number | null; offsetY: number | null; enabled: boolean; offset?: unknown } {
 	if (!isObject(value)) return false
 
-	return typeof value.width === 'number' &&
-		typeof value.height === 'number' &&
-		typeof value.order === 'number' &&
-		(typeof value.offsetX === 'number' || value.offsetX === null) &&
-		(typeof value.offsetY === 'number' || value.offsetY === null) &&
+	return isFiniteNumber(value.width) &&
+		isFiniteNumber(value.height) &&
+		isFiniteNumber(value.order) &&
+		(isFiniteNumber(value.offsetX) || value.offsetX === null) &&
+		(isFiniteNumber(value.offsetY) || value.offsetY === null) &&
 		typeof value.enabled === 'boolean'
 }
 
@@ -42,7 +46,7 @@ function sanitizeCardStyles(value: unknown, currentCardStyles: CardStyles): Card
 				offsetX: style.offsetX,
 				offsetY: style.offsetY,
 				enabled: style.enabled,
-				...('offset' in currentStyle && typeof style.offset === 'number' ? { offset: style.offset } : {})
+				...('offset' in currentStyle && isFiniteNumber(style.offset) ? { offset: style.offset } : {})
 			}
 			hasValidStyle = true
 		}
@@ -61,11 +65,11 @@ function isComponentLike(value: unknown): boolean {
 		typeof value.templateId === 'string' &&
 		(type === 'text' || type === 'image' || type === 'link' || type === 'iframe' || type === 'custom') &&
 		isObject(style) &&
-		typeof style.width === 'number' &&
-		typeof style.height === 'number' &&
-		typeof style.order === 'number' &&
-		(typeof style.offsetX === 'number' || style.offsetX === null) &&
-		(typeof style.offsetY === 'number' || style.offsetY === null) &&
+		isFiniteNumber(style.width) &&
+		isFiniteNumber(style.height) &&
+		isFiniteNumber(style.order) &&
+		(isFiniteNumber(style.offsetX) || style.offsetX === null) &&
+		(isFiniteNumber(style.offsetY) || style.offsetY === null) &&
 		typeof style.enabled === 'boolean' &&
 		isObject(content)
 }
