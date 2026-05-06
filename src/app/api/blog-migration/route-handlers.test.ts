@@ -65,6 +65,44 @@ describe('blog migration routes', () => {
 		assert.equal(response.body.message, '执行前需要明确确认')
 	})
 
+	it('preview route 拒绝非法博客正式产物结构', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(join(context.repoDir, 'public/blogs/index.json'), JSON.stringify({ blogs: [] }, null, 2))
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/index.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('execute route 拒绝非法博客正式产物结构且不会写回', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			const invalidIndex = JSON.stringify({ blogs: [] }, null, 2)
+			await writeFile(join(context.repoDir, 'public/blogs/index.json'), invalidIndex)
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.equal(await readFile(join(context.repoDir, 'public/blogs/index.json'), 'utf8'), invalidIndex)
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 在确认后会同步账本并重建正式产物', async () => {
 		const context = await setupBlogArtifactsRepo()
 
