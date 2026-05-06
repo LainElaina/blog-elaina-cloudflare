@@ -59,7 +59,7 @@ describe('site canonical URL generation', () => {
 	it('uses the canonical site origin in rss output', async () => {
 		const response = getRss()
 		const xml = await response.text()
-		const hasAnyPost = (blogIndex as Array<{ slug?: string }>).some(item => Boolean(item.slug))
+		const hasAnyPost = (blogIndex as Array<{ slug?: string }>).some(item => Boolean(item.slug) && !item.hidden)
 
 		assert.equal(hasAnyPost, true)
 		assert.match(xml, /https:\/\/blog\.lainelaina\.top\/rss\.xml/)
@@ -68,5 +68,26 @@ describe('site canonical URL generation', () => {
 		assert.match(xml, /https:\/\/blog\.lainelaina\.top\/blog\//)
 		assert.doesNotMatch(xml, /<enclosure\b/)
 		assert.doesNotMatch(xml, /www\.yysuni\.com/)
+	})
+
+	it('excludes hidden blog posts from sitemap and rss output', async () => {
+		const hiddenPost = {
+			slug: 'hidden-index-test-post',
+			title: 'Hidden Index Test Post',
+			hidden: true
+		}
+
+		;(blogIndex as Array<{ slug: string; title?: string; hidden?: boolean }>).push(hiddenPost)
+
+		try {
+			const entries = await sitemap()
+			const rssXml = await getRss().text()
+
+			assert.equal(entries.some(item => item.url === toAbsoluteSiteUrl(`/blog/${hiddenPost.slug}`)), false)
+			assert.doesNotMatch(rssXml, /hidden-index-test-post/)
+			assert.doesNotMatch(rssXml, /Hidden Index Test Post/)
+		} finally {
+			;(blogIndex as Array<{ slug: string; title?: string; hidden?: boolean }>).pop()
+		}
 	})
 })

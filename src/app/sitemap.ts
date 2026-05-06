@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
 	console.log(`[Sitemap] Generating for: ${baseUrl}`)
 
-	const posts: BlogIndexItem[] = (blogIndex as BlogIndexItem[]).filter(post => post?.slug)
+	const posts: BlogIndexItem[] = (blogIndex as BlogIndexItem[]).filter(post => post?.slug && !post.hidden)
 
 	const postEntries: MetadataRoute.Sitemap = posts.map(post => {
 		const lastModified = post.date ? new Date(post.date) : null

@@ -44,7 +44,7 @@ export function GET(): Response {
 	const description = siteContent.meta?.description || 'Latest updates from 2025 Blog'
 
 	const items = blogs
-		.filter(item => item?.slug)
+		.filter(item => item?.slug && !item.hidden)
 		.map(serializeItem)
 		.join('')
 
