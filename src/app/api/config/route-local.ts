@@ -7,6 +7,13 @@ import { isValidLayoutConfig } from '../layout/layout-config-validation'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
+function getContentLength(request: Request) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
 const CARD_STYLES_FILE_NAME = 'card-styles.json'
 function resolveLayoutBackupPath() {
 	return path.join(process.cwd(), 'data/layout.bak.json')
@@ -129,6 +136,11 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 
 export async function handleConfigPost(request: NextRequest) {
 	try {
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > SITE_CONFIG_REQUEST_MAX_BYTES) {
+			return NextResponse.json({ error: '请求体过大' }, { status: 400 })
+		}
+
 		let payload: unknown
 		try {
 			payload = await readLimitedJsonRequest(request, SITE_CONFIG_REQUEST_MAX_BYTES)

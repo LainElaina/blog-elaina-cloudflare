@@ -102,18 +102,17 @@ test('local config write returns 400 when JSON body is malformed', async () => {
 })
 
 test('local config write rejects oversized JSON body before parsing', async () => {
-	const response = await handleConfigPost(
-		new Request('http://localhost/api/config', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Content-Length': String(1024 * 1024 + 1)
-			},
-			body: '{}'
-		}) as any
-	)
+	let jsonCalled = false
+	const response = await handleConfigPost({
+		headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+		json: async () => {
+			jsonCalled = true
+			throw new Error('json should not be called')
+		}
+	} as any)
 
 	assert.equal(response.status, 400)
+	assert.equal(jsonCalled, false)
 	assert.deepEqual(await response.json(), { error: '请求体过大' })
 })
 
