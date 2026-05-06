@@ -6,7 +6,8 @@ import {
 	exportStaticBlogArtifacts,
 	upsertBlogRecord,
 	createEmptyBlogStorageDB,
-	parseBlogStorageDB
+	parseBlogStorageDB,
+	parseRequiredBlogStorageDB
 } from '@/lib/content-db/blog-storage'
 import { prepareBlogStaticArtifacts, prepareBlogStorageArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
 import { loadBlog } from '@/lib/load-blog'
@@ -124,6 +125,41 @@ describe('blog storage model', () => {
 		assert.equal(db.blogs.clean.status, 'draft')
 		assert.equal(db.blogs.clean.favorite, true)
 		assert.equal(db.blogs.clean.folderPath, '/写作/技术')
+	})
+
+	it('parseRequiredBlogStorageDB 会拒绝不安全或不一致的 storage slug', () => {
+		for (const blogs of [
+			{
+				'Post-A': {
+					slug: 'Post-A',
+					title: 'Uppercase',
+					tags: [],
+					date: '2026-03-27T10:00:00.000Z',
+					status: 'published'
+				}
+			},
+			{
+				'post-a': {
+					slug: 'post-b',
+					title: 'Mismatch',
+					tags: [],
+					date: '2026-03-27T10:00:00.000Z',
+					status: 'published'
+				}
+			}
+		]) {
+			assert.throws(
+				() =>
+					parseRequiredBlogStorageDB(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs
+						})
+					),
+				/博客 storage\.json 解析失败/
+			)
+		}
 	})
 
 	it('loadBlog 优先消费 storage.json 元数据并读取 Markdown 正文', async () => {

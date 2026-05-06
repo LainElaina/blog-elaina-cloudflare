@@ -122,6 +122,10 @@ export function exportStaticBlogArtifacts(db: BlogStorageDB): StaticBlogArtifact
 	}
 }
 
+function isSafeBlogStorageSlug(value: string) {
+	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+}
+
 function normalizeParsedFolderPath(value: unknown): string | undefined {
 	if (typeof value !== 'string') {
 		return undefined
@@ -131,12 +135,21 @@ function normalizeParsedFolderPath(value: unknown): string | undefined {
 }
 
 function sanitizeParsedRecord(key: string, value: unknown): BlogStorageRecord {
+	if (!isSafeBlogStorageSlug(key)) {
+		throw new Error('invalid blog storage slug')
+	}
+
 	const raw = value && typeof value === 'object' ? (value as Partial<BlogStorageRecord>) : {}
+	const slug = typeof raw.slug === 'string' && raw.slug.trim().length > 0 ? raw.slug : key
+	if (!isSafeBlogStorageSlug(slug) || slug !== key) {
+		throw new Error('invalid blog storage slug')
+	}
+
 	const tags = Array.isArray(raw.tags) && raw.tags.every(tag => typeof tag === 'string') ? raw.tags : []
 	const status: BlogStatus = raw.status === 'draft' || raw.status === 'archived' || raw.status === 'published' ? raw.status : 'published'
 
 	return {
-		slug: typeof raw.slug === 'string' && raw.slug.trim().length > 0 ? raw.slug : key,
+		slug,
 		title: typeof raw.title === 'string' ? raw.title : '',
 		tags,
 		date: typeof raw.date === 'string' ? raw.date : '',
