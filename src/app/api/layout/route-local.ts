@@ -10,6 +10,13 @@ const LAYOUT_REQUEST_MAX_BYTES = 1024 * 1024
 const LAYOUT_PATH = path.join(process.cwd(), 'src/config/card-styles.json')
 const BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
 
+function getContentLength(request: Request) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
 function buildAtomicLayoutTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -36,6 +43,11 @@ export async function handleLayoutGet() {
 
 export async function handleLayoutPost(request: Request) {
 	try {
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > LAYOUT_REQUEST_MAX_BYTES) {
+			return NextResponse.json({ error: '请求体过大' }, { status: 400 })
+		}
+
 		let layout: unknown
 		try {
 			layout = await readLimitedJsonRequest(request, LAYOUT_REQUEST_MAX_BYTES)
