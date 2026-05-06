@@ -103,6 +103,7 @@ test('save-file local route rejects invalid allowlisted JSON shapes without repl
 })
 
 test('save-file local route rejects unsafe blog artifact slugs without replacing existing files', async () => {
+	const tooLongSlug = 'x'.repeat(121)
 	for (const [filePath, nextContent] of [
 		[
 			'public/blogs/index.json',
@@ -110,6 +111,17 @@ test('save-file local route rejects unsafe blog artifact slugs without replacing
 				{
 					slug: 'Post-A',
 					title: 'Post A',
+					tags: [],
+					date: '2026-01-01'
+				}
+			])
+		],
+		[
+			'public/blogs/index.json',
+			JSON.stringify([
+				{
+					slug: tooLongSlug,
+					title: 'Too Long',
 					tags: [],
 					date: '2026-01-01'
 				}
@@ -124,6 +136,22 @@ test('save-file local route rejects unsafe blog artifact slugs without replacing
 					'Post-A': {
 						slug: 'Post-A',
 						title: 'Post A',
+						tags: [],
+						date: '2026-01-01',
+						status: 'published'
+					}
+				}
+			})
+		],
+		[
+			'public/blogs/storage.json',
+			JSON.stringify({
+				version: 1,
+				updatedAt: 'now',
+				blogs: {
+					[tooLongSlug]: {
+						slug: tooLongSlug,
+						title: 'Too Long',
 						tags: [],
 						date: '2026-01-01',
 						status: 'published'

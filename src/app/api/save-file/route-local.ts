@@ -1,3 +1,4 @@
+import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
@@ -58,7 +59,6 @@ async function assertSafeExistingParentDirectory(projectDir: string, dir: string
 
 type JsonFileContentValidationResult = 'valid' | 'invalid-json' | 'invalid-shape'
 
-const BLOG_ARTIFACT_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const SHARE_STORAGE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const CONTENT_STATUS_VALUES = new Set(['published', 'draft', 'archived'])
 
@@ -83,7 +83,12 @@ function hasOptionalBooleanFields(value: Record<string, unknown>, fields: string
 }
 
 function isSafeBlogArtifactSlug(slug: string) {
-	return BLOG_ARTIFACT_SLUG_PATTERN.test(slug)
+	try {
+		assertSafeBlogSlug(slug)
+		return true
+	} catch {
+		return false
+	}
 }
 
 function isSafeShareStorageSlug(slug: string) {
