@@ -3,7 +3,17 @@ import { relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isPathStrictlyInsideDirectory } from '../local-path'
+
+const MAX_DELETE_DIR_REQUEST_BODY_SIZE = 1024 * 1024
+
+function getContentLength(request: NextRequest) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
 
 function isAllowedBlogDirectoryPath(blogDir: string, fullPath: string) {
 	if (!isPathStrictlyInsideDirectory(blogDir, fullPath)) {
@@ -24,10 +34,18 @@ function isFileNotFoundError(error: unknown) {
 
 export async function handleDeleteDir(request: NextRequest) {
 	try {
+		const contentLength = getContentLength(request)
+		if (contentLength !== null && contentLength > MAX_DELETE_DIR_REQUEST_BODY_SIZE) {
+			return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
+		}
+
 		let body: unknown
 		try {
-			body = await request.json()
-		} catch {
+			body = await readLimitedJsonRequest(request, MAX_DELETE_DIR_REQUEST_BODY_SIZE)
+		} catch (error) {
+			if (isJsonRequestBodyTooLargeError(error)) {
+				return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
+			}
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 
