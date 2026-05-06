@@ -8,7 +8,7 @@ export function normalizeCreatedFolderPath(input: string): string {
 		.split('/')
 		.map(part => part.trim())
 		.filter(Boolean)
-	return `/${parts.join('/')}`
+	return parts.length > 0 ? `/${parts.join('/')}` : ''
 }
 
 export function createFolderOptionList(existingFolders: string[], createdFolderPath?: string): string[] {

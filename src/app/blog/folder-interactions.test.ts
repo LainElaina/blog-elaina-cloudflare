@@ -12,10 +12,13 @@ describe('folder-interactions', () => {
 	it('normalizeCreatedFolderPath 会把用户输入整理成标准目录路径', () => {
 		assert.equal(normalizeCreatedFolderPath(' 写作/技术 '), '/写作/技术')
 		assert.equal(normalizeCreatedFolderPath('/写作//技术/'), '/写作/技术')
+		assert.equal(normalizeCreatedFolderPath('   '), '')
+		assert.equal(normalizeCreatedFolderPath('///'), '')
 	})
 
 	it('createFolderOptionList 会把新建目录并入现有目录列表且去重排序', () => {
 		assert.deepEqual(createFolderOptionList(['/生活', '/写作'], '/写作/技术'), ['/写作', '/写作/技术', '/生活'])
+		assert.deepEqual(createFolderOptionList([], normalizeCreatedFolderPath('///')), [])
 	})
 
 	it('buildFolderSelectionState 在没有目录时给出显式提示', () => {
