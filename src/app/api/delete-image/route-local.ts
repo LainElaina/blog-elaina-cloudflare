@@ -10,6 +10,7 @@ const ALLOWED_EXACT_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.p
 const ALLOWED_DIRECT_IMAGE_DIRECTORIES = [
 	'public/images/art',
 	'public/images/background',
+	'public/images/blogger',
 	'public/images/custom-components',
 	'public/images/pictures',
 	'public/images/project',

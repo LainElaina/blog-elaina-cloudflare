@@ -25,6 +25,7 @@ test('delete image route allows only upload-managed image paths', () => {
 		'public/images/avatar.png',
 		'public/images/art/hero.png',
 		'public/images/background/bg.webp',
+		'public/images/blogger/avatar.png',
 		'public/images/custom-components/component.png',
 		'public/images/pictures/picture.webp',
 		'public/images/project/project.png',

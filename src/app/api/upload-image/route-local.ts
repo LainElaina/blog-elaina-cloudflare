@@ -1,11 +1,23 @@
 import { existsSync } from 'fs'
 import { mkdir, rename, rm, writeFile } from 'fs/promises'
-import { dirname, extname, resolve } from 'path'
+import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isPathInsideDirectory } from '../local-path'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug'
+import { isPathInsideDirectory, isPathStrictlyInsideDirectory } from '../local-path'
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
+const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
+const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
+	'public/images/art',
+	'public/images/background',
+	'public/images/blogger',
+	'public/images/custom-components',
+	'public/images/pictures',
+	'public/images/project',
+	'public/images/share',
+	'public/images/social-buttons'
+]
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_REQUEST_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024
 
@@ -34,6 +46,46 @@ function hasAvifSignature(buffer: Buffer) {
 function hasSvgSignature(buffer: Buffer) {
 	const content = buffer.toString('utf8').replace(/^\uFEFF/, '').trimStart()
 	return /^(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg(?:\s|>)/i.test(content)
+}
+
+function isSafeUploadedImageFilename(filename: string) {
+	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
+}
+
+function isDirectChildFilePath(baseDir: string, fullPath: string) {
+	if (!isPathStrictlyInsideDirectory(baseDir, fullPath)) {
+		return false
+	}
+
+	return isSafeUploadedImageFilename(relative(baseDir, fullPath))
+}
+
+function isAllowedBlogUploadImagePath(projectDir: string, fullPath: string) {
+	const blogsDir = resolve(projectDir, 'public/blogs')
+	if (!isPathStrictlyInsideDirectory(blogsDir, fullPath)) {
+		return false
+	}
+
+	const relativePath = relative(blogsDir, fullPath).replace(/\\/g, '/')
+	const parts = relativePath.split('/')
+	if (parts.length !== 2 || !isSafeUploadedImageFilename(parts[1])) {
+		return false
+	}
+
+	try {
+		assertSafeBlogSlug(parts[0])
+		return true
+	} catch {
+		return false
+	}
+}
+
+export function isAllowedUploadImagePath(projectDir: string, fullPath: string) {
+	return (
+		ALLOWED_EXACT_UPLOAD_IMAGE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
+		ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES.some(allowedDir => isDirectChildFilePath(resolve(projectDir, allowedDir), fullPath)) ||
+		isAllowedBlogUploadImagePath(projectDir, fullPath)
+	)
 }
 
 export function isAllowedImageContent(extension: string, buffer: Buffer) {
@@ -107,11 +159,16 @@ export async function handleUploadImage(request: NextRequest) {
 			return NextResponse.json({ error: `不允许的文件类型: ${ext}` }, { status: 400 })
 		}
 
-		const publicDir = resolve(process.cwd(), 'public')
-		const fullPath = resolve(process.cwd(), path)
+		const projectDir = resolve(process.cwd())
+		const publicDir = resolve(projectDir, 'public')
+		const fullPath = resolve(projectDir, path)
 
 		if (!isPathInsideDirectory(publicDir, fullPath)) {
 			return NextResponse.json({ error: `路径不合法，只能写入 public 目录` }, { status: 403 })
+		}
+
+		if (!isAllowedUploadImagePath(projectDir, fullPath)) {
+			return NextResponse.json({ error: '路径不合法，只能上传到本地上传目录内的图片文件' }, { status: 403 })
 		}
 
 		const bytes = await file.arrayBuffer()

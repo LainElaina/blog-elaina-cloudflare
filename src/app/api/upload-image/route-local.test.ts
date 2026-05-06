@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { resolve } from 'node:path'
 
-import { handleUploadImage, isAllowedImageContent } from './route-local.ts'
+import { handleUploadImage, isAllowedImageContent, isAllowedUploadImagePath } from './route-local.ts'
 
 test('upload image local route writes uploaded image atomically', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
@@ -85,10 +86,43 @@ test('upload image local route rejects empty files before writing', async () => 
 	assert.deepEqual(await response.json(), { error: '上传文件不能为空' })
 })
 
+test('upload image local route allows only upload-managed image paths', () => {
+	const projectDir = resolve('/repo/blog')
+
+	for (const path of [
+		'public/favicon.png',
+		'public/images/avatar.png',
+		'public/images/art/hero.png',
+		'public/images/background/bg.webp',
+		'public/images/blogger/avatar.png',
+		'public/images/custom-components/component.png',
+		'public/images/pictures/picture.webp',
+		'public/images/project/project.png',
+		'public/images/share/logo.svg',
+		'public/images/social-buttons/icon.svg',
+		'public/blogs/post-a/cover.png'
+	]) {
+		assert.equal(isAllowedUploadImagePath(projectDir, resolve(projectDir, path)), true, path)
+	}
+
+	for (const path of [
+		'public/favicon.ico',
+		'public/images/christmas/snow-4.webp',
+		'public/images/share/nested/logo.png',
+		'public/blogs/Bad-Slug/cover.png',
+		'public/blogs/post-a/nested/cover.png',
+		'public/blogs-backup/post-a/cover.png'
+	]) {
+		assert.equal(isAllowedUploadImagePath(projectDir, resolve(projectDir, path)), false, path)
+	}
+
+	assert.equal(isAllowedUploadImagePath(projectDir, resolve('/repo/blog-backup/public/images/share/logo.png')), false)
+})
+
 test('upload image local route rejects disguised image extensions', async () => {
 	const formData = new FormData()
 	formData.set('file', new File(['not image'], 'fake.png', { type: 'image/png' }))
-	formData.set('path', 'public/images/test-fake.png')
+	formData.set('path', 'public/images/share/test-fake.png')
 
 	const response = await handleUploadImage({ formData: async () => formData } as any)
 
