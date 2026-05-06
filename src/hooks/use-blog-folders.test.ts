@@ -38,9 +38,9 @@ describe('use-blog-folders parser', () => {
 		])
 	})
 
-	it('保留旧格式回退行为', () => {
-		assert.deepEqual(parseBlogFoldersConfig(['/a', '/b']).folders, ['/a', '/b'])
-		assert.deepEqual(parseBlogFoldersConfig({ folders: ['/x', '/y'] }).folders, ['/x', '/y'])
+	it('保留旧格式回退行为并清理空白重复路径', () => {
+		assert.deepEqual(parseBlogFoldersConfig([' /a ', '/a', '', '  ', '/b']).folders, ['/a', '/b'])
+		assert.deepEqual(parseBlogFoldersConfig({ folders: [' /x ', '/x', '/y '] }).folders, ['/x', '/y'])
 		assert.deepEqual(parseBlogFoldersConfig({}).folders, [])
 	})
 })

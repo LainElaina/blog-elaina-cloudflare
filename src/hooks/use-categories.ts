@@ -6,6 +6,21 @@ export type CategoriesConfig = {
 	categories: string[]
 }
 
+function normalizeStringList(value: unknown): string[] {
+	if (!Array.isArray(value)) return []
+
+	const result: string[] = []
+	const visited = new Set<string>()
+	for (const item of value) {
+		if (typeof item !== 'string') continue
+		const normalized = item.trim()
+		if (!normalized || visited.has(normalized)) continue
+		visited.add(normalized)
+		result.push(normalized)
+	}
+	return result
+}
+
 export const fetchCategoriesConfig = async (url: string): Promise<CategoriesConfig> => {
 	const res = await fetch(url, { cache: 'no-store' })
 	if (!res.ok) {
@@ -19,10 +34,10 @@ export const fetchCategoriesConfig = async (url: string): Promise<CategoriesConf
 	}
 	const data = await res.json()
 	if (Array.isArray(data)) {
-		return { categories: data.filter((item): item is string => typeof item === 'string') }
+		return { categories: normalizeStringList(data) }
 	}
 	if (Array.isArray((data as any)?.categories)) {
-		return { categories: (data as any).categories.filter((item: unknown): item is string => typeof item === 'string') }
+		return { categories: normalizeStringList((data as any).categories) }
 	}
 	return { categories: [] }
 }

@@ -17,6 +17,21 @@ function isFolderNode(value: unknown): value is BlogFolderNodeLike {
 	return typeof node.path === 'string'
 }
 
+function normalizeFolderPathList(input: unknown): string[] {
+	if (!Array.isArray(input)) return []
+
+	const result: string[] = []
+	const visited = new Set<string>()
+	for (const item of input) {
+		if (typeof item !== 'string') continue
+		const path = item.trim()
+		if (!path || visited.has(path)) continue
+		visited.add(path)
+		result.push(path)
+	}
+	return result
+}
+
 function flattenFolderTree(input: unknown): string[] {
 	if (!Array.isArray(input)) return []
 
@@ -44,7 +59,7 @@ function flattenFolderTree(input: unknown): string[] {
 
 export function parseBlogFoldersConfig(data: unknown): BlogFoldersConfig {
 	if (Array.isArray(data)) {
-		const stringFolders = data.filter((item): item is string => typeof item === 'string')
+		const stringFolders = normalizeFolderPathList(data)
 		if (stringFolders.length > 0) {
 			return { folders: stringFolders }
 		}
@@ -53,7 +68,7 @@ export function parseBlogFoldersConfig(data: unknown): BlogFoldersConfig {
 
 	if (Array.isArray((data as any)?.folders)) {
 		const folders = (data as any).folders
-		const stringFolders = folders.filter((item: unknown): item is string => typeof item === 'string')
+		const stringFolders = normalizeFolderPathList(folders)
 		if (stringFolders.length > 0) {
 			return { folders: stringFolders }
 		}

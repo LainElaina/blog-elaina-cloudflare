@@ -32,4 +32,17 @@ describe('fetchCategoriesConfig', () => {
 			restoreFetch()
 		}
 	})
+
+	it('会清理分类中的空白、空项和重复值', async () => {
+		const restoreFetch = mockFetchResponse({
+			ok: true,
+			status: 200,
+			json: async () => ({ categories: [' 技术 ', '', '技术', '  ', '生活', 1, '生活 '] })
+		})
+		try {
+			assert.deepEqual(await fetchCategoriesConfig('/blogs/categories.json'), { categories: ['技术', '生活'] })
+		} finally {
+			restoreFetch()
+		}
+	})
 })
