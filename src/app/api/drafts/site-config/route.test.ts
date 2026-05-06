@@ -96,3 +96,27 @@ test('site config draft ignores unknown keys instead of keeping ghost drafts', a
 		await assertDraftFileMissing(tmpDir)
 	})
 })
+
+test('site config draft rejects invalid allowed-key values without writing draft', async () => {
+	for (const [body, message] of [
+		[{ siteContent: [] }, '站点设置草稿格式错误'],
+		[{ cardStyles: [] }, '卡片布局草稿格式错误'],
+		[{ customComponents: {} }, '自定义组件草稿格式错误'],
+		[{ colorPresets: {} }, '色彩预设草稿格式错误']
+	] as const) {
+		await withDevelopmentCwd(async tmpDir => {
+			const response = await POST(
+				new Request('http://localhost/api/drafts/site-config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body)
+				})
+			)
+			const payload = await response.json()
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(payload, { error: message })
+			await assertDraftFileMissing(tmpDir)
+		})
+	}
+})

@@ -45,6 +45,13 @@ async function writeSiteConfigFileAtomically(fullPath: string, content: string) 
 
 const DRAFT_FILE_RELATIVE_PATH = path.join('data', 'site-config.draft.json')
 const SITE_CONFIG_DRAFT_KEYS = ['siteContent', 'cardStyles', 'customComponents', 'colorPresets'] as const
+type SiteConfigDraftKey = typeof SITE_CONFIG_DRAFT_KEYS[number]
+const SITE_CONFIG_DRAFT_VALUE_LABELS: Record<SiteConfigDraftKey, string> = {
+	siteContent: '站点设置',
+	cardStyles: '卡片布局',
+	customComponents: '自定义组件',
+	colorPresets: '色彩预设'
+}
 const ART_IMAGE_PUBLIC_PREFIX = '/images/art/'
 const ART_IMAGE_REPO_PREFIX = 'public/images/art/'
 const BACKGROUND_IMAGE_PUBLIC_PREFIX = '/images/background/'
@@ -61,6 +68,24 @@ export function resolveSiteConfigDraftPath(baseDir: string) {
 	return path.join(baseDir, DRAFT_FILE_RELATIVE_PATH)
 }
 
+function isSiteConfigObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function assertSiteConfigDraftValueShape(key: SiteConfigDraftKey, value: unknown) {
+	if (value === undefined || value === null) {
+		return
+	}
+
+	const label = SITE_CONFIG_DRAFT_VALUE_LABELS[key]
+	if ((key === 'siteContent' || key === 'cardStyles') && !isSiteConfigObject(value)) {
+		throw new SiteConfigLocalValidationError(`${label}草稿格式错误`)
+	}
+	if ((key === 'customComponents' || key === 'colorPresets') && !Array.isArray(value)) {
+		throw new SiteConfigLocalValidationError(`${label}草稿格式错误`)
+	}
+}
+
 function pickSiteConfigDraftPayload(payload: SiteConfigDraftPayload | null | undefined): SiteConfigDraftPayload {
 	const picked: SiteConfigDraftPayload = {}
 	if (!payload || typeof payload !== 'object') {
@@ -69,7 +94,9 @@ function pickSiteConfigDraftPayload(payload: SiteConfigDraftPayload | null | und
 
 	for (const key of SITE_CONFIG_DRAFT_KEYS) {
 		if (Object.prototype.hasOwnProperty.call(payload, key)) {
-			picked[key] = payload[key]
+			const value = payload[key]
+			assertSiteConfigDraftValueShape(key, value)
+			picked[key] = value
 		}
 	}
 	return picked

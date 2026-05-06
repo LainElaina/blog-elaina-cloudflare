@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { buildSiteConfigDraftItems, writeSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
+	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, writeSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
 
 	try {
 		let payload: unknown
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 		const items = buildSiteConfigDraftItems(draft)
 		return NextResponse.json({ success: true, hasDraft: items.length > 0, items })
 	} catch (error: any) {
-		return NextResponse.json({ error: error.message }, { status: 500 })
+		return NextResponse.json({ error: error.message }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
 	}
 }
 

@@ -121,6 +121,55 @@ test('site config publish returns 400 when draft references missing local assets
 	})
 })
 
+test('site config publish rejects invalid request payload values without touching formal config', async () => {
+	for (const [body, message] of [
+		[{ siteContent: [] }, '站点设置草稿格式错误'],
+		[{ cardStyles: [] }, '卡片布局草稿格式错误'],
+		[{ customComponents: {} }, '自定义组件草稿格式错误'],
+		[{ colorPresets: {} }, '色彩预设草稿格式错误']
+	] as const) {
+		await withDevelopmentCwd(async tmpDir => {
+			const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+			await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+
+			const response = await POST(
+				new Request('http://localhost/api/publish/site-config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body)
+				})
+			)
+			const payload = await response.json()
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(payload, { error: message })
+			assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
+		})
+	}
+})
+
+test('site config publish rejects invalid saved draft values without touching formal config', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const formalPath = path.join(tmpDir, 'src/config/custom-components.json')
+		await fs.writeFile(formalPath, JSON.stringify([{ name: 'formal' }], null, '\t'))
+		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'data/site-config.draft.json'), JSON.stringify({ customComponents: {} }, null, '\t'))
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '自定义组件草稿格式错误' })
+		assert.deepEqual(JSON.parse(await fs.readFile(formalPath, 'utf-8')), [{ name: 'formal' }])
+	})
+})
+
 test('site config publish accepts object-shaped local asset collections', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		await fs.mkdir(path.join(tmpDir, 'public/images/art'), { recursive: true })
