@@ -25,6 +25,8 @@ test('save-file local route rejects project files outside the write allowlist', 
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'package.json')), false)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, '.env')), false)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'src/app/api/save-file/route-local.ts')), false)
+	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs/post-a/cover.png')), false)
+	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs/post-a/nested/index.md')), false)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs-backup/post-a/index.md')), false)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve('/repo/blog-backup/public/blogs/post-a/index.md')), false)
 })
