@@ -19,8 +19,9 @@ test('layout history snapshots include and restore custom components', async () 
 test('layout history ignores corrupted snapshot storage', async () => {
 	const source = await fs.readFile(new URL('./layout-history.tsx', import.meta.url), 'utf-8')
 
+	assert.match(source, /function normalizeLayoutSnapshots\(value: unknown\): LayoutSnapshot\[\] \{\n\s*if \(!Array\.isArray\(value\)\) return \[\]/)
 	assert.match(source, /function readLayoutSnapshots\(\): LayoutSnapshot\[\] \{\n\s*try \{\n\s*const saved = localStorage\.getItem\('layout-snapshots'\)/)
-	assert.match(source, /const parsed = JSON\.parse\(saved\)\n\s*return Array\.isArray\(parsed\) \? parsed : \[\]\n\s*\} catch \{\n\s*return \[\]/)
+	assert.match(source, /return normalizeLayoutSnapshots\(JSON\.parse\(saved\)\)\n\s*\} catch \{\n\s*return \[\]/)
 	assert.match(source, /const loadSnapshots = \(\) => \{\n\s*setSnapshots\(readLayoutSnapshots\(\)\)\n\s*\}/)
 	assert.doesNotMatch(source, /setSnapshots\(JSON\.parse\(saved\)\)/)
 })

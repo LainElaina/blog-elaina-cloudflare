@@ -24,8 +24,9 @@ test('manual layout save records snapshots only after durable persistence succee
 test('manual layout save ignores corrupted local snapshot history', async () => {
 	const source = await fs.readFile(new URL('./layout-save-panel.tsx', import.meta.url), 'utf-8')
 
-	assert.match(source, /function readLayoutSnapshots\(\): unknown\[\] \{\n\s*try \{\n\s*const saved = localStorage\.getItem\('layout-snapshots'\)/)
-	assert.match(source, /const parsed = JSON\.parse\(saved\)\n\s*return Array\.isArray\(parsed\) \? parsed : \[\]\n\s*\} catch \{\n\s*return \[\]/)
+	assert.match(source, /function normalizeLayoutSnapshots\(value: unknown\): LayoutSnapshot\[\] \{\n\s*if \(!Array\.isArray\(value\)\) return \[\]/)
+	assert.match(source, /function readLayoutSnapshots\(\): LayoutSnapshot\[\] \{\n\s*try \{\n\s*const saved = localStorage\.getItem\('layout-snapshots'\)/)
+	assert.match(source, /return normalizeLayoutSnapshots\(JSON\.parse\(saved\)\)\n\s*\} catch \{\n\s*return \[\]/)
 	assert.match(source, /const snapshots = readLayoutSnapshots\(\)\n\s*const newSnapshot = \{[\s\S]*localStorage\.setItem\('layout-snapshots', JSON\.stringify\(\[newSnapshot, \.\.\.snapshots\]\)\)/)
 	assert.doesNotMatch(source, /JSON\.parse\(localStorage\.getItem\('layout-snapshots'\) \|\| '\[\]'\)/)
 })

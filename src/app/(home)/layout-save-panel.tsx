@@ -7,13 +7,38 @@ import { useAuthStore } from '@/hooks/use-auth'
 import { useLogStore } from './stores/log-store'
 import { toast } from 'sonner'
 
-function readLayoutSnapshots(): unknown[] {
+type LayoutSnapshot = {
+	id: string
+	name: string
+	timestamp: number
+	data: unknown
+	customComponents?: unknown[]
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function normalizeLayoutSnapshots(value: unknown): LayoutSnapshot[] {
+	if (!Array.isArray(value)) return []
+
+	return value
+		.filter(snapshot => isObject(snapshot) && typeof snapshot.id === 'string' && typeof snapshot.name === 'string' && Number.isFinite(snapshot.timestamp) && isObject(snapshot.data))
+		.map(snapshot => ({
+			id: snapshot.id,
+			name: snapshot.name,
+			timestamp: snapshot.timestamp,
+			data: snapshot.data,
+			...(Array.isArray(snapshot.customComponents) ? { customComponents: snapshot.customComponents } : {})
+		}))
+}
+
+function readLayoutSnapshots(): LayoutSnapshot[] {
 	try {
 		const saved = localStorage.getItem('layout-snapshots')
 		if (!saved) return []
 
-		const parsed = JSON.parse(saved)
-		return Array.isArray(parsed) ? parsed : []
+		return normalizeLayoutSnapshots(JSON.parse(saved))
 	} catch {
 		return []
 	}
