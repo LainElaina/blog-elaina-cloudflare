@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildLocalShareSaveFilePayloads } from './share-artifacts.ts'
-import { buildRemoteShareArtifactContents, buildUnusedShareLogoDeleteTreeItems, buildUnusedShareLogoDeleteTreeItemsForStorage } from './push-shares.ts'
+import { buildRemoteShareArtifactContents, buildUnusedShareLogoDeleteTreeItems, buildUnusedShareLogoDeleteTreeItemsForStorage, filterExistingShareLogoDeleteTreeItems } from './push-shares.ts'
 
 describe('buildUnusedShareLogoDeleteTreeItems', () => {
 	it('只删除旧列表中不再被当前分享引用的 share 图标文件', () => {
@@ -122,6 +122,32 @@ describe('buildUnusedShareLogoDeleteTreeItems', () => {
 			),
 			[]
 		)
+	})
+
+	it('远端清理旧 share 图标前只保留基线仓库里存在的文件', () => {
+		const deleteItems = [
+			{
+				path: 'public/images/share/existing.png',
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			},
+			{
+				path: 'public/images/share/missing.png',
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			}
+		] as const
+
+		assert.deepEqual(filterExistingShareLogoDeleteTreeItems([...deleteItems], ['public/images/share/existing.png']), [
+			{
+				path: 'public/images/share/existing.png',
+				mode: '100644',
+				type: 'blob',
+				sha: null
+			}
+		])
 	})
 
 	it('远端清理旧 share 图标时保留下一版 storage 中仍引用的草稿图标', () => {
@@ -438,7 +464,9 @@ describe('buildRemoteShareArtifactContents', () => {
 
 		assert.match(source, /readTextFileFromRepo\([^\n]*'public\/share\/list\.json', latestCommitSha\)/)
 		assert.match(source, /const previousShares = parsePreviousShareList\(previousListJson\)/)
-		assert.match(source, /treeItems\.push\(\.\.\.buildUnusedShareLogoDeleteTreeItemsForStorage\(previousShares, updatedShares, artifactContents\.storage\)\)/)
+		assert.match(source, /const existingShareLogoPaths = await listRepoFilesRecursive\([^\n]*'public\/images\/share', latestCommitSha\)/)
+		assert.match(source, /const deleteTreeItems = filterExistingShareLogoDeleteTreeItems\([\s\S]*buildUnusedShareLogoDeleteTreeItemsForStorage\(previousShares, updatedShares, artifactContents\.storage\)[\s\S]*existingShareLogoPaths[\s\S]*\)/)
+		assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
 		assert.match(source, /远程分享列表解析失败/)
 	})
 })

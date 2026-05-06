@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, listRepoFilesRecursive, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -42,6 +42,11 @@ function collectNextShareStorageItems(storageRaw: string): Share[] {
 
 export function buildUnusedShareLogoDeleteTreeItemsForStorage(previousShares: Share[], currentShares: Share[], storageRaw: string): TreeItem[] {
 	return buildUnusedShareLogoDeleteTreeItems(previousShares, [...currentShares, ...collectNextShareStorageItems(storageRaw)])
+}
+
+export function filterExistingShareLogoDeleteTreeItems(deleteItems: TreeItem[], existingRepoPaths: Iterable<string>): TreeItem[] {
+	const existing = new Set(existingRepoPaths)
+	return deleteItems.filter(item => existing.has(item.path))
 }
 
 function parsePreviousShareList(previousListJson: string | null): Share[] {
@@ -156,7 +161,12 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 		{ path: 'public/share/folders.json', content: artifactContents.folders },
 		{ path: 'public/share/storage.json', content: artifactContents.storage }
 	]
-	treeItems.push(...buildUnusedShareLogoDeleteTreeItemsForStorage(previousShares, updatedShares, artifactContents.storage))
+	const existingShareLogoPaths = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/share', latestCommitSha)
+	const deleteTreeItems = filterExistingShareLogoDeleteTreeItems(
+		buildUnusedShareLogoDeleteTreeItemsForStorage(previousShares, updatedShares, artifactContents.storage),
+		existingShareLogoPaths
+	)
+	treeItems.push(...deleteTreeItems)
 
 	for (const payload of payloads) {
 		const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(payload.content), 'base64')
