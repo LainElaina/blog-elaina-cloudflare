@@ -1,4 +1,5 @@
 import { resolve } from 'path'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug'
 import { isPathStrictlyInsideDirectory } from '../local-path.ts'
 
 const ALLOWED_SAVE_FILE_PATHS = [
@@ -27,7 +28,16 @@ function isAllowedBlogPostFilePath(projectDir: string, fullPath: string) {
 
 	const relativePath = fullPath.slice(blogsDir.length + 1).replace(/\\/g, '/')
 	const parts = relativePath.split('/')
-	return parts.length === 2 && parts[0].length > 0 && ALLOWED_BLOG_POST_FILENAMES.has(parts[1])
+	if (parts.length !== 2 || !ALLOWED_BLOG_POST_FILENAMES.has(parts[1])) {
+		return false
+	}
+
+	try {
+		assertSafeBlogSlug(parts[0])
+		return true
+	} catch {
+		return false
+	}
 }
 
 export function isAllowedSaveFilePath(projectDir: string, fullPath: string) {
