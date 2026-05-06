@@ -55,3 +55,21 @@ test('local config write rejects non-object JSON payloads', async () => {
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 	}
 })
+
+test('local config write rejects empty config payloads', async () => {
+	const response = await handleConfigPost({
+		json: async () => ({})
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '缺少可写配置项' })
+})
+
+test('local config write rejects unknown config fields', async () => {
+	const response = await handleConfigPost({
+		json: async () => ({ siteContent: {}, unexpected: true })
+	} as any)
+
+	assert.equal(response.status, 400)
+	assert.deepEqual(await response.json(), { error: '请求体包含未知配置项' })
+})

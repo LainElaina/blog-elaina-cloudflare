@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 
 const CARD_STYLES_FILE_NAME = 'card-styles.json'
 const LAYOUT_BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
+const CONFIG_WRITE_KEYS = new Set(['siteContent', 'cardStyles', 'customComponents', 'colorPresets'])
 
 function buildAtomicConfigTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -61,6 +62,10 @@ async function rollbackConfigWrites(backups: ConfigBackup[]) {
 	}
 }
 
+function hasOnlyConfigWriteKeys(payload: Record<string, unknown>) {
+	return Object.keys(payload).every(key => CONFIG_WRITE_KEYS.has(key))
+}
+
 function buildConfigWrites(payload: { siteContent?: unknown; cardStyles?: unknown; customComponents?: unknown; colorPresets?: unknown }): ConfigWrite[] {
 	const writes: ConfigWrite[] = []
 	if (payload.siteContent) {
@@ -100,8 +105,15 @@ export async function handleConfigPost(request: NextRequest) {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 
+		if (!hasOnlyConfigWriteKeys(payload as Record<string, unknown>)) {
+			return NextResponse.json({ error: '请求体包含未知配置项' }, { status: 400 })
+		}
+
 		const configDir = path.join(process.cwd(), 'src/config')
 		const writes = buildConfigWrites(payload)
+		if (writes.length === 0) {
+			return NextResponse.json({ error: '缺少可写配置项' }, { status: 400 })
+		}
 		const backups: ConfigBackup[] = []
 
 		try {
