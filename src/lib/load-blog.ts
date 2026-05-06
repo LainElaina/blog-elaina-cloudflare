@@ -17,18 +17,18 @@ function isPlainBlogConfig(value: unknown): value is BlogConfig {
 }
 
 function toBlogConfigFromStorageRecord(record: Record<string, unknown> | undefined): BlogConfig {
-	if (!record) return {}
-	return {
-		title: typeof record.title === 'string' ? record.title : undefined,
-		tags: Array.isArray(record.tags) ? (record.tags as string[]) : undefined,
-		date: typeof record.date === 'string' ? record.date : undefined,
-		summary: typeof record.summary === 'string' ? record.summary : undefined,
-		cover: typeof record.cover === 'string' ? record.cover : undefined,
-		hidden: typeof record.hidden === 'boolean' ? record.hidden : undefined,
-		category: typeof record.category === 'string' ? record.category : undefined,
-		folderPath: typeof record.folderPath === 'string' ? record.folderPath : undefined,
-		favorite: typeof record.favorite === 'boolean' ? record.favorite : undefined
-	}
+	const config: BlogConfig = {}
+	if (!record) return config
+	if (typeof record.title === 'string') config.title = record.title
+	if (Array.isArray(record.tags) && record.tags.every((tag): tag is string => typeof tag === 'string')) config.tags = record.tags
+	if (typeof record.date === 'string') config.date = record.date
+	if (typeof record.summary === 'string') config.summary = record.summary
+	if (typeof record.cover === 'string') config.cover = record.cover
+	if (typeof record.hidden === 'boolean') config.hidden = record.hidden
+	if (typeof record.category === 'string') config.category = record.category
+	if (typeof record.folderPath === 'string') config.folderPath = record.folderPath
+	if (typeof record.favorite === 'boolean') config.favorite = record.favorite
+	return config
 }
 
 async function assertLoadBlogOk(response: Response, actionName: string) {
@@ -82,7 +82,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 				if (!isPlainBlogConfig(parsedConfig)) {
 					throw new Error('博客配置格式错误')
 				}
-				config = parsedConfig
+				config = toBlogConfigFromStorageRecord(parsedConfig)
 			} catch {
 				throw new Error('博客配置格式错误')
 			}

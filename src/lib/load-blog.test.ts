@@ -157,6 +157,48 @@ describe('loadBlog', () => {
 		)
 	})
 
+	it('sanitizes fallback blog config fields before returning them', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {}
+						}),
+						{ status: 200 }
+					)
+				],
+				[
+					'/blogs/post-a/config.json',
+					new Response(
+						JSON.stringify({
+							title: 'Fallback',
+							tags: ['x', 1],
+							date: 123,
+							cover: '/cover.png',
+							hidden: 'no',
+							favorite: true
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
+			]),
+			async () => {
+				const loaded = await loadBlog('post-a')
+
+				assert.deepEqual(loaded.config, {
+					title: 'Fallback',
+					cover: '/cover.png',
+					favorite: true
+				})
+			}
+		)
+	})
+
 	it('aborts when fallback blog config JSON is malformed', async () => {
 		await withMockFetch(
 			new Map<string, Response>([
