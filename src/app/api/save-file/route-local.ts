@@ -2,6 +2,7 @@ import { mkdir, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
 
 const MAX_FILE_CONTENT_SIZE = 10 * 1024 * 1024
@@ -277,8 +278,11 @@ export async function handleSaveFile(request: NextRequest) {
 
 		let body: unknown
 		try {
-			body = await request.json()
-		} catch {
+			body = await readLimitedJsonRequest(request, MAX_REQUEST_BODY_SIZE)
+		} catch (error) {
+			if (isJsonRequestBodyTooLargeError(error)) {
+				return NextResponse.json({ error: '文件内容超过 10MB 限制' }, { status: 413 })
+			}
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
 		}
 

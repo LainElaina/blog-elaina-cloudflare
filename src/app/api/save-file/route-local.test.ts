@@ -240,6 +240,27 @@ test('save-file local route returns 413 for oversized file content after JSON pa
 	assert.deepEqual(await response.json(), { error: '文件内容超过 10MB 限制' })
 })
 
+test('save-file local route limits streamed JSON requests without content-length', async () => {
+	let pulled = 0
+	const encoder = new TextEncoder()
+	const response = await handleSaveFile(
+		new Request('http://localhost/api/save-file', {
+			method: 'POST',
+			body: new ReadableStream({
+				pull(controller) {
+					pulled += 1
+					controller.enqueue(encoder.encode('x'.repeat(1024 * 1024)))
+				}
+			}),
+			duplex: 'half'
+		} as RequestInit)
+	)
+
+	assert.equal(response.status, 413)
+	assert.equal(pulled <= 12, true)
+	assert.deepEqual(await response.json(), { error: '文件内容超过 10MB 限制' })
+})
+
 test('save-file local route returns 400 when JSON body is malformed', async () => {
 	const response = await handleSaveFile({
 		json: async () => {
