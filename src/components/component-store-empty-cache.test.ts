@@ -9,7 +9,8 @@ test('component store hydrates explicit empty cached lists', async () => {
 		source,
 		/const savedCustom = readCachedList\('custom-components'\)\n\s*if \(savedCustom\) \{\n\s*useCustomComponentStore\.setState\(\{ components: normalizeCustomComponents\(savedCustom\) \}\)/
 	)
-	assert.match(source, /import \{ normalizeCustomComponents, useCustomComponentStore, type CustomComponent \}/)
+	assert.match(source, /import \{ normalizeCustomComponents, useCustomComponentStore \}/)
+	assert.match(source, /import \{ normalizeComponentFavoriteImports, normalizeComponentFavorites, useComponentFavoriteStore \}/)
 	assert.doesNotMatch(source, /Array\.isArray\(parsed\) && parsed\.length > 0/)
 	assert.doesNotMatch(source, /useCustomComponentStore\.setState\(\{ components: savedCustom \}\)/)
 })
@@ -20,7 +21,7 @@ test('component store ignores corrupted cached lists', async () => {
 	assert.match(source, /function readCachedList\(key: string\): unknown\[\] \| null \{\n\s*try \{\n\s*const saved = localStorage\.getItem\(key\)/)
 	assert.match(source, /const parsed = JSON\.parse\(saved\)\n\s*return Array\.isArray\(parsed\) \? parsed : null\n\s*\} catch \{\n\s*return null/)
 	assert.match(source, /const savedTemplates = readCachedList\('templates'\)\n\s*if \(savedTemplates\) \{\n\s*useTemplateStore\.setState\(\{ templates: savedTemplates \}\)/)
-	assert.match(source, /const savedFavorites = readCachedList\('component-favorites'\)\n\s*if \(savedFavorites\) \{\n\s*useComponentFavoriteStore\.setState\(\{ favorites: savedFavorites \}\)/)
+	assert.match(source, /const savedFavorites = readCachedList\('component-favorites'\)\n\s*if \(savedFavorites\) \{\n\s*useComponentFavoriteStore\.setState\(\{ favorites: normalizeComponentFavorites\(savedFavorites\) \}\)/)
 	assert.doesNotMatch(source, /useTemplateStore\.setState\(\{ templates: JSON\.parse\(savedTemplates\) \}\)/)
 	assert.doesNotMatch(source, /useComponentFavoriteStore\.setState\(\{ favorites: JSON\.parse\(savedFavorites\) \}\)/)
 })
@@ -28,9 +29,9 @@ test('component store ignores corrupted cached lists', async () => {
 test('component favorite import filters invalid favorite entries', async () => {
 	const source = await fs.readFile(new URL('./component-store.tsx', import.meta.url), 'utf-8')
 
-	assert.match(source, /function isFavoriteImport\(value: unknown\): value is \{ name: string; component: Omit<CustomComponent, 'id'> \}/)
-	assert.match(source, /const validFavorites = imported\.filter\(isFavoriteImport\)\n\s*if \(validFavorites\.length === 0\) throw new Error\('格式错误'\)/)
+	assert.match(source, /const validFavorites = normalizeComponentFavoriteImports\(imported\)\n\s*if \(validFavorites\.length === 0\) throw new Error\('格式错误'\)/)
 	assert.match(source, /for \(const fav of validFavorites\) \{\n\s*addFavorite\(fav\.name\.trim\(\), fav\.component\)\n\s*\}/)
+	assert.doesNotMatch(source, /function isFavoriteImport/)
 	assert.doesNotMatch(source, /for \(const fav of imported\) \{\n\s*if \(fav\.name && fav\.component\) \{/)
 })
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CustomComponent } from './custom-component-store'
+import { type CustomComponent, isCustomComponentData } from './custom-component-store'
 
 export interface ComponentFavorite {
 	id: string
@@ -13,6 +13,32 @@ interface ComponentFavoriteStore {
 	addFavorite: (name: string, component: Omit<CustomComponent, 'id'>) => void
 	deleteFavorite: (id: string) => void
 	getFavorite: (id: string) => ComponentFavorite | undefined
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isComponentFavorite(value: unknown): value is ComponentFavorite {
+	return isObject(value) &&
+		typeof value.id === 'string' &&
+		typeof value.name === 'string' &&
+		isCustomComponentData(value.component) &&
+		(value.preview === undefined || typeof value.preview === 'string')
+}
+
+function isComponentFavoriteImport(value: unknown): value is Pick<ComponentFavorite, 'name' | 'component'> {
+	return isObject(value) &&
+		typeof value.name === 'string' &&
+		isCustomComponentData(value.component)
+}
+
+export function normalizeComponentFavorites(value: unknown): ComponentFavorite[] {
+	return Array.isArray(value) ? value.filter(isComponentFavorite) : []
+}
+
+export function normalizeComponentFavoriteImports(value: unknown): Pick<ComponentFavorite, 'name' | 'component'>[] {
+	return Array.isArray(value) ? value.filter(isComponentFavoriteImport) : []
 }
 
 export const useComponentFavoriteStore = create<ComponentFavoriteStore>((set, get) => ({

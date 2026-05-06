@@ -41,11 +41,10 @@ function isFiniteNumber(value: unknown): value is number {
 	return typeof value === 'number' && Number.isFinite(value)
 }
 
-function isCustomComponent(value: unknown): value is CustomComponent {
+export function isCustomComponentData(value: unknown): value is Omit<CustomComponent, 'id'> {
 	if (!isObject(value) || !isObject(value.style) || !isObject(value.content)) return false
 
-	return typeof value.id === 'string' &&
-		typeof value.name === 'string' &&
+	return typeof value.name === 'string' &&
 		typeof value.templateId === 'string' &&
 		typeof value.type === 'string' &&
 		CUSTOM_COMPONENT_TYPES.has(value.type) &&
@@ -55,6 +54,10 @@ function isCustomComponent(value: unknown): value is CustomComponent {
 		(isFiniteNumber(value.style.offsetX) || value.style.offsetX === null) &&
 		(isFiniteNumber(value.style.offsetY) || value.style.offsetY === null) &&
 		typeof value.style.enabled === 'boolean'
+}
+
+function isCustomComponent(value: unknown): value is CustomComponent {
+	return isObject(value) && typeof value.id === 'string' && isCustomComponentData(value)
 }
 
 export function normalizeCustomComponents(value: unknown): CustomComponent[] {
