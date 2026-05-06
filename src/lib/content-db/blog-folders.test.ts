@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildBlogFolderTree } from '@/lib/content-db/blog-folders'
+import { buildBlogFolderTree, dedupeAndSortFolderPaths } from '@/lib/content-db/blog-folders'
 
 describe('blog folder helpers', () => {
 	it('从 folderPath 列表构建稳定树（去重并排序）', () => {
@@ -22,6 +22,12 @@ describe('blog folder helpers', () => {
 				path: '/B',
 				children: []
 			}
+		])
+	})
+
+	it('归一化目录路径时会裁剪每段空格并去重', () => {
+		assert.deepEqual(dedupeAndSortFolderPaths([' /design / icons ', '/design/icons', '/ design//icons/ ']), [
+			'/design/icons'
 		])
 	})
 })

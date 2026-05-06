@@ -7,7 +7,10 @@ export type BlogFolderNode = {
 function normalizeFolderPath(input: string): string | null {
 	const trimmed = input.trim()
 	if (!trimmed) return null
-	const parts = trimmed.split('/').filter(Boolean)
+	const parts = trimmed
+		.split('/')
+		.map(part => part.trim())
+		.filter(Boolean)
 	if (parts.length === 0) return null
 	return `/${parts.join('/')}`
 }
