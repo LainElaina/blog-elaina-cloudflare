@@ -35,6 +35,7 @@ import {
 } from './blog-filters'
 import { getAssignFolderActionState, getClearFolderActionState } from './folder-edit-actions'
 import { buildClearFolderDialogCopy } from './folder-interactions'
+import { getBlogHref } from '@/lib/blog-href'
 import {
 	saveLocalBlogPublishFile,
 	rollbackLocalBlogPublish,
@@ -561,7 +562,7 @@ export default function BlogPage() {
 									const isSelected = selectedSlugs.has(it.slug)
 									return (
 										<Link
-											href={`/blog/${it.slug}`}
+											href={getBlogHref(it.slug)}
 											key={it.slug}
 											onClick={event => handleItemClick(event, it.slug)}
 											className={cn(
