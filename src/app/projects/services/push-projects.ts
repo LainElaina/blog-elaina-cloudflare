@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, readTextFileFromRepo, listRepoFilesRecursive, type TreeItem } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
@@ -35,6 +35,27 @@ function collectProjectImageRepoPaths(projects: Project[]): Set<string> {
 		if (path) paths.add(path)
 	}
 	return paths
+}
+
+export function buildUnusedProjectImageDeleteTreeItems(previousProjects: Project[], currentProjects: Project[]): TreeItem[] {
+	const currentImagePaths = collectProjectImageRepoPaths(currentProjects)
+	return Array.from(collectProjectImageRepoPaths(previousProjects)).flatMap(path =>
+		currentImagePaths.has(path)
+			? []
+			: [
+					{
+						path,
+						mode: '100644' as const,
+						type: 'blob' as const,
+						sha: null
+					}
+				]
+	)
+}
+
+export function filterExistingProjectImageDeleteTreeItems(deleteItems: TreeItem[], existingRepoPaths: Iterable<string>): TreeItem[] {
+	const existing = new Set(existingRepoPaths)
+	return deleteItems.filter(item => existing.has(item.path))
 }
 
 export async function pushProjects(params: PushProjectsParams): Promise<Project[]> {
@@ -83,8 +104,6 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 		}
 	}
 
-	const currentImagePaths = collectProjectImageRepoPaths(updatedProjects)
-
 	const previousListJson = await readTextFileFromRepo(
 		token,
 		GITHUB_CONFIG.OWNER,
@@ -96,18 +115,12 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 	if (previousListJson) {
 		try {
 			const previousProjects: Project[] = JSON.parse(previousListJson)
-			const previousImagePaths = collectProjectImageRepoPaths(previousProjects)
-
-			for (const path of previousImagePaths) {
-				if (!currentImagePaths.has(path)) {
-					treeItems.push({
-						path,
-						mode: '100644',
-						type: 'blob',
-						sha: null
-					})
-				}
-			}
+			const existingProjectImagePaths = await listRepoFilesRecursive(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, 'public/images/project', latestCommitSha)
+			const deleteTreeItems = filterExistingProjectImageDeleteTreeItems(
+				buildUnusedProjectImageDeleteTreeItems(previousProjects, updatedProjects),
+				existingProjectImagePaths
+			)
+			treeItems.push(...deleteTreeItems)
 		} catch (error) {
 			console.error('Failed to parse previous projects list.json:', error)
 			throw new Error('远程项目列表解析失败，请修复 src/app/projects/list.json 后重试')

@@ -2,18 +2,56 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
 
+import { buildUnusedProjectImageDeleteTreeItems, filterExistingProjectImageDeleteTreeItems } from './services/push-projects'
+
+test('remote projects save filters delete items to existing baseline image files', () => {
+	const previousProjects = [
+		{
+			url: 'https://old.example.com',
+			image: '/images/project/old.png'
+		},
+		{
+			url: 'https://missing.example.com',
+			image: '/images/project/missing.png?version=1'
+		},
+		{
+			url: 'https://unsafe.example.com',
+			image: '/images/project/../secret.png'
+		}
+	]
+	const currentProjects = [
+		{
+			url: 'https://current.example.com',
+			image: '/images/project/current.png'
+		}
+	]
+
+	const deleteItems = buildUnusedProjectImageDeleteTreeItems(previousProjects, currentProjects)
+
+	assert.deepEqual(filterExistingProjectImageDeleteTreeItems(deleteItems, ['public/images/project/old.png']), [
+		{
+			path: 'public/images/project/old.png',
+			mode: '100644',
+			type: 'blob',
+			sha: null
+		}
+	])
+})
+
 test('remote projects save removes image files no longer referenced by list', async () => {
 	const source = (await fs.readFile(new URL('./services/push-projects.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /readTextFileFromRepo/)
+	assert.match(source, /listRepoFilesRecursive\([^\n]*'public\/images\/project', latestCommitSha\)/)
 	assert.match(source, /function projectImageRepoDeletePath\(publicPath: string\): string \| null/)
 	assert.match(source, /const pathOnly = publicPath\.split/)
 	assert.match(source, /const filename = pathOnly\.slice\(PROJECT_IMAGE_PUBLIC_PREFIX\.length\)/)
 	assert.match(source, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
-	assert.match(source, /const currentImagePaths = collectProjectImageRepoPaths\(updatedProjects\)/)
 	assert.match(source, /const previousProjects: Project\[] = JSON\.parse\(previousListJson\)/)
-	assert.match(source, /const previousImagePaths = collectProjectImageRepoPaths\(previousProjects\)/)
-	assert.match(source, /for \(const path of previousImagePaths\) \{\n\s*if \(!currentImagePaths\.has\(path\)\) \{\n\s*treeItems\.push\(\{[\s\S]*?sha: null/)
+	assert.match(source, /filterExistingProjectImageDeleteTreeItems\(/)
+	assert.match(source, /buildUnusedProjectImageDeleteTreeItems\(previousProjects, updatedProjects\)/)
+	assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
+	assert.doesNotMatch(source, /for \(const path of previousImagePaths\)/)
 	assert.doesNotMatch(source, /url\.replace\('\/images\/project\/', ''\)/)
 	assert.match(source, /throw new Error\('远程项目列表解析失败，请修复 src\/app\/projects\/list\.json 后重试'\)/)
 })
