@@ -28,6 +28,27 @@ test('layout local route returns 400 when JSON body is malformed', async () => {
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
 
+test('layout local route limits streamed JSON requests without content-length', async () => {
+	let pulled = 0
+	const encoder = new TextEncoder()
+	const response = await handleLayoutPost(
+		new Request('http://localhost/api/layout', {
+			method: 'POST',
+			body: new ReadableStream({
+				pull(controller) {
+					pulled += 1
+					controller.enqueue(encoder.encode('x'.repeat(256 * 1024)))
+				}
+			}),
+			duplex: 'half'
+		} as RequestInit)
+	)
+
+	assert.equal(response.status, 400)
+	assert.equal(pulled <= 6, true)
+	assert.deepEqual(await response.json(), { error: '请求体过大' })
+})
+
 test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 

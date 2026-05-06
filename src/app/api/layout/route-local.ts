@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request'
 import { isValidLayoutConfig } from './layout-config-validation'
 
 export { isValidLayoutConfig } from './layout-config-validation'
 
+const LAYOUT_REQUEST_MAX_BYTES = 1024 * 1024
 const LAYOUT_PATH = path.join(process.cwd(), 'src/config/card-styles.json')
 const BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
 
@@ -36,9 +38,9 @@ export async function handleLayoutPost(request: Request) {
 	try {
 		let layout: unknown
 		try {
-			layout = await request.json()
-		} catch {
-			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
+			layout = await readLimitedJsonRequest(request, LAYOUT_REQUEST_MAX_BYTES)
+		} catch (error) {
+			return NextResponse.json({ error: isJsonRequestBodyTooLargeError(error) ? '请求体过大' : '请求体格式错误' }, { status: 400 })
 		}
 		if (!isValidLayoutConfig(layout)) {
 			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })
