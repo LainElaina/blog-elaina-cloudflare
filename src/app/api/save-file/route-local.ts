@@ -32,6 +32,7 @@ async function writeFileAtomically(fullPath: string, content: string) {
 type JsonFileContentValidationResult = 'valid' | 'invalid-json' | 'invalid-shape'
 
 const BLOG_ARTIFACT_SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/
+const SHARE_STORAGE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const CONTENT_STATUS_VALUES = new Set(['published', 'draft', 'archived'])
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -56,6 +57,10 @@ function hasOptionalBooleanFields(value: Record<string, unknown>, fields: string
 
 function isSafeBlogArtifactSlug(slug: string) {
 	return BLOG_ARTIFACT_SLUG_PATTERN.test(slug)
+}
+
+function isSafeShareStorageSlug(slug: string) {
+	return SHARE_STORAGE_SLUG_PATTERN.test(slug)
 }
 
 function isCategoryConfig(value: unknown) {
@@ -154,7 +159,7 @@ function isShareStorageConfig(value: unknown) {
 
 	return Object.entries(value.shares).every(([slug, record]) => {
 		return (
-			slug.length > 0 &&
+			isSafeShareStorageSlug(slug) &&
 			isObject(record) &&
 			record.slug === slug &&
 			typeof record.status === 'string' &&

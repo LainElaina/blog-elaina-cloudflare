@@ -102,6 +102,48 @@ test('save-file local route rejects invalid allowlisted JSON shapes without repl
 	}
 })
 
+test('save-file local route rejects unsafe share storage slugs without replacing existing files', async () => {
+	for (const slug of ['../alpha', 'Alpha']) {
+		const previousCwd = process.cwd()
+		const repoDir = await mkdtemp(join(tmpdir(), 'save-file-share-slug-'))
+		const filePath = 'public/share/storage.json'
+		const previousContent = '{"version":1,"updatedAt":"now","shares":{}}'
+		const nextContent = JSON.stringify({
+			version: 1,
+			updatedAt: 'now',
+			shares: {
+				[slug]: {
+					slug,
+					name: 'Alpha',
+					logo: '/alpha.png',
+					url: 'https://alpha.dev',
+					description: 'alpha',
+					tags: ['tool'],
+					stars: 4,
+					status: 'published'
+				}
+			}
+		})
+
+		try {
+			await mkdir(join(repoDir, dirname(filePath)), { recursive: true })
+			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
+			process.chdir(repoDir)
+
+			const response = await handleSaveFile({
+				json: async () => ({ path: filePath, content: nextContent })
+			} as any)
+
+			assert.equal(response.status, 400, slug)
+			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, slug)
+			assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), previousContent, slug)
+		} finally {
+			process.chdir(previousCwd)
+			await rm(repoDir, { recursive: true, force: true })
+		}
+	}
+})
+
 test('save-file local route keeps blog markdown writes outside JSON shape validation', async () => {
 	const previousCwd = process.cwd()
 	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-md-'))
