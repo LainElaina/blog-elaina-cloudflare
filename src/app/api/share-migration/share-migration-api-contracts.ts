@@ -1,6 +1,6 @@
 export type ShareMigrationOperation = 'preview' | 'execute'
 
-export type ShareMigrationFailureCode = 'DEV_ONLY' | 'INVALID_REQUEST_JSON' | 'UNCONFIRMED' | 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE' | 'WRITE_FAILED'
+export type ShareMigrationFailureCode = 'DEV_ONLY' | 'INVALID_REQUEST_JSON' | 'REQUEST_BODY_TOO_LARGE' | 'UNCONFIRMED' | 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE' | 'WRITE_FAILED'
 
 export type ShareMigrationPreviewSuccessResponse = {
 	ok: true

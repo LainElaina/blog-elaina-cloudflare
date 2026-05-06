@@ -1,16 +1,42 @@
 import { NextResponse } from 'next/server'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
 
 import { buildShareMigrationFailureResponse } from '../share-migration-api-contracts.ts'
+
+const MAX_SHARE_MIGRATION_EXECUTE_REQUEST_BODY_SIZE = 1024 * 1024
+
+function getContentLength(request: Request) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
+function buildRequestBodyTooLargeResponse() {
+	return buildShareMigrationFailureResponse({
+		operation: 'execute',
+		code: 'REQUEST_BODY_TOO_LARGE',
+		message: '请求体超过 1MB 限制'
+	})
+}
 
 export async function POST(request: Request) {
 	if (process.env.NODE_ENV !== 'development') {
 		return NextResponse.json({ message: '仅开发环境可用' }, { status: 403 })
 	}
 
+	const contentLength = getContentLength(request)
+	if (contentLength !== null && contentLength > MAX_SHARE_MIGRATION_EXECUTE_REQUEST_BODY_SIZE) {
+		return NextResponse.json(buildRequestBodyTooLargeResponse(), { status: 413 })
+	}
+
 	let rawBody: unknown
 	try {
-		rawBody = await request.json()
-	} catch {
+		rawBody = await readLimitedJsonRequest(request, MAX_SHARE_MIGRATION_EXECUTE_REQUEST_BODY_SIZE)
+	} catch (error) {
+		if (isJsonRequestBodyTooLargeError(error)) {
+			return NextResponse.json(buildRequestBodyTooLargeResponse(), { status: 413 })
+		}
 		return NextResponse.json(
 			buildShareMigrationFailureResponse({
 				operation: 'execute',

@@ -133,6 +133,65 @@ describe('share migration next routes', () => {
     }
   })
 
+  it('execute route oversized request before JSON parsing 时返回 413', async () => {
+    const previousNodeEnv = process.env.NODE_ENV
+
+    try {
+      process.env.NODE_ENV = 'development'
+      const request = {
+        headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+        json: async () => {
+          throw new Error('json should not be called')
+        }
+      } as Request
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 413)
+      assert.deepEqual(payload, {
+        ok: false,
+        operation: 'execute',
+        code: 'REQUEST_BODY_TOO_LARGE',
+        message: '请求体超过 1MB 限制'
+      })
+    } finally {
+      restoreNodeEnv(previousNodeEnv)
+    }
+  })
+
+  it('execute route streamed oversized request without content-length 时返回 413', async () => {
+    const previousNodeEnv = process.env.NODE_ENV
+
+    try {
+      process.env.NODE_ENV = 'development'
+      let pulled = 0
+      const encoder = new TextEncoder()
+      const request = new Request('http://localhost/api/share-migration/execute', {
+        method: 'POST',
+        body: new ReadableStream({
+          pull(controller) {
+            pulled += 1
+            controller.enqueue(encoder.encode('x'.repeat(1024 * 1024)))
+          }
+        }),
+        duplex: 'half'
+      } as RequestInit)
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 413)
+      assert.equal(pulled <= 2, true)
+      assert.deepEqual(payload, {
+        ok: false,
+        operation: 'execute',
+        code: 'REQUEST_BODY_TOO_LARGE',
+        message: '请求体超过 1MB 限制'
+      })
+    } finally {
+      restoreNodeEnv(previousNodeEnv)
+    }
+  })
+
   it('execute route malformed JSON 时返回请求格式错误', async () => {
     const previousNodeEnv = process.env.NODE_ENV
 
