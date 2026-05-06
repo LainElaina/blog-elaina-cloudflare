@@ -4,6 +4,16 @@ import { persist } from 'zustand/middleware'
 // Use object hash for faster lookup - O(1) time complexity
 type ReadArticlesHash = Record<string, boolean>
 
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+export function normalizeReadArticles(value: unknown): ReadArticlesHash {
+	if (!isObject(value)) return {}
+
+	return Object.fromEntries(Object.entries(value).filter(([slug, isRead]) => slug.trim() && isRead === true))
+}
+
 interface ReadArticlesStore {
 	readArticles: ReadArticlesHash
 	markAsRead: (slug: string) => void
@@ -31,7 +41,11 @@ export const useReadArticles = create<ReadArticlesStore>()(
 			}
 		}),
 		{
-			name: 'blog-read-articles'
+			name: 'blog-read-articles',
+			merge: (persistedState, currentState) => {
+				const readArticles = isObject(persistedState) ? normalizeReadArticles(persistedState.readArticles) : {}
+				return { ...currentState, readArticles }
+			}
 		}
 	)
 )
