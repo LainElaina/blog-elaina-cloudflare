@@ -537,13 +537,22 @@ async function assertSiteConfigDraftLocalAssetsExist(baseDir: string, draft: Sit
 		}
 
 		const assetPath = path.join(baseDir, repoPath)
-		const stat = await fs.stat(assetPath).catch(error => {
-			if (isFileNotFoundError(error)) {
-				throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
-			}
-			throw error
-		})
-		if (!stat.isFile()) {
+		const assetDir = path.dirname(assetPath)
+		const [assetDirStats, assetStats] = await Promise.all([
+			fs.lstat(assetDir).catch(error => {
+				if (isFileNotFoundError(error)) {
+					throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
+				}
+				throw error
+			}),
+			fs.lstat(assetPath).catch(error => {
+				if (isFileNotFoundError(error)) {
+					throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
+				}
+				throw error
+			})
+		])
+		if (!assetDirStats.isDirectory() || (await fs.realpath(assetDir)) !== assetDir || !assetStats.isFile()) {
 			throw new SiteConfigLocalValidationError(`草稿引用的本地资源不存在：${asset.label} ${asset.url}`)
 		}
 	}

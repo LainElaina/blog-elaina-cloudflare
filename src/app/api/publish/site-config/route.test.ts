@@ -1,14 +1,37 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { registerHooks } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
+
+const projectSrcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../')
+
+function resolveSourcePath(sourcePath: string) {
+	for (const candidate of [sourcePath, `${sourcePath}.ts`, `${sourcePath}.tsx`]) {
+		if (existsSync(candidate)) {
+			return candidate
+		}
+	}
+	return sourcePath
+}
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
 		if (specifier === 'next/server') {
 			return nextResolve('next/server.js', context)
+		}
+		if (specifier.startsWith('@/')) {
+			const sourcePath = path.join(projectSrcDir, specifier.slice(2))
+			return nextResolve(pathToFileURL(resolveSourcePath(sourcePath)).href, context)
+		}
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL?.startsWith('file:')) {
+			const sourcePath = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier)
+			if (sourcePath.startsWith(projectSrcDir + path.sep)) {
+				return nextResolve(pathToFileURL(resolveSourcePath(sourcePath)).href, context)
+			}
 		}
 		return nextResolve(specifier, context)
 	}
@@ -165,6 +188,42 @@ test('site config publish returns 400 when draft references missing local assets
 		assert.deepEqual(payload, { error: '草稿引用的本地资源不存在：首页图片 /images/art/missing.png' })
 		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
 	})
+})
+
+test('site config publish rejects symlinked local asset references without touching formal config', async () => {
+	for (const symlinkKind of ['directory', 'file'] as const) {
+		await withDevelopmentCwd(async tmpDir => {
+			const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+			await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+			await fs.mkdir(path.join(tmpDir, 'outside-assets'), { recursive: true })
+			await fs.writeFile(path.join(tmpDir, 'outside-assets/hero.png'), 'outside')
+
+			if (symlinkKind === 'directory') {
+				await fs.mkdir(path.join(tmpDir, 'public/images'), { recursive: true })
+				await fs.symlink(path.join(tmpDir, 'outside-assets'), path.join(tmpDir, 'public/images/art'), 'dir')
+			} else {
+				await fs.mkdir(path.join(tmpDir, 'public/images/art'), { recursive: true })
+				await fs.symlink(path.join(tmpDir, 'outside-assets/hero.png'), path.join(tmpDir, 'public/images/art/hero.png'))
+			}
+
+			const response = await POST(
+				new Request('http://localhost/api/publish/site-config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						siteContent: {
+							artImages: [{ url: '/images/art/hero.png' }]
+						}
+					})
+				})
+			)
+			const payload = await response.json()
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(payload, { error: '草稿引用的本地资源不存在：首页图片 /images/art/hero.png' })
+			assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
+		})
+	}
 })
 
 test('site config publish rejects invalid request payload values without touching formal config', async () => {
