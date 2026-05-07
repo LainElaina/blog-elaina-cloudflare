@@ -7,6 +7,7 @@ export type LocalBlogPublishFileBackup = {
 export type LocalBlogPublishUploadBackup = {
 	path: string
 	existed: boolean
+	file?: File
 }
 
 type LocalBlogPublishFetch = (input: string, init?: RequestInit) => Promise<Response>
@@ -52,7 +53,11 @@ export async function readLocalBlogPublishFileBackup(path: string, fetchLocal: L
 export async function readLocalBlogPublishUploadBackup(path: string, fetchLocal: LocalBlogPublishFetch = fetch): Promise<LocalBlogPublishUploadBackup> {
 	const response = await fetchLocal(toPublicUrl(path), { cache: 'no-store' })
 	await assertLocalBlogBackupReadOk(response, path)
-	return { path, existed: response.ok }
+	if (response.status === 404) {
+		return { path, existed: false }
+	}
+	const blob = await response.blob()
+	return { path, existed: true, file: new File([blob], path.split('/').at(-1) || 'image', { type: blob.type }) }
 }
 
 export async function saveLocalBlogPublishFile(
@@ -101,6 +106,19 @@ async function restoreLocalBlogPublishFile(backup: LocalBlogPublishFileBackup, f
 	}
 }
 
+async function restoreLocalBlogPublishImage(backup: LocalBlogPublishUploadBackup, fetchLocal: LocalBlogPublishFetch) {
+	if (!backup.file) {
+		throw new Error(`恢复 ${backup.path} 失败`)
+	}
+	const formData = new FormData()
+	formData.append('file', backup.file)
+	formData.append('path', backup.path)
+	const response = await fetchLocal('/api/upload-image', { method: 'POST', body: formData })
+	if (!response.ok) {
+		throw new Error(`恢复 ${backup.path} 失败`)
+	}
+}
+
 async function deleteLocalBlogPublishFile(path: string, fetchLocal: LocalBlogPublishFetch) {
 	const response = await fetchLocal('/api/delete-file', {
 		method: 'POST',
@@ -143,12 +161,14 @@ export async function rollbackLocalBlogPublish(
 	}
 
 	for (const backup of [...uploadedFiles].reverse()) {
-		if (!backup.existed) {
-			try {
+		try {
+			if (backup.existed) {
+				await restoreLocalBlogPublishImage(backup, fetchLocal)
+			} else {
 				await deleteLocalBlogPublishImage(backup.path, fetchLocal)
-			} catch {
-				rollbackErrors.push(backup.path)
 			}
+		} catch {
+			rollbackErrors.push(backup.path)
 		}
 	}
 

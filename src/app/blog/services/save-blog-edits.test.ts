@@ -64,11 +64,14 @@ describe('buildArtifactsForSaveBlogEdits', () => {
 	})
 })
 
-describe('saveBlogEdits remote storage read', () => {
-	it('远程 storage 读取失败时不应回退为空快照继续保存', async () => {
+describe('saveBlogEdits remote update retry', () => {
+	it('远端保存遇到分支更新冲突时应重新执行完整保存流程', async () => {
 		const source = (await fs.readFile(new URL('./save-blog-edits.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
+		assert.match(source, /async function attemptSaveBlogEdits\(\): Promise<SaveBlogEditsArtifacts>/)
 		assert.match(source, /const storageRaw = await readTextFileFromRepo\([^\n]*storagePath, latestCommitSha\)/)
 		assert.doesNotMatch(source, /catch\s*\{\s*storageRaw = null\s*\}/)
+		assert.match(source, /if \(isGitHubUpdateRefConflictError\(error\)\) \{\n\s*toast\.info\('分支已更新，正在重新保存\.\.\.'\)\n\s*const artifacts = await attemptSaveBlogEdits\(\)/)
+		assert.match(source, /const refData = await getRef[\s\S]*?const storageRaw = await readTextFileFromRepo\([^\n]*latestCommitSha\)[\s\S]*?await updateRef\(token, GITHUB_CONFIG\.OWNER, GITHUB_CONFIG\.REPO, `heads\/\$\{GITHUB_CONFIG\.BRANCH\}`, commitData\.sha\)/)
 	})
 })

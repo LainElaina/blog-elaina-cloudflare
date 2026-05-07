@@ -136,3 +136,32 @@ test('local publish upload tracks newly created image paths for rollback', async
 	assert.equal(calls[1].input, '/api/upload-image')
 	assert.equal(calls[1].init?.method, 'POST')
 })
+
+test('local publish rollback restores overwritten image backups', async () => {
+	const calls: FetchCall[] = []
+	const uploadedFiles: LocalBlogPublishUploadBackup[] = []
+	const previousImage = new File(['previous image'], 'cover.png', { type: 'image/png' })
+	const nextImage = new File(['next image'], 'cover.png', { type: 'image/png' })
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/blogs/post-a/cover.png') {
+			return new Response(previousImage, { status: 200, headers: { 'Content-Type': previousImage.type } })
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await uploadLocalBlogPublishImage({ file: nextImage, path: 'public/blogs/post-a/cover.png', actionName: '上传图片', uploadedFiles }, fetchLocal)
+	await rollbackLocalBlogPublish([], uploadedFiles, fetchLocal)
+
+	assert.equal(uploadedFiles.length, 1)
+	assert.equal(uploadedFiles[0].existed, true)
+	assert.equal(uploadedFiles[0].file?.type, 'image/png')
+	assert.equal(await uploadedFiles[0].file?.text(), 'previous image')
+	assert.equal(calls[1].input, '/api/upload-image')
+	assert.equal(calls[2].input, '/api/upload-image')
+	const restoreFormData = calls[2].init?.body as FormData
+	const restoredFile = restoreFormData.get('file') as File
+	assert.equal(await restoredFile.text(), 'previous image')
+	assert.equal(restoredFile.type, 'image/png')
+	assert.equal(restoreFormData.get('path'), 'public/blogs/post-a/cover.png')
+})

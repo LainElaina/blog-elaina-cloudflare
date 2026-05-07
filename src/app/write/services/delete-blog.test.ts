@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
 import { describe, it } from 'node:test'
 
 import { buildBatchDeleteArtifactContents, buildDeleteArtifactContents, hasBlogRecordForDelete } from './delete-blog'
@@ -123,5 +124,15 @@ describe('hasBlogRecordForDelete', () => {
 			true
 		)
 		assert.equal(hasBlogRecordForDelete({ slug: 'post-3', storageRaw: null, indexRaw: '[]' }), false)
+	})
+})
+
+describe('deleteBlog remote update retry', () => {
+	it('远端删除遇到分支更新冲突时应重新执行完整删除流程', async () => {
+		const source = (await fs.readFile(new URL('./delete-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+
+		assert.match(source, /async function attemptDeleteBlog\(\)/)
+		assert.match(source, /if \(isGitHubUpdateRefConflictError\(error\)\) \{\n\s*toast\.info\('分支已更新，正在重新删除\.\.\.'\)\n\s*await attemptDeleteBlog\(\)/)
+		assert.match(source, /const refData = await getRef[\s\S]*?const latestCommitSha = refData\.sha[\s\S]*?await updateRef\(token, GITHUB_CONFIG\.OWNER, GITHUB_CONFIG\.REPO, `heads\/\$\{GITHUB_CONFIG\.BRANCH\}`, commitData\.sha\)/)
 	})
 })
