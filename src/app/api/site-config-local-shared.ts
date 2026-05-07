@@ -380,14 +380,79 @@ async function readFormalSiteContent(baseDir: string): Promise<SiteContentWithSo
 	}
 }
 
+function getSocialButtonImageDeleteFilename(imagePath: string): string | null {
+	if (!imagePath.startsWith(SOCIAL_BUTTON_IMAGE_REPO_PREFIX)) {
+		return null
+	}
+	const filename = imagePath.slice(SOCIAL_BUTTON_IMAGE_REPO_PREFIX.length)
+	if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+		return null
+	}
+	return filename
+}
+
+function isDirectChildPath(parentDir: string, fullPath: string) {
+	const relative = path.relative(parentDir, fullPath)
+	return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative) && !relative.includes(path.sep)
+}
+
+async function resolveSafeSocialButtonImageDeletePath(baseDir: string, imagePath: string): Promise<string | null> {
+	const filename = getSocialButtonImageDeleteFilename(imagePath)
+	if (!filename) {
+		return null
+	}
+
+	const baseRealPath = await fs.realpath(baseDir)
+	const imageDir = path.resolve(baseRealPath, SOCIAL_BUTTON_IMAGE_REPO_PREFIX)
+	const imageDirStats = await fs.lstat(imageDir).catch(error => {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
+	})
+	if (imageDirStats === null) {
+		return null
+	}
+	if (!imageDirStats.isDirectory()) {
+		throw new Error('旧社交按钮图片目录不是普通目录')
+	}
+	if ((await fs.realpath(imageDir)) !== imageDir) {
+		throw new Error('旧社交按钮图片目录不能通过符号链接清理')
+	}
+
+	const fullPath = path.resolve(imageDir, filename)
+	return isDirectChildPath(imageDir, fullPath) ? fullPath : null
+}
+
 async function deleteSiteConfigSocialButtonImages(baseDir: string, paths: string[]) {
 	for (const imagePath of paths) {
-		if (!imagePath.startsWith(SOCIAL_BUTTON_IMAGE_REPO_PREFIX)) {
-			continue
-		}
-		await fs.rm(path.join(baseDir, imagePath), { force: true }).catch(error => {
+		try {
+			const fullPath = await resolveSafeSocialButtonImageDeletePath(baseDir, imagePath)
+			if (!fullPath) {
+				continue
+			}
+
+			const fileStats = await fs.lstat(fullPath).catch(error => {
+				if (isFileNotFoundError(error)) {
+					return null
+				}
+				throw error
+			})
+			if (fileStats === null) {
+				continue
+			}
+			if (!fileStats.isFile()) {
+				throw new Error('旧社交按钮图片不是普通文件')
+			}
+
+			await fs.unlink(fullPath).catch(error => {
+				if (!isFileNotFoundError(error)) {
+					throw error
+				}
+			})
+		} catch (error) {
 			console.warn('删除旧社交按钮图片失败:', error)
-		})
+		}
 	}
 }
 

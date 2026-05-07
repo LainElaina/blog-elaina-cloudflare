@@ -504,6 +504,53 @@ test('发布站点配置草稿会清理旧社交按钮图片文件', async () =>
 	}
 })
 
+test('旧社交按钮图片目录为符号链接时不会删除项目外文件', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-social-symlink-cleanup-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-social-symlink-outside-'))
+	const originalWarn = console.warn
+	const warnings: unknown[][] = []
+	console.warn = (...args: unknown[]) => {
+		warnings.push(args)
+	}
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'public/images'), { recursive: true })
+		await fs.writeFile(path.join(outsideDir, 'old.png'), 'outside')
+		await fs.symlink(outsideDir, path.join(tmpDir, 'public/images/social-buttons'), 'dir')
+		await fs.writeFile(
+			path.join(tmpDir, 'src/config/site-content.json'),
+			JSON.stringify(
+				{
+					meta: { title: 'formal' },
+					socialButtons: [{ id: 'old', value: '/images/social-buttons/old.png' }]
+				},
+				null,
+				'\t'
+			)
+		)
+
+		const draft = {
+			siteContent: {
+				meta: { title: 'draft' },
+				socialButtons: []
+			}
+		}
+		await writeSiteConfigDraft(tmpDir, draft)
+
+		const touched = await publishSiteConfigDraft(tmpDir, draft)
+
+		assert.deepEqual(touched, ['site-content.json'])
+		assert.equal(await fs.readFile(path.join(outsideDir, 'old.png'), 'utf-8'), 'outside')
+		assert.equal(await readSiteConfigDraft(tmpDir), null)
+		assert.equal(warnings.length, 1)
+		assert.equal(warnings[0]?.[0], '删除旧社交按钮图片失败:')
+	} finally {
+		console.warn = originalWarn
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
 test('旧社交按钮图片清理失败不会让已发布配置回滚为失败', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-social-cleanup-failure-'))
 	const originalWarn = console.warn
