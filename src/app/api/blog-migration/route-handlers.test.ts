@@ -241,6 +241,46 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('preview route 拒绝非法 storage 可选字段结构', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/storage.json'),
+				JSON.stringify(
+					{
+						version: 1,
+						updatedAt: '2026-04-13T07:00:00.000Z',
+						blogs: {
+							'post-a': {
+								slug: 'post-a',
+								title: 'A',
+								tags: [],
+								date: '2026-04-13T07:00:00.000Z',
+								status: 'published',
+								category: 1,
+								folderPath: [],
+								favorite: 'true'
+							}
+						}
+					},
+					null,
+					2
+				)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/storage.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 在确认后会同步账本并重建正式产物', async () => {
 		const context = await setupBlogArtifactsRepo()
 

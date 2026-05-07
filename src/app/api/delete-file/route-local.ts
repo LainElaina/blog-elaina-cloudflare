@@ -1,5 +1,5 @@
-import { lstat, unlink } from 'fs/promises'
-import { resolve } from 'path'
+import { lstat, realpath, unlink } from 'fs/promises'
+import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
@@ -12,6 +12,29 @@ function getContentLength(request: NextRequest) {
 	if (!value) return null
 	const length = Number(value)
 	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
+function isFileNotFoundError(error: unknown) {
+	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+}
+
+async function assertSafeDeleteFileDirectory(fullPath: string) {
+	const parentDir = dirname(fullPath)
+	const parentStats = await lstat(parentDir).catch(error => {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
+	})
+	if (parentStats === null) {
+		return
+	}
+	if (!parentStats.isDirectory()) {
+		throw new Error('unsafe-delete-file-directory')
+	}
+	if ((await realpath(parentDir)) !== parentDir) {
+		throw new Error('unsafe-delete-file-directory')
+	}
 }
 
 export async function handleDeleteFile(request: NextRequest) {
@@ -48,8 +71,10 @@ export async function handleDeleteFile(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 
+		await assertSafeDeleteFileDirectory(fullPath)
+
 		const fileStats = await lstat(fullPath).catch(error => {
-			if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+			if (isFileNotFoundError(error)) {
 				return null
 			}
 			throw error
@@ -64,7 +89,7 @@ export async function handleDeleteFile(request: NextRequest) {
 		}
 
 		await unlink(fullPath).catch(error => {
-			if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+			if (!isFileNotFoundError(error)) {
 				throw error
 			}
 		})

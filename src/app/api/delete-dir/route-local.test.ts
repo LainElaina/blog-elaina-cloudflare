@@ -9,11 +9,16 @@ import { handleDeleteDir } from './route-local.ts'
 test('delete dir route only allows deleting single safe blog directories', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /import \{ lstat, rm \} from 'fs\/promises'/)
+	assert.match(source, /import \{ lstat, realpath, rm \} from 'fs\/promises'/)
+	assert.match(source, /import \{ dirname, relative, resolve \} from 'path'/)
 	assert.match(source, /import \{ assertSafeBlogSlug \} from '\.\.\/\.\.\/write\/services\/blog-slug'/)
 	assert.match(source, /function isAllowedBlogDirectoryPath\(blogDir: string, fullPath: string\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
 	assert.match(source, /只能删除 public\/blogs 下的文章目录/)
+	assert.match(source, /async function assertSafeDeleteDirParent\(fullPath: string\)/)
+	assert.match(source, /const parentDir = dirname\(fullPath\)/)
+	assert.match(source, /\(await realpath\(parentDir\)\) !== parentDir/)
+	assert.match(source, /await assertSafeDeleteDirParent\(fullPath\)/)
 	assert.match(source, /const targetStat = await lstat\(fullPath\)/)
 	assert.match(source, /if \(!targetStat\.isDirectory\(\)\) \{/)
 	assert.match(source, /只能删除文章目录/)
@@ -23,7 +28,7 @@ test('delete dir route only allows deleting single safe blog directories', async
 test('delete dir route rejects files and nested paths before removing', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\ttry \{\n\t\t\tconst targetStat = await lstat\(fullPath\)/)
+	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tawait assertSafeDeleteDirParent\(fullPath\)\n\n\t\ttry \{\n\t\t\tconst targetStat = await lstat\(fullPath\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
 	assert.doesNotMatch(source, /await rm\(fullPath, \{ recursive: true, force: true \}\)[\s\S]*?const targetStat = await lstat\(fullPath\)/)
 })
@@ -60,6 +65,30 @@ test('delete dir route rejects symlink blog directories without removing target 
 		await fs.rm(tmpDir, { recursive: true, force: true })
 	}
 })
+
+test('delete dir route rejects symlink parent directories without removing target directory', async () => {
+	const previousCwd = process.cwd()
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-dir-parent-symlink-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'public'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'outside-target/post-a'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'outside-target/post-a/keep.txt'), 'keep', 'utf-8')
+		await fs.symlink(path.join(tmpDir, 'outside-target'), path.join(tmpDir, 'public/blogs'), 'dir')
+		process.chdir(tmpDir)
+
+		const response = await handleDeleteDir({
+			json: async () => ({ path: 'public/blogs/post-a' })
+		} as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '删除失败' })
+		assert.equal(await fs.readFile(path.join(tmpDir, 'outside-target/post-a/keep.txt'), 'utf-8'), 'keep')
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 
 test('delete dir route returns 413 for oversized request before JSON parsing', async () => {
 	let jsonCalled = false

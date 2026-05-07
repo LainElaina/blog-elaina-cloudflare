@@ -1,5 +1,5 @@
-import { lstat, rm } from 'fs/promises'
-import { relative, resolve } from 'path'
+import { lstat, realpath, rm } from 'fs/promises'
+import { dirname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug'
@@ -30,6 +30,25 @@ function isAllowedBlogDirectoryPath(blogDir: string, fullPath: string) {
 
 function isFileNotFoundError(error: unknown) {
 	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+}
+
+async function assertSafeDeleteDirParent(fullPath: string) {
+	const parentDir = dirname(fullPath)
+	const parentStats = await lstat(parentDir).catch(error => {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
+	})
+	if (parentStats === null) {
+		return
+	}
+	if (!parentStats.isDirectory()) {
+		throw new Error('unsafe-delete-dir-parent')
+	}
+	if ((await realpath(parentDir)) !== parentDir) {
+		throw new Error('unsafe-delete-dir-parent')
+	}
 }
 
 export async function handleDeleteDir(request: NextRequest) {
@@ -65,6 +84,8 @@ export async function handleDeleteDir(request: NextRequest) {
 		if (!isAllowedBlogDirectoryPath(blogDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })
 		}
+
+		await assertSafeDeleteDirParent(fullPath)
 
 		try {
 			const targetStat = await lstat(fullPath)

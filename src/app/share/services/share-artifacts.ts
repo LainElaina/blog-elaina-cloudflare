@@ -52,6 +52,11 @@ export function buildUnusedShareLogoRepoPaths(previousShares: ShareListItem[], c
 	return Array.from(collectShareLogoRepoPaths(previousShares)).filter(path => !currentLogoPaths.has(path))
 }
 
+export function buildUnusedShareLogoRepoPathsForStorage(previousShares: ShareListItem[], currentShares: ShareListItem[], storageRaw: string): string[] {
+	const storageShares = Object.values(parseRequiredShareStorageDB(storageRaw).shares)
+	return buildUnusedShareLogoRepoPaths(previousShares, [...currentShares, ...storageShares])
+}
+
 export function applyShareLogoPathUpdates(shares: ShareListItem[], nextLogoPaths: Map<string, string>): ShareListItem[] {
 	return shares.map(share => {
 		const nextLogoPath = nextLogoPaths.get(share.url)

@@ -3,6 +3,11 @@ name = "blog-elaina-cloudflare"
 compatibility_date = "2025-03-25"
 compatibility_flags = ["nodejs_compat"]
 
+# 自定义域名配置 (Wrangler 3.0+ 支持)
+routes = [
+  { pattern = "blog.lainelaina.top", custom_domain = true }
+]
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
@@ -26,8 +31,3 @@ NEXT_PUBLIC_GITHUB_APP_ID = "3163640"
 NEXT_PUBLIC_GITHUB_BRANCH = "main"
 NEXT_PUBLIC_GITHUB_OWNER = "LainElaina"
 NEXT_PUBLIC_GITHUB_REPO = "blog-elaina-cloudflare"
-
-# 自定义域名配置 (Wrangler 3.0+ 支持)
-routes = [
-  { pattern = "blog.lainelaina.top", custom_domain = true }
-]

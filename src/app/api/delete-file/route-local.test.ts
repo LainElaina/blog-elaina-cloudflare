@@ -1,16 +1,24 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { handleDeleteFile } from './route-local.ts'
 
 test('delete file local route only deletes save-file allowlisted paths', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
+	assert.match(source, /import \{ lstat, realpath, unlink \} from 'fs\/promises'/)
+	assert.match(source, /import \{ dirname, resolve \} from 'path'/)
 	assert.match(source, /import \{ isAllowedSaveFilePath \} from '\.\.\/save-file\/local-save-file-path\.ts'/)
 	assert.match(source, /const projectDir = resolve\(process\.cwd\(\)\)/)
 	assert.match(source, /if \(!isAllowedSaveFilePath\(projectDir, fullPath\)\) \{/)
 	assert.match(source, /return NextResponse\.json\(\{ error: '路径不合法' \}, \{ status: 403 \}\)/)
+	assert.match(source, /async function assertSafeDeleteFileDirectory\(fullPath: string\)/)
+	assert.match(source, /const parentDir = dirname\(fullPath\)/)
+	assert.match(source, /\(await realpath\(parentDir\)\) !== parentDir/)
+	assert.match(source, /if \(!isAllowedSaveFilePath\(projectDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tawait assertSafeDeleteFileDirectory\(fullPath\)\n\n\t\tconst fileStats = await lstat\(fullPath\)/)
 	assert.doesNotMatch(source, /isPathInsideDirectory\(publicDir, fullPath\)/)
 })
 
@@ -18,7 +26,8 @@ test('delete file local route treats missing allowlisted files as successful del
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.doesNotMatch(source, /existsSync/)
-	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(\(error as NodeJS\.ErrnoException\)\?\.code === 'ENOENT'\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
+	assert.match(source, /function isFileNotFoundError\(error: unknown\)/)
+	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(isFileNotFoundError\(error\)\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
 	assert.match(source, /if \(fileStats === null\) \{\n\s*return NextResponse\.json\(\{ success: true \}\)\n\s*\}/)
 })
 
@@ -38,6 +47,30 @@ test('delete file local route rejects non-file allowlisted paths', async () => {
 		await fs.rm(`public/blogs/${slug}`, { recursive: true, force: true })
 	}
 })
+
+test('delete file local route rejects symlink parent directories without deleting target file', async () => {
+	const previousCwd = process.cwd()
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-file-parent-symlink-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'public'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'outside-target'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'outside-target/storage.json'), '{}', 'utf-8')
+		await fs.symlink(path.join(tmpDir, 'outside-target'), path.join(tmpDir, 'public/share'), 'dir')
+		process.chdir(tmpDir)
+
+		const response = await handleDeleteFile({
+			json: async () => ({ path: 'public/share/storage.json' })
+		} as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '删除失败' })
+		assert.equal(await fs.readFile(path.join(tmpDir, 'outside-target/storage.json'), 'utf-8'), '{}')
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 
 test('delete file local route returns 413 for oversized request before JSON parsing', async () => {
 	let jsonCalled = false

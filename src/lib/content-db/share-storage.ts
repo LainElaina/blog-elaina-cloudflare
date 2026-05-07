@@ -173,7 +173,6 @@ export function upsertShareRecord(
 		shares: {
 			...nextShares,
 			[slug]: {
-				...(existing ?? {}),
 				name: sanitized.name,
 				logo: sanitized.logo,
 				url: sanitized.url,

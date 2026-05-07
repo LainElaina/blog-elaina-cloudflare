@@ -166,7 +166,13 @@ function validateBlogStorageArtifact(raw: string | null) {
 			!Array.isArray(record.tags) ||
 			!record.tags.every(tag => typeof tag === 'string') ||
 			typeof record.date !== 'string' ||
-			!['published', 'draft', 'archived'].includes(String(record.status))
+			!['published', 'draft', 'archived'].includes(String(record.status)) ||
+			('summary' in record && typeof record.summary !== 'string') ||
+			('cover' in record && typeof record.cover !== 'string') ||
+			('hidden' in record && typeof record.hidden !== 'boolean') ||
+			('category' in record && typeof record.category !== 'string') ||
+			('folderPath' in record && typeof record.folderPath !== 'string') ||
+			('favorite' in record && typeof record.favorite !== 'boolean')
 		) {
 			throwInvalidShape(artifactPath)
 		}

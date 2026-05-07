@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { buildShareStorageFromList, exportStaticShareArtifacts, parseShareStorageDB } from './share-storage.ts'
-import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads } from '../../app/share/services/share-artifacts.ts'
+import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, buildUnusedShareLogoRepoPathsForStorage } from '../../app/share/services/share-artifacts.ts'
 
 function createStorageRaw(shares: Record<string, Record<string, unknown>>) {
 	return JSON.stringify({
@@ -105,7 +105,7 @@ describe('share storage model', () => {
 		])
 	})
 
-	it('基于既有 storage 保存时会保留非 published 记录与未暴露字段', () => {
+	it('基于既有 storage 保存时会保留非 published 记录并清除当前记录已移除的可选字段', () => {
 		const payloads = buildLocalShareSaveFilePayloads(
 			[
 				{
@@ -159,14 +159,14 @@ describe('share storage model', () => {
 				url: 'https://alpha.dev',
 				description: 'alpha next',
 				tags: ['tool'],
-				stars: 5,
-				category: 'tool',
-				folderPath: '/alpha/tools'
+				stars: 5
 			}
 		])
 		assert.equal(storagePayload.shares.archived.status, 'archived')
-		assert.equal(storagePayload.shares.alpha.category, 'tool')
-		assert.equal(storagePayload.shares.alpha.folderPath, '/alpha/tools')
+		assert.equal(storagePayload.shares.archived.category, 'legacy')
+		assert.equal(storagePayload.shares.archived.folderPath, '/legacy/old')
+		assert.equal(storagePayload.shares.alpha.category, undefined)
+		assert.equal(storagePayload.shares.alpha.folderPath, undefined)
 	})
 
 	it('保存时会移除已删除的 published 记录但保留 archived 记录', () => {
@@ -247,7 +247,7 @@ describe('share storage model', () => {
 		assert.equal(Object.values(storagePayload.shares).filter((item: any) => item.status === 'published').length, 1)
 	})
 
-	it('修改 URL 时不会残留旧 published 记录，并保留既有未暴露字段', () => {
+	it('修改 URL 时不会残留旧 published 记录，并会清除当前记录已移除的可选字段', () => {
 		const payloads = buildLocalShareSaveFilePayloads(
 			[
 				{
@@ -290,16 +290,14 @@ describe('share storage model', () => {
 				url: 'https://alpha-next.dev',
 				description: 'alpha next',
 				tags: ['tool'],
-				stars: 5,
-				category: 'tool',
-				folderPath: '/alpha/tools'
+				stars: 5
 			}
 		])
 		assert.equal(Object.values(storagePayload.shares).filter((item: any) => item.status === 'published').length, 1)
 		assert.equal(Object.values(storagePayload.shares).some((item: any) => item.url === 'https://alpha.dev'), false)
 		assert.equal(Object.values(storagePayload.shares).some((item: any) => item.url === 'https://alpha-next.dev'), true)
-		assert.equal(Object.values(storagePayload.shares)[0].category, 'tool')
-		assert.equal(Object.values(storagePayload.shares)[0].folderPath, '/alpha/tools')
+		assert.equal(Object.values(storagePayload.shares)[0].category, undefined)
+		assert.equal(Object.values(storagePayload.shares)[0].folderPath, undefined)
 	})
 
 	it('同名不同 URL 的 share 会生成不同 slug', () => {
@@ -636,6 +634,44 @@ describe('share storage model', () => {
 				),
 			/URL 已存在/
 		)
+	})
+
+	it('本地 share logo 清理会保留 storage 中仍引用的非列表 logo', () => {
+		const unusedLogoPaths = buildUnusedShareLogoRepoPathsForStorage(
+			[
+				{
+					name: 'Alpha',
+					logo: '/images/share/alpha.png',
+					url: 'https://alpha.dev',
+					description: 'alpha',
+					tags: ['tool'],
+					stars: 4
+				},
+				{
+					name: 'Beta',
+					logo: '/images/share/beta.png',
+					url: 'https://beta.dev',
+					description: 'beta',
+					tags: ['tool'],
+					stars: 4
+				}
+			],
+			[],
+			createStorageRaw({
+				archived: {
+					slug: 'archived',
+					name: 'Archived Alpha',
+					logo: '/images/share/alpha.png',
+					url: 'https://alpha.dev',
+					description: 'archived',
+					tags: ['legacy'],
+					stars: 1,
+					status: 'archived'
+				}
+			})
+		)
+
+		assert.deepEqual(unusedLogoPaths, ['public/images/share/beta.png'])
 	})
 
 	it('保存 share 正式产物时遇到损坏 storage 会失败而不是重建空库', () => {
