@@ -178,6 +178,30 @@ test('upload image local route rejects allowlisted paths under symlinked parent 
 	}
 })
 
+test('upload image local route rejects allowlisted paths under repo-internal symlinked parent directories', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-inner-symlink-'))
+	try {
+		await fs.mkdir(join(repoDir, 'public/images'), { recursive: true })
+		await fs.mkdir(join(repoDir, 'public/redirected-share'), { recursive: true })
+		await fs.symlink(join(repoDir, 'public/redirected-share'), join(repoDir, 'public/images/share'))
+		process.chdir(repoDir)
+
+		const formData = new FormData()
+		formData.set('file', new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'test.png', { type: 'image/png' }))
+		formData.set('path', 'public/images/share/test.png')
+
+		const response = await handleUploadImage({ formData: async () => formData } as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '上传失败' })
+		await assert.rejects(() => fs.readFile(join(repoDir, 'public/redirected-share/test.png')), /ENOENT/)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
 test('upload image local route rejects disguised image extensions', async () => {
 	const formData = new FormData()
 	formData.set('file', new File(['not image'], 'fake.png', { type: 'image/png' }))

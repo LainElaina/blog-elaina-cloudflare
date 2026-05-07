@@ -22,6 +22,23 @@ type WriteText = (filePath: string, content: string) => Promise<void>
 const PREVIEW_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。预检查基于当前磁盘快照。'
 const EXECUTE_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。执行结果已基于写回后的磁盘状态复检。'
 
+let shareMigrationExecuteLock: Promise<void> = Promise.resolve()
+
+async function withShareMigrationExecuteLock<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = shareMigrationExecuteLock
+  let release!: () => void
+  shareMigrationExecuteLock = new Promise<void>(resolve => {
+    release = resolve
+  })
+
+  await previous
+  try {
+    return await operation()
+  } finally {
+    release()
+  }
+}
+
 class ShareArtifactError extends Error {
   readonly failureCode: ShareArtifactFailureCode
   readonly artifactPath: string
@@ -337,61 +354,63 @@ export async function executeRoute(params: {
   const readText = params.readText ?? defaultReadText
   const writeText = params.writeText ?? defaultWriteText
 
-  try {
-    const runtimeArtifacts = await readStrictShareArtifacts({ baseDir, readText })
-    const synced = syncShareRuntimeArtifactsToLedger({
-      list: runtimeArtifacts.list,
-      storage: runtimeArtifacts.storage
-    })
-    const verificationBeforeExecute = verifyShareLedgerAgainstRuntime({
-      storage: synced.storage,
-      runtimeArtifacts
-    })
-    const rebuilt = rebuildShareRuntimeArtifactsFromStorage(synced.storage)
-    const writtenArtifacts: string[] = []
-
+  return withShareMigrationExecuteLock(async () => {
     try {
-      await writeShareArtifactsInOrder({
-        baseDir,
-        artifacts: rebuilt.artifacts,
+      const runtimeArtifacts = await readStrictShareArtifacts({ baseDir, readText })
+      const synced = syncShareRuntimeArtifactsToLedger({
+        list: runtimeArtifacts.list,
+        storage: runtimeArtifacts.storage
+      })
+      const verificationBeforeExecute = verifyShareLedgerAgainstRuntime({
+        storage: synced.storage,
+        runtimeArtifacts
+      })
+      const rebuilt = rebuildShareRuntimeArtifactsFromStorage(synced.storage)
+      const writtenArtifacts: string[] = []
+
+      try {
+        await writeShareArtifactsInOrder({
+          baseDir,
+          artifacts: rebuilt.artifacts,
+          writtenArtifacts,
+          readText,
+          writeText
+        })
+      } catch (error) {
+        if (error instanceof ShareArtifactWriteError) {
+          return buildWriteFailureResponse({
+            artifactPath: error.artifactPath,
+            writtenArtifactsPartial: writtenArtifacts
+          })
+        }
+        throw error
+      }
+
+      const runtimeArtifactsAfterExecute = await readStrictShareArtifacts({ baseDir, readText })
+      const verificationAfterExecute = verifyShareLedgerAgainstRuntime({
+        storage: synced.storage,
+        runtimeArtifacts: runtimeArtifactsAfterExecute
+      })
+
+      return buildShareMigrationExecuteRouteResponse({
+        confirmed: true,
+        summary: buildExecuteSummary(),
+        notice: EXECUTE_NOTICE,
         writtenArtifacts,
-        readText,
-        writeText
+        artifactsToRebuildBeforeExecute: verificationBeforeExecute.artifactsToRebuild,
+        artifactsToRebuildAfterExecute: verificationAfterExecute.artifactsToRebuild
       })
     } catch (error) {
-      if (error instanceof ShareArtifactWriteError) {
-        return buildWriteFailureResponse({
-          artifactPath: error.artifactPath,
-          writtenArtifactsPartial: writtenArtifacts
-        })
+      if (error instanceof ShareArtifactError) {
+        return buildArtifactFailureResponse({ operation: 'execute', error })
       }
+
+      const artifactError = createArtifactShapeError(error)
+      if (artifactError) {
+        return buildArtifactFailureResponse({ operation: 'execute', error: artifactError })
+      }
+
       throw error
     }
-
-    const runtimeArtifactsAfterExecute = await readStrictShareArtifacts({ baseDir, readText })
-    const verificationAfterExecute = verifyShareLedgerAgainstRuntime({
-      storage: synced.storage,
-      runtimeArtifacts: runtimeArtifactsAfterExecute
-    })
-
-    return buildShareMigrationExecuteRouteResponse({
-      confirmed: true,
-      summary: buildExecuteSummary(),
-      notice: EXECUTE_NOTICE,
-      writtenArtifacts,
-      artifactsToRebuildBeforeExecute: verificationBeforeExecute.artifactsToRebuild,
-      artifactsToRebuildAfterExecute: verificationAfterExecute.artifactsToRebuild
-    })
-  } catch (error) {
-    if (error instanceof ShareArtifactError) {
-      return buildArtifactFailureResponse({ operation: 'execute', error })
-    }
-
-    const artifactError = createArtifactShapeError(error)
-    if (artifactError) {
-      return buildArtifactFailureResponse({ operation: 'execute', error: artifactError })
-    }
-
-    throw error
-  }
+  })
 }

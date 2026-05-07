@@ -71,7 +71,7 @@ async function findExistingAncestorDirectory(dir: string): Promise<string> {
 async function assertSafeExistingParentDirectory(projectDir: string, dir: string) {
 	const existingDir = await findExistingAncestorDirectory(dir)
 	const realParentDir = await realpath(existingDir)
-	if (!isPathInsideDirectory(projectDir, realParentDir)) {
+	if (!isPathInsideDirectory(projectDir, realParentDir) || realParentDir !== resolve(existingDir)) {
 		throw new Error('unsafe-parent-directory')
 	}
 }

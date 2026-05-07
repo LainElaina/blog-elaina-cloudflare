@@ -6,6 +6,7 @@ import {
 	syncBlogRuntimeArtifactsToLedger,
 	verifyBlogLedgerAgainstRuntime
 } from '../../../lib/content-db/migration-contracts.ts'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { buildExecuteResponse, buildPreviewRouteResponse, enforceDevelopmentOnly } from './blog-migration-route-helper.ts'
 
 const BLOG_ARTIFACT_PATHS = {
@@ -15,8 +16,6 @@ const BLOG_ARTIFACT_PATHS = {
 	storage: 'public/blogs/storage.json'
 } as const
 
-const BLOG_ARTIFACT_SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/
-const MAX_BLOG_ARTIFACT_SLUG_LENGTH = 120
 const EMPTY_BLOG_STORAGE_ARTIFACT = JSON.stringify({
 	version: 1,
 	updatedAt: '',
@@ -53,7 +52,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isSafeBlogArtifactSlug(slug: string) {
-	return slug.length <= MAX_BLOG_ARTIFACT_SLUG_LENGTH && BLOG_ARTIFACT_SLUG_PATTERN.test(slug)
+	try {
+		assertSafeBlogSlug(slug)
+		return true
+	} catch {
+		return false
+	}
 }
 
 function parseStrictJson(raw: string, artifactPath: string) {

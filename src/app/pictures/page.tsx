@@ -235,7 +235,7 @@ export default function Page() {
 				let updatedPictures = [...pictures]
 				const pathReplacements = new Map<string, string>()
 				const uploadedFiles: LocalSiteAssetUploadBackup[] = []
-				let currentUrls = new Set<string>()
+				const currentDeletePaths = new Set<string>()
 
 				try {
 					for (const [key, imageItem] of imageItems.entries()) {
@@ -249,10 +249,12 @@ export default function Page() {
 						}
 					}
 					updatedPictures = applyPictureImagePathReplacements(updatedPictures, pathReplacements)
-					currentUrls = new Set<string>()
 					for (const p of updatedPictures) {
-						if (p.image) currentUrls.add(p.image)
-						p.images?.forEach(u => currentUrls.add(u))
+						const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
+						for (const url of urls) {
+							const currentDeletePath = getLocalPictureDeletePath(url)
+							if (currentDeletePath) currentDeletePaths.add(currentDeletePath)
+						}
 					}
 					await assertOk(
 						await fetch('/api/save-file', {
@@ -271,7 +273,7 @@ export default function Page() {
 					const urls = [p.image, ...(p.images || [])].filter(Boolean) as string[]
 					for (const url of urls) {
 						const deletePath = getLocalPictureDeletePath(url)
-						if (!currentUrls.has(url) && deletePath) {
+						if (deletePath && !currentDeletePaths.has(deletePath)) {
 							await assertOk(
 								await fetch('/api/delete-image', {
 									method: 'POST',

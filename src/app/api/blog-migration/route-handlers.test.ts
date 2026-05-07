@@ -135,6 +135,38 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('preview route 拒绝大写博客 slug', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/index.json'),
+				JSON.stringify(
+					[
+						{
+							slug: 'Post-A',
+							title: 'Bad',
+							tags: [],
+							date: '2026-04-13T07:00:00.000Z'
+						}
+					],
+					null,
+					2
+				)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/index.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 拒绝重复博客 slug 且不会写回', async () => {
 		const context = await setupBlogArtifactsRepo()
 

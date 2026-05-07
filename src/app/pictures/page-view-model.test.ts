@@ -183,8 +183,11 @@ describe('pictures save path replacement', () => {
 
 		assert.match(pageSource, /function getLocalPictureDeletePath\(publicUrl: string\)/)
 		assert.match(pageSource, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
-		assert.match(pageSource, /const deletePath = getLocalPictureDeletePath\(url\)/)
-		assert.match(pageSource, /body: JSON\.stringify\(\{ path: deletePath \}\)/)
+		assert.match(pageSource, /const currentDeletePaths = new Set<string>\(\)/)
+		assert.match(pageSource, /const currentDeletePath = getLocalPictureDeletePath\(url\)/)
+		assert.match(pageSource, /if \(currentDeletePath\) currentDeletePaths\.add\(currentDeletePath\)/)
+		assert.match(pageSource, /if \(deletePath && !currentDeletePaths\.has\(deletePath\)\) \{/)
+		assert.doesNotMatch(pageSource, /!currentUrls\.has\(url\)/)
 	})
 
 	it('development save ignores orphaned picture deletion failures after persisting list.json', async () => {

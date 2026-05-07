@@ -1,5 +1,5 @@
-import { lstat, unlink } from 'fs/promises'
-import { extname, relative, resolve } from 'path'
+import { lstat, realpath, unlink } from 'fs/promises'
+import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug'
@@ -25,6 +25,10 @@ function getContentLength(request: NextRequest) {
 	if (!value) return null
 	const length = Number(value)
 	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
+function isFileNotFoundError(error: unknown) {
+	return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
 }
 
 function isSafeUploadedImageFilename(filename: string) {
@@ -67,6 +71,25 @@ export function isAllowedDeleteImagePath(projectDir: string, fullPath: string) {
 	)
 }
 
+async function assertSafeDeleteImageDirectory(fullPath: string) {
+	const parentDir = dirname(fullPath)
+	const parentStats = await lstat(parentDir).catch(error => {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
+	})
+	if (parentStats === null) {
+		return
+	}
+	if (!parentStats.isDirectory()) {
+		throw new Error('unsafe-image-directory')
+	}
+	if ((await realpath(parentDir)) !== parentDir) {
+		throw new Error('unsafe-image-directory')
+	}
+}
+
 export async function handleDeleteImage(request: NextRequest) {
 	try {
 		const contentLength = getContentLength(request)
@@ -106,8 +129,9 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法，只能删除本地上传目录内的图片文件' }, { status: 403 })
 		}
 
+		await assertSafeDeleteImageDirectory(fullPath)
 		const fileStats = await lstat(fullPath).catch(error => {
-			if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+			if (isFileNotFoundError(error)) {
 				return null
 			}
 			throw error
@@ -122,7 +146,7 @@ export async function handleDeleteImage(request: NextRequest) {
 		}
 
 		await unlink(fullPath).catch(error => {
-			if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+			if (!isFileNotFoundError(error)) {
 				throw error
 			}
 		})

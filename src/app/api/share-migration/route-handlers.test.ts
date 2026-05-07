@@ -342,6 +342,79 @@ describe('share migration route handlers', () => {
     assert.doesNotMatch(source, /const defaultWriteText: WriteText = \(filePath, content\) => writeFile\(filePath, content\)/)
   })
 
+  it('execute serializes concurrent confirmed migrations', async () => {
+    const context = await setupShareArtifactsRepo()
+    const events: string[] = []
+    let releaseFirstWrite!: () => void
+    const firstWriteStarted = new Promise<void>(resolve => {
+      releaseFirstWrite = resolve
+    })
+    let firstStorageWriteRelease!: () => void
+    const firstStorageWriteBlocked = new Promise<void>(resolve => {
+      firstStorageWriteRelease = resolve
+    })
+    let storageWriteCount = 0
+
+    try {
+      const writeText = async (filePath: string, content: string) => {
+        const artifactPath = relative(context.repoDir, filePath)
+        events.push(artifactPath)
+        if (artifactPath === SHARE_ARTIFACT_PATHS.storage) {
+          storageWriteCount += 1
+          if (storageWriteCount === 1) {
+            releaseFirstWrite()
+            await firstStorageWriteBlocked
+          }
+        }
+        await writeFile(filePath, content)
+      }
+
+      const firstExecute = executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        baseDir: context.repoDir,
+        writeText
+      })
+      await firstWriteStarted
+
+      const secondExecute = executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        baseDir: context.repoDir,
+        writeText
+      })
+      await Promise.resolve()
+
+      assert.deepEqual(events, [
+        SHARE_ARTIFACT_PATHS.list,
+        SHARE_ARTIFACT_PATHS.categories,
+        SHARE_ARTIFACT_PATHS.folders,
+        SHARE_ARTIFACT_PATHS.storage
+      ])
+
+      firstStorageWriteRelease()
+      const [firstResponse, secondResponse] = await Promise.all([firstExecute, secondExecute])
+
+      assert.equal(firstResponse.status, 200)
+      assert.equal(secondResponse.status, 200)
+      assert.deepEqual(events.slice(0, 4), [
+        SHARE_ARTIFACT_PATHS.list,
+        SHARE_ARTIFACT_PATHS.categories,
+        SHARE_ARTIFACT_PATHS.folders,
+        SHARE_ARTIFACT_PATHS.storage
+      ])
+      assert.deepEqual(events.slice(4), [
+        SHARE_ARTIFACT_PATHS.list,
+        SHARE_ARTIFACT_PATHS.categories,
+        SHARE_ARTIFACT_PATHS.folders,
+        SHARE_ARTIFACT_PATHS.storage
+      ])
+    } finally {
+      firstStorageWriteRelease?.()
+      await context.cleanup()
+    }
+  })
+
   it('execute rolls back already written artifacts on injected mid-write failure', async () => {
     const context = await setupShareArtifactsRepo()
     const writeOrder: string[] = []

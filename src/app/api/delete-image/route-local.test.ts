@@ -1,21 +1,28 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import { handleDeleteImage, isAllowedDeleteImagePath } from './route-local.ts'
 
 test('delete image route keeps extension validation and uses upload-managed path allowlist', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /import \{ extname, relative, resolve \} from 'path'/)
+	assert.match(source, /import \{ lstat, realpath, unlink \} from 'fs\/promises'/)
+	assert.match(source, /import \{ dirname, extname, relative, resolve \} from 'path'/)
 	assert.match(source, /const ALLOWED_IMAGE_EXTENSIONS = new Set\(\['\.jpg', '\.jpeg', '\.png', '\.gif', '\.webp', '\.svg', '\.ico', '\.avif'\]\)/)
 	assert.match(source, /const ext = extname\(filePath\)\.toLowerCase\(\)/)
 	assert.match(source, /if \(!ALLOWED_IMAGE_EXTENSIONS\.has\(ext\)\) \{/)
 	assert.match(source, /if \(!isAllowedDeleteImagePath\(projectDir, fullPath\)\) \{/)
 	assert.match(source, /只能删除本地上传目录内的图片文件/)
 	assert.doesNotMatch(source, /isPathInsideDirectory/)
+	assert.match(source, /async function assertSafeDeleteImageDirectory\(fullPath: string\)/)
+	assert.match(source, /const parentDir = dirname\(fullPath\)/)
+	assert.match(source, /await realpath\(parentDir\)\) !== parentDir/)
+	assert.doesNotMatch(source, /assertSafeDeleteImageDirectory\(projectDir, fullPath\)/)
 })
+
 
 test('delete image route allows only upload-managed image paths', () => {
 	const projectDir = resolve('/repo/blog')
@@ -54,7 +61,8 @@ test('delete image route treats missing files as successful deletion', async () 
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.doesNotMatch(source, /existsSync/)
-	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(\(error as NodeJS\.ErrnoException\)\?\.code === 'ENOENT'\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
+	assert.match(source, /function isFileNotFoundError\(error: unknown\)/)
+	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(isFileNotFoundError\(error\)\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
 	assert.match(source, /if \(fileStats === null\) \{\n\s*return NextResponse\.json\(\{ success: true \}\)\n\s*\}/)
 })
 
@@ -122,6 +130,8 @@ test('delete image route returns 400 when JSON body is malformed', async () => {
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
 
+
+
 test('delete image route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {
 		const response = await handleDeleteImage({
@@ -130,5 +140,36 @@ test('delete image route returns 400 when JSON body is not an object', async () 
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
+	}
+})
+
+
+test('delete image route rejects allowlisted direct image directories when they are symlinks', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-symlink-'))
+	const outsideDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-outside-'))
+	const outsideFile = join(outsideDir, 'logo.png')
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/images'), { recursive: true })
+		await fs.writeFile(outsideFile, 'keep me')
+		await fs.symlink(outsideDir, join(repoDir, 'public/images/share'))
+		process.chdir(repoDir)
+
+		const response = await handleDeleteImage(
+			new Request('http://localhost/api/delete-image', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: 'public/images/share/logo.png' })
+			}) as any
+		)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '删除失败' })
+		assert.equal(await fs.readFile(outsideFile, 'utf8'), 'keep me')
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
 	}
 })
