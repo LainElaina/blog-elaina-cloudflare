@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { normalizeBlogIndexForRss, wrapCdata } from './route.ts'
+import { normalizeBlogIndexForRss, wrapCdata } from './rss-utils.ts'
 
 test('rss route wraps CDATA values without allowing embedded terminators', () => {
 	assert.equal(wrapCdata('safe summary'), '<![CDATA[safe summary]]>')

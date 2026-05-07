@@ -174,8 +174,8 @@ test('delete image route rejects allowlisted direct image directories when they 
 			}) as any
 		)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '删除失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法，只能删除本地上传目录内的图片文件' })
 		assert.equal(await fs.readFile(outsideFile, 'utf8'), 'keep me')
 	} finally {
 		process.chdir(previousCwd)

@@ -300,6 +300,10 @@ function validateJsonFileContent(projectDir: string, fullPath: string, content: 
 	return isJsonFileShapeValid(projectDir, fullPath, parsed) ? 'valid' : 'invalid-shape'
 }
 
+function isUnsafeParentDirectoryError(error: unknown) {
+	return error instanceof Error && error.message === 'unsafe-parent-directory'
+}
+
 export async function handleSaveFile(request: NextRequest) {
 	try {
 		const contentLength = getContentLength(request)
@@ -353,6 +357,9 @@ export async function handleSaveFile(request: NextRequest) {
 		await writeFileAtomically(fullPath, content)
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
+		if (isUnsafeParentDirectoryError(error)) {
+			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
+		}
 		console.error('Save file error:', error)
 		return NextResponse.json({ error: '保存失败' }, { status: 500 })
 	}

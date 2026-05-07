@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 import {
@@ -7,6 +7,7 @@ import {
 	syncBlogRuntimeArtifactsToLedger,
 	verifyBlogLedgerAgainstRuntime
 } from '../../../lib/content-db/migration-contracts.ts'
+import { isPathInsideDirectory } from '../local-path.ts'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { buildExecuteResponse, buildPreviewRouteResponse, enforceDevelopmentOnly } from './blog-migration-route-helper.ts'
 
@@ -73,6 +74,14 @@ class BlogArtifactError extends Error {
 		this.artifactPath = artifactPath
 	}
 }
+
+class BlogArtifactPathError extends Error {
+	constructor(message = '博客正式产物路径不合法') {
+		super(message)
+		this.name = 'BlogArtifactPathError'
+	}
+}
+
 
 function isFileNotFoundError(error: unknown) {
 	return error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
@@ -289,8 +298,26 @@ async function readRuntimeArtifacts(baseDir: string): Promise<BlogRuntimeArtifac
 	}
 }
 
+function assertSafeBlogArtifactsDirectory(baseDir: string, blogsDir: string) {
+	const projectDir = resolve(baseDir)
+	const expectedBlogsDir = resolve(projectDir, 'public/blogs')
+	if (blogsDir !== expectedBlogsDir || !isPathInsideDirectory(projectDir, blogsDir)) {
+		throw new BlogArtifactPathError()
+	}
+}
+
+async function assertSafeExistingBlogArtifactsDirectory(baseDir: string, blogsDir: string) {
+	assertSafeBlogArtifactsDirectory(baseDir, blogsDir)
+	const realProjectDir = await realpath(resolve(baseDir))
+	const realBlogsDir = await realpath(blogsDir)
+	if (realBlogsDir !== resolve(realProjectDir, 'public/blogs')) {
+		throw new BlogArtifactPathError()
+	}
+}
+
 async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArtifactsToWrite) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
+	await assertSafeExistingBlogArtifactsDirectory(baseDir, blogsDir)
 	const writes = [
 		{ path: join(blogsDir, 'index.json'), content: artifacts.index },
 		{ path: join(blogsDir, 'categories.json'), content: artifacts.categories },
@@ -440,6 +467,12 @@ export async function executeRoute(params: { nodeEnv: string; confirmed: boolean
 		} catch (error) {
 			if (error instanceof BlogArtifactError) {
 				return buildArtifactFailureResponse(error)
+			}
+			if (error instanceof BlogArtifactPathError) {
+				return {
+					status: 403,
+					body: { message: error.message }
+				}
 			}
 			throw error
 		}

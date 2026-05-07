@@ -249,8 +249,8 @@ test('save-file local route rejects allowlisted paths under symlinked parent dir
 			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'escaped' })
 		} as any)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '保存失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法' })
 		await assert.rejects(() => readFile(join(outsideDir, 'post-a/index.md'), 'utf-8'), /ENOENT/)
 	} finally {
 		process.chdir(previousCwd)
@@ -272,8 +272,8 @@ test('save-file local route rejects allowlisted paths under repo-internal symlin
 			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'redirected' })
 		} as any)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '保存失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法' })
 		await assert.rejects(() => readFile(join(repoDir, 'public/redirected-blogs/post-a/index.md'), 'utf-8'), /ENOENT/)
 	} finally {
 		process.chdir(previousCwd)

@@ -109,6 +109,44 @@ test('layout local route limits streamed JSON requests without content-length', 
 	assert.deepEqual(await response.json(), { error: '请求体过大' })
 })
 
+test('layout local route rejects symlinked src config directory', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-src-config-symlink-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-src-config-outside-'))
+	const previousCwd = process.cwd()
+	const layout = {
+		musicCard: {
+			width: 180,
+			height: 100,
+			order: 1,
+			offsetX: null,
+			offsetY: null,
+			enabled: true
+		}
+	}
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true })
+		await fs.symlink(outsideDir, path.join(tmpDir, 'src/config'), 'dir')
+		await fs.writeFile(path.join(outsideDir, 'card-styles.json'), JSON.stringify({ musicCard: { width: 100, height: 100, order: 1, offsetX: null, offsetY: null, enabled: true } }, null, '\t'))
+		process.chdir(tmpDir)
+
+		const response = await handleLayoutPost(
+			new Request('http://localhost/api/layout', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(layout)
+			})
+		)
+
+		assert.equal(response.status, 400)
+		assert.equal(JSON.parse(await fs.readFile(path.join(outsideDir, 'card-styles.json'), 'utf-8')).musicCard.width, 100)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
+
 test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 

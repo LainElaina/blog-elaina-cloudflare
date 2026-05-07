@@ -1,16 +1,100 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
+import type { PushBlogParams } from './push-blog.ts'
 
-import {
+const srcRootUrl = new URL('../../../', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const toast = { info: () => undefined }'
+			}
+		}
+
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export default {}'
+			}
+		}
+
+		if (context.parentURL && specifier.endsWith('site-content.json')) {
+			const directUrl = new URL(specifier, context.parentURL)
+			if (fileURLToPath(directUrl).endsWith('/src/config/site-content.json')) {
+				return {
+					shortCircuit: true,
+					url: 'data:text/javascript,export default {}'
+				}
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const url = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (url) return { shortCircuit: true, url }
+		}
+
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const {
 	assertCreateBlogSlugAvailable,
+	assertAllowedPublishImageFile,
 	assertPublishableBlog,
 	buildBlogUpsertItem,
 	buildRemoteArtifactContents,
 	buildUnusedBlogImageDeleteTreeItems,
-	hasExistingBlogSlug,
-	type PushBlogParams
-} from './push-blog'
+	hasExistingBlogSlug
+} = await import('./push-blog.ts')
+
+describe('assertAllowedPublishImageFile', () => {
+	it('远端发布拒绝扩展名与内容不匹配的图片', async () => {
+		await assert.rejects(
+			() => assertAllowedPublishImageFile(new File(['not image'], 'fake.png', { type: 'image/png' }), '.png'),
+			/图片内容与文件类型不匹配/
+		)
+	})
+
+	it('远端发布拒绝未允许的图片扩展名', async () => {
+		await assert.rejects(
+			() => assertAllowedPublishImageFile(new File([Buffer.from([0xff, 0xd8, 0xff])], 'fake.bmp', { type: 'image/bmp' }), '.bmp'),
+			/不允许的图片文件类型/
+		)
+	})
+
+	it('远端发布允许签名正确的图片', async () => {
+		await assert.doesNotReject(() =>
+			assertAllowedPublishImageFile(new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'ok.png', { type: 'image/png' }), '.png')
+		)
+	})
+})
 
 describe('assertPublishableBlog', () => {
 	it('阻止失效本地图片占位符进入正式发布链路', () => {
@@ -201,6 +285,27 @@ describe('pushBlog create slug checks', () => {
 		assert.ok(artifactIndex < uploadToastIndex)
 		assert.ok(artifactIndex < createFileToastIndex)
 		assert.match(source, /const plannedImageUploads = new Map<string, \{ path: string; img: Extract<ImageItem, \{ type: 'file' \}> \}>\(\)/)
+	})
+
+	it('远端发布应在计算 hash 和创建 blob 前校验本地图片内容', async () => {
+		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+		const extensionIndex = source.indexOf('const ext = getPublishImageFileExtension(img.file.name)')
+		const validationIndex = source.indexOf('await assertAllowedPublishImageFile(img.file, ext)')
+		const hashIndex = source.indexOf('await hashFileSHA256(img.file)')
+		const uploadToastIndex = source.indexOf("toast.info('正在上传图片...')")
+		const firstBlobIndex = source.indexOf('await createBlob')
+
+		assert.notEqual(extensionIndex, -1)
+		assert.notEqual(validationIndex, -1)
+		assert.notEqual(hashIndex, -1)
+		assert.notEqual(uploadToastIndex, -1)
+		assert.notEqual(firstBlobIndex, -1)
+		assert.ok(extensionIndex < validationIndex)
+		assert.ok(validationIndex < hashIndex)
+		assert.ok(validationIndex < uploadToastIndex)
+		assert.ok(validationIndex < firstBlobIndex)
+		assert.match(source, /import \{ ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent \} from '@\/lib\/image-content-validation'/)
+		assert.doesNotMatch(source, /getFileExt\(img\.file\.name\)/)
 	})
 
 	it('远端发布遇到分支并发更新时会重跑完整发布流程一次', async () => {

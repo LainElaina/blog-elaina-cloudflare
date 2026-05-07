@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
 import { isValidLayoutConfig } from './layout-config-validation.ts'
 
 export { isValidLayoutConfig } from './layout-config-validation.ts'
@@ -66,6 +67,8 @@ export async function handleLayoutPost(request: Request) {
 
 		const layoutPath = getLayoutPath()
 		const backupPath = getBackupPath()
+		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
+		await assertSafeSiteConfigProjectPath(process.cwd(), backupPath)
 		if (fs.existsSync(layoutPath)) {
 			const dataDir = path.join(process.cwd(), 'data')
 			if (!fs.existsSync(dataDir)) {
@@ -79,6 +82,6 @@ export async function handleLayoutPost(request: Request) {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		return NextResponse.json({ error: 'Failed to save layout' }, { status: 500 })
+		return NextResponse.json({ error: 'Failed to save layout' }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
 	}
 }

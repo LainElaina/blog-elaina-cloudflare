@@ -2,10 +2,11 @@ import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent } from '../../../lib/image-content-validation.ts'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { isPathInsideDirectory, isPathStrictlyInsideDirectory } from '../local-path.ts'
 
-const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
+export { isAllowedImageContent }
 const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
 const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
 	'public/images/art',
@@ -25,26 +26,6 @@ function getContentLength(request: NextRequest) {
 	if (!value) return null
 	const length = Number(value)
 	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
-function startsWithBytes(buffer: Buffer, bytes: number[]) {
-	return buffer.length >= bytes.length && bytes.every((byte, index) => buffer[index] === byte)
-}
-
-function hasAvifSignature(buffer: Buffer) {
-	if (buffer.length < 16 || buffer.toString('ascii', 4, 8) !== 'ftyp') return false
-
-	const brands = [buffer.toString('ascii', 8, 12)]
-	for (let offset = 16; offset + 4 <= buffer.length; offset += 4) {
-		brands.push(buffer.toString('ascii', offset, offset + 4))
-	}
-
-	return brands.some(brand => brand === 'avif' || brand === 'avis')
-}
-
-function hasSvgSignature(buffer: Buffer) {
-	const content = buffer.toString('utf8').replace(/^\uFEFF/, '').trimStart()
-	return /^(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg(?:\s|>)/i.test(content)
 }
 
 function isSafeUploadedImageFilename(filename: string) {
@@ -74,6 +55,10 @@ async function assertSafeExistingParentDirectory(projectDir: string, dir: string
 	if (!isPathInsideDirectory(projectDir, realParentDir) || realParentDir !== resolve(existingDir)) {
 		throw new Error('unsafe-parent-directory')
 	}
+}
+
+function isUnsafeParentDirectoryError(error: unknown) {
+	return error instanceof Error && error.message === 'unsafe-parent-directory'
 }
 
 function isDirectChildFilePath(baseDir: string, fullPath: string) {
@@ -155,28 +140,6 @@ export function isAllowedUploadImagePath(projectDir: string, fullPath: string) {
 	)
 }
 
-export function isAllowedImageContent(extension: string, buffer: Buffer) {
-	switch (extension.toLowerCase()) {
-		case '.jpg':
-		case '.jpeg':
-			return startsWithBytes(buffer, [0xff, 0xd8, 0xff])
-		case '.png':
-			return startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-		case '.gif':
-			return buffer.toString('ascii', 0, 6) === 'GIF87a' || buffer.toString('ascii', 0, 6) === 'GIF89a'
-		case '.webp':
-			return buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP'
-		case '.svg':
-			return hasSvgSignature(buffer)
-		case '.ico':
-			return buffer.length >= 6 && startsWithBytes(buffer, [0x00, 0x00, 0x01, 0x00]) && buffer.readUInt16LE(4) > 0
-		case '.avif':
-			return hasAvifSignature(buffer)
-		default:
-			return false
-	}
-}
-
 function buildAtomicUploadTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -226,7 +189,7 @@ export async function handleUploadImage(request: NextRequest) {
 		}
 
 		const ext = extname(path).toLowerCase()
-		if (!ALLOWED_EXTENSIONS.has(ext)) {
+		if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
 			return NextResponse.json({ error: `不允许的文件类型: ${ext}` }, { status: 400 })
 		}
 
@@ -259,6 +222,9 @@ export async function handleUploadImage(request: NextRequest) {
 
 		return NextResponse.json({ success: true, path })
 	} catch (error: any) {
+		if (isUnsafeParentDirectoryError(error)) {
+			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
+		}
 		console.error('Upload error:', error)
 		return NextResponse.json({ error: '上传失败' }, { status: 500 })
 	}

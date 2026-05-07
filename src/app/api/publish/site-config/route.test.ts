@@ -33,6 +33,16 @@ async function withDevelopmentCwd<T>(callback: (tmpDir: string) => Promise<T>): 
 	}
 }
 
+test('site config publish route resolves and publishes through one locked helper', async () => {
+	const source = await fs.readFile(new URL('./route.ts', import.meta.url), 'utf-8')
+
+	assert.match(source, /publishResolvedSiteConfigDraft/)
+	assert.match(source, /await publishResolvedSiteConfigDraft\(cwd, payload as Record<string, unknown>\)/)
+	assert.doesNotMatch(source, /resolveSiteConfigPublishPayload/)
+	assert.doesNotMatch(source, /publishSiteConfigDraft\(cwd, publishPayload\)/)
+})
+
+
 test('site config publish rejects malformed JSON without publishing saved draft', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
@@ -61,18 +71,16 @@ test('site config publish rejects oversized JSON before parsing without publishi
 		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
 		await writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'saved draft' } } })
 
-		let jsonCalled = false
-		const response = await POST({
-			headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
-			json: async () => {
-				jsonCalled = true
-				throw new Error('json should not be called')
-			}
-		} as any)
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: 'x'.repeat(1024 * 1024 + 1)
+			})
+		)
 		const payload = await response.json()
 
 		assert.equal(response.status, 400)
-		assert.equal(jsonCalled, false)
 		assert.deepEqual(payload, { error: '请求 JSON 过大' })
 		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
 		assert.equal((await fs.readFile(path.join(tmpDir, 'data/site-config.draft.json'), 'utf-8')).includes('saved draft'), true)

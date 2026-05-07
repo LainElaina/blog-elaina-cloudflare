@@ -31,6 +31,10 @@ function isFileNotFoundError(error: unknown) {
 	return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
 }
 
+function isUnsafeDeleteImageDirectoryError(error: unknown) {
+	return error instanceof Error && error.message === 'unsafe-image-directory'
+}
+
 function isSafeUploadedImageFilename(filename: string) {
 	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
 }
@@ -152,6 +156,9 @@ export async function handleDeleteImage(request: NextRequest) {
 		})
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
+		if (isUnsafeDeleteImageDirectoryError(error)) {
+			return NextResponse.json({ error: '路径不合法，只能删除本地上传目录内的图片文件' }, { status: 403 })
+		}
 		console.error('Delete error:', error)
 		return NextResponse.json({ error: '删除失败' }, { status: 500 })
 	}

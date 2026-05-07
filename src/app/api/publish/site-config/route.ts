@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
+import { rejectNonLocalDevelopmentRequest } from '../../local-development-request.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -12,11 +13,12 @@ function getContentLength(request: Request) {
 }
 
 export async function POST(request: NextRequest) {
-	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
+	const rejected = rejectNonLocalDevelopmentRequest(request)
+	if (rejected) {
+		return rejected
 	}
 
-	const { isSiteConfigLocalValidationError, publishSiteConfigDraft, resolveSiteConfigPublishPayload } = await import('../../site-config-local-shared.ts')
+	const { isSiteConfigLocalValidationError, publishResolvedSiteConfigDraft } = await import('../../site-config-local-shared.ts')
 
 	try {
 		const cwd = process.cwd()
@@ -34,8 +36,7 @@ export async function POST(request: NextRequest) {
 		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
 			return NextResponse.json({ error: '请求 JSON 格式错误' }, { status: 400 })
 		}
-		const publishPayload = await resolveSiteConfigPublishPayload(cwd, payload as Record<string, unknown>)
-		const touchedFormal = await publishSiteConfigDraft(cwd, publishPayload)
+		const touchedFormal = await publishResolvedSiteConfigDraft(cwd, payload as Record<string, unknown>)
 		return NextResponse.json({ success: true, touchedFormal, clearedDraft: 'data/site-config.draft.json' })
 	} catch (error: any) {
 		return NextResponse.json({ error: error.message }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })

@@ -1,5 +1,5 @@
 import type { BlogIndexItem } from '@/app/blog/types'
-import { buildBlogFolderTree, normalizeBlogFolderPath, type BlogFolderNode } from '@/lib/content-db/blog-folders'
+import { buildBlogFolderTree, normalizeBlogFolderPath, type BlogFolderNode } from './blog-folders.ts'
 
 export type BlogStatus = 'published' | 'draft' | 'archived'
 

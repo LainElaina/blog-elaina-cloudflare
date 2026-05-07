@@ -1,17 +1,33 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import fs from 'node:fs/promises'
-import {
+import { registerHooks } from 'node:module'
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === '@/hooks/use-auth') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const useAuthStore = { getState: () => ({ clearAuth: () => undefined }) }'
+			}
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const {
 	createBlob,
 	createCommit,
 	createTree,
 	getRef,
+	GH_API,
 	GitHubUpdateRefError,
 	isGitHubUpdateRefConflictError,
 	listRepoFilesRecursive,
+	putFile,
 	readTextFileFromRepo,
 	updateRef
-} from './github-client'
+} = await import('./github-client.ts')
 
 async function readSource(relativePath: string) {
 	return (await fs.readFile(new URL(relativePath, import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
@@ -61,6 +77,19 @@ test('GitHub write helpers reject successful responses without sha', async () =>
 	await assert.rejects(() => createBlob('token', 'owner', 'repo', 'content'), /create blob failed: invalid response/)
 })
 
+test('GitHub write helpers include API error messages in failures', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'Validation failed' }), { status: 500 })) as typeof fetch
+
+	await assert.rejects(() => createBlob('token', 'owner', 'repo', 'content'), /create blob failed: 500 Validation failed/)
+})
+
+test('readTextFileFromRepo includes API error messages in failures', async () => {
+	globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'rate limit exceeded' }), { status: 503 })) as typeof fetch
+
+	await assert.rejects(() => readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'), /read file failed: 503 rate limit exceeded/)
+})
+
+
 test('updateRef exposes non-fast-forward 422 errors for publish retries', async () => {
 	globalThis.fetch = (async () => new Response(JSON.stringify({ message: 'Reference update failed' }), { status: 422 })) as typeof fetch
 
@@ -87,6 +116,36 @@ test('readTextFileFromRepo treats only 404 as missing', async () => {
 	globalThis.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch
 
 	assert.equal(await readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/index.json', 'main'), null)
+})
+
+test('GitHub contents helpers encode path segments without escaping slashes', async () => {
+	const urls: string[] = []
+	globalThis.fetch = (async (input) => {
+		urls.push(String(input))
+		return new Response(JSON.stringify({ content: btoa('hello') }), { status: 200 })
+	}) as typeof fetch
+
+	assert.equal(await readTextFileFromRepo('token', 'owner', 'repo', 'public/blogs/hello world/index.json', 'main'), 'hello')
+
+	assert.equal(urls[0], `${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world/index.json?ref=main`)
+})
+
+test('putFile encodes nested contents paths segment by segment', async () => {
+	const urls: string[] = []
+	globalThis.fetch = (async (input, init) => {
+		urls.push(String(input))
+		if (init?.method === 'PUT') {
+			return new Response(JSON.stringify({ content: { sha: 'next-sha' } }), { status: 200 })
+		}
+		return new Response(null, { status: 404 })
+	}) as typeof fetch
+
+	await putFile('token', 'owner', 'repo', 'public/blogs/hello world/index.md', btoa('hello'), 'message', 'main')
+
+	assert.deepEqual(urls, [
+		`${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world/index.md?ref=main`,
+		`${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world/index.md`
+	])
 })
 
 test('readTextFileFromRepo rejects successful directory payloads instead of treating them as missing files', async () => {

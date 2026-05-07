@@ -71,7 +71,7 @@ async function setupShareArtifactsRepo() {
 }
 
 async function readPreviewSnapshotHash() {
-  const response = await GET()
+  const response = await GET(new Request('http://localhost/api/share-migration/preview'))
   const payload = await response.json()
 
   assert.equal(response.status, 200)
@@ -98,7 +98,7 @@ describe('share migration next routes', () => {
       process.env.NODE_ENV = 'development'
       process.chdir(context.repoDir)
 
-      const response = await GET()
+      const response = await GET(new Request('http://localhost/api/share-migration/preview'))
       const payload = await response.json()
 
       assert.equal(response.status, 200)
@@ -147,12 +147,14 @@ describe('share migration next routes', () => {
 
     try {
       process.env.NODE_ENV = 'development'
-      const request = {
-        headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
-        json: async () => {
-          throw new Error('json should not be called')
-        }
-      } as Request
+      const request = new Request('http://localhost/api/share-migration/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'content-length': String(1024 * 1024 + 1)
+        },
+        body: 'x'.repeat(1024 * 1024 + 1)
+      })
       const response = await POST(request)
       const payload = await response.json()
 

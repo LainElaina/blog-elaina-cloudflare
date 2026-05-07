@@ -72,8 +72,8 @@ test('delete file local route rejects symlink parent directories without deletin
 			json: async () => ({ path: 'public/share/storage.json' })
 		} as any)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '删除失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法' })
 		assert.equal(await fs.readFile(path.join(tmpDir, 'outside-target/storage.json'), 'utf-8'), '{}')
 	} finally {
 		process.chdir(previousCwd)

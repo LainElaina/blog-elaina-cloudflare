@@ -40,18 +40,16 @@ async function assertDraftFileMissing(tmpDir: string) {
 
 test('site config draft rejects oversized JSON before parsing without writing draft', async () => {
 	await withDevelopmentCwd(async tmpDir => {
-		let jsonCalled = false
-		const response = await POST({
-			headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
-			json: async () => {
-				jsonCalled = true
-				throw new Error('json should not be called')
-			}
-		} as any)
+		const response = await POST(
+			new Request('http://localhost/api/drafts/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: 'x'.repeat(1024 * 1024 + 1)
+			})
+		)
 		const payload = await response.json()
 
 		assert.equal(response.status, 400)
-		assert.equal(jsonCalled, false)
 		assert.deepEqual(payload, { error: '请求 JSON 过大' })
 		await assertDraftFileMissing(tmpDir)
 	})
@@ -98,7 +96,7 @@ test('site config draft returns 400 for malformed saved draft instead of 500', a
 		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })
 		await fs.writeFile(path.join(tmpDir, 'data/site-config.draft.json'), '{invalid json')
 
-		const response = await GET()
+		const response = await GET(new Request('http://localhost/api/drafts/site-config'))
 		const payload = await response.json()
 
 		assert.equal(response.status, 400)
@@ -132,7 +130,7 @@ test('site config draft ignores unknown keys instead of keeping ghost drafts', a
 		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })
 		await fs.writeFile(path.join(tmpDir, 'data/site-config.draft.json'), JSON.stringify({ stale: { hidden: true } }, null, '\t'))
 
-		const getResponse = await GET()
+		const getResponse = await GET(new Request('http://localhost/api/drafts/site-config'))
 		assert.deepEqual(await getResponse.json(), { hasDraft: false, items: [] })
 
 		const response = await POST(

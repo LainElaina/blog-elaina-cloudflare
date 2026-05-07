@@ -18,6 +18,10 @@ function isFileNotFoundError(error: unknown) {
 	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
 
+function isUnsafeDeleteFileDirectoryError(error: unknown) {
+	return error instanceof Error && error.message === 'unsafe-delete-file-directory'
+}
+
 async function assertSafeDeleteFileDirectory(fullPath: string) {
 	const parentDir = dirname(fullPath)
 	const parentStats = await lstat(parentDir).catch(error => {
@@ -95,6 +99,9 @@ export async function handleDeleteFile(request: NextRequest) {
 		})
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
+		if (isUnsafeDeleteFileDirectoryError(error)) {
+			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
+		}
 		console.error('Delete file error:', error)
 		return NextResponse.json({ error: '删除失败' }, { status: 500 })
 	}

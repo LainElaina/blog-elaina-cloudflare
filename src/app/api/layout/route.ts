@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { rejectNonLocalDevelopmentRequest } from '../local-development-request.ts'
 
-export async function GET() {
-	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
+export async function GET(request: Request) {
+	const rejected = rejectNonLocalDevelopmentRequest(request)
+	if (rejected) {
+		return rejected
 	}
 
 	const { handleLayoutGet } = await import('./route-local')
@@ -10,8 +11,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
+	const rejected = rejectNonLocalDevelopmentRequest(request)
+	if (rejected) {
+		return rejected
 	}
 
 	const { handleLayoutPost } = await import('./route-local')

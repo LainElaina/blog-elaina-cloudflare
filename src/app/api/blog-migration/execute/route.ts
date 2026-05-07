@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
+import { rejectNonLocalDevelopmentRequest } from '../../local-development-request.ts'
 
 const MAX_BLOG_MIGRATION_EXECUTE_REQUEST_BODY_SIZE = 1024 * 1024
 
@@ -11,8 +12,9 @@ function getContentLength(request: Request) {
 }
 
 export async function POST(request: Request) {
-	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ message: '仅开发环境可用' }, { status: 403 })
+	const rejected = rejectNonLocalDevelopmentRequest(request)
+	if (rejected) {
+		return rejected
 	}
 
 	const contentLength = getContentLength(request)

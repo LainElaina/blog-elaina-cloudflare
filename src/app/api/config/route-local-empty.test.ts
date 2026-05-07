@@ -189,6 +189,34 @@ test('local config write rejects invalid config payload values without touching 
 	}
 })
 
+test('local config write rejects symlinked src config directory', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'config-route-src-config-symlink-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'config-route-src-config-outside-'))
+	const previousCwd = process.cwd()
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true })
+		await fs.symlink(outsideDir, path.join(tmpDir, 'src/config'), 'dir')
+		await fs.writeFile(path.join(outsideDir, 'site-content.json'), JSON.stringify({ meta: { title: 'outside' } }, null, '\t'))
+		process.chdir(tmpDir)
+
+		const response = await handleConfigPost(
+			new Request('http://localhost/api/config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: { meta: { title: 'draft' } } })
+			}) as any
+		)
+
+		assert.equal(response.status, 400)
+		assert.equal(JSON.parse(await fs.readFile(path.join(outsideDir, 'site-content.json'), 'utf-8')).meta.title, 'outside')
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
+
 test('local config write rejects empty config payloads', async () => {
 	const response = await handleConfigPost({
 		json: async () => ({})

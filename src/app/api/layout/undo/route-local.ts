@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../../site-config-local-shared.ts'
 import { isValidLayoutConfig } from '../layout-config-validation.ts'
 
 function getLayoutPath() {
@@ -30,6 +31,8 @@ export async function handleLayoutUndoPost() {
 	try {
 		const layoutPath = getLayoutPath()
 		const backupPath = getBackupPath()
+		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
+		await assertSafeSiteConfigProjectPath(process.cwd(), backupPath)
 		if (!fs.existsSync(backupPath)) {
 			return NextResponse.json({ error: 'No backup found' }, { status: 404 })
 		}
@@ -49,6 +52,6 @@ export async function handleLayoutUndoPost() {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		return NextResponse.json({ error: 'Failed to undo' }, { status: 500 })
+		return NextResponse.json({ error: 'Failed to undo' }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
 	}
 }

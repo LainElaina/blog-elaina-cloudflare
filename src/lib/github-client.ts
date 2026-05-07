@@ -31,6 +31,27 @@ function getResponseSha(data: unknown, actionName: string): string {
 	return sha
 }
 
+function encodeGitHubContentsPath(path: string): string {
+	return path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+}
+
+async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
+	try {
+		const data = (await response.clone().json()) as { message?: unknown }
+		if (typeof data.message === 'string') {
+			return data.message
+		}
+	} catch {
+		return undefined
+	}
+	return undefined
+}
+
+async function buildGitHubApiError(actionName: string, response: Response): Promise<Error> {
+	const message = await readGitHubErrorMessage(response)
+	return new Error(message ? `${actionName} failed: ${response.status} ${message}` : `${actionName} failed: ${response.status}`)
+}
+
 export function toBase64Utf8(input: string): string {
 	return btoa(unescape(encodeURIComponent(input)))
 }
@@ -83,7 +104,7 @@ export async function createInstallationToken(jwt: string, installationId: numbe
 }
 
 export async function getFileSha(token: string, owner: string, repo: string, path: string, branch: string): Promise<string | undefined> {
-	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`, {
+	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeGitHubContentsPath(path)}?ref=${encodeURIComponent(branch)}`, {
 		headers: {
 			Authorization: `Bearer ${token}`,
 			Accept: 'application/vnd.github+json',
@@ -93,14 +114,14 @@ export async function getFileSha(token: string, owner: string, repo: string, pat
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
 	if (res.status === 404) return undefined
-	if (!res.ok) throw new Error(`get file sha failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('get file sha', res)
 	const data = await res.json()
 	return (data && data.sha) || undefined
 }
 
 export async function putFile(token: string, owner: string, repo: string, path: string, contentBase64: string, message: string, branch: string) {
 	const sha = await getFileSha(token, owner, repo, path, branch)
-	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
+	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeGitHubContentsPath(path)}`, {
 		method: 'PUT',
 		headers: {
 			Authorization: `Bearer ${token}`,
@@ -112,7 +133,7 @@ export async function putFile(token: string, owner: string, repo: string, path: 
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`put file failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('put file', res)
 	return res.json()
 }
 
@@ -128,7 +149,7 @@ export async function getRef(token: string, owner: string, repo: string, ref: st
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`get ref failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('get ref', res)
 	const data = await res.json()
 	if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.object?.sha !== 'string') {
 		throw new Error('get ref failed: invalid response')
@@ -146,7 +167,7 @@ export async function getCommit(token: string, owner: string, repo: string, comm
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`get commit failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('get commit', res)
 	const data = await res.json()
 	if (typeof data?.sha !== 'string' || typeof data?.tree?.sha !== 'string') {
 		throw new Error('get commit failed: invalid response')
@@ -176,7 +197,7 @@ export async function createTree(token: string, owner: string, repo: string, tre
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`create tree failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('create tree', res)
 	const data = await res.json()
 	return { sha: getResponseSha(data, 'create tree') }
 }
@@ -194,18 +215,20 @@ export async function createCommit(token: string, owner: string, repo: string, m
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`create commit failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('create commit', res)
 	const data = await res.json()
 	return { sha: getResponseSha(data, 'create commit') }
 }
 
 export class GitHubUpdateRefError extends Error {
-	constructor(
-		readonly status: number,
-		readonly responseMessage?: string
-	) {
+	readonly status: number
+	readonly responseMessage?: string
+
+	constructor(status: number, responseMessage?: string) {
 		super(responseMessage ? `update ref failed: ${status} ${responseMessage}` : `update ref failed: ${status}`)
 		this.name = 'GitHubUpdateRefError'
+		this.status = status
+		this.responseMessage = responseMessage
 	}
 }
 
@@ -215,18 +238,6 @@ function isNonFastForwardUpdateRefMessage(message: string | undefined) {
 
 export function isGitHubUpdateRefConflictError(error: unknown) {
 	return error instanceof GitHubUpdateRefError && error.status === 422 && isNonFastForwardUpdateRefMessage(error.responseMessage)
-}
-
-async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
-	try {
-		const data = (await response.clone().json()) as { message?: unknown }
-		if (typeof data.message === 'string') {
-			return data.message
-		}
-	} catch {
-		return undefined
-	}
-	return undefined
 }
 
 export async function updateRef(token: string, owner: string, repo: string, ref: string, sha: string, force = false): Promise<void> {
@@ -252,7 +263,7 @@ export async function updateRef(token: string, owner: string, repo: string, ref:
 }
 
 export async function readTextFileFromRepo(token: string, owner: string, repo: string, path: string, ref: string): Promise<string | null> {
-	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`, {
+	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeGitHubContentsPath(path)}?ref=${encodeURIComponent(ref)}`, {
 		headers: {
 			Authorization: `Bearer ${token}`,
 			Accept: 'application/vnd.github+json',
@@ -262,7 +273,7 @@ export async function readTextFileFromRepo(token: string, owner: string, repo: s
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
 	if (res.status === 404) return null
-	if (!res.ok) throw new Error(`read file failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('read file', res)
 	const data: any = await res.json()
 	if (Array.isArray(data)) {
 		throw new Error('read file failed: expected file but received directory')
@@ -289,7 +300,7 @@ export async function listRepoFilesRecursive(token: string, owner: string, repo:
 		if (res.status === 401) handle401Error()
 		if (res.status === 422) handle422Error()
 		if (res.status === 404) return []
-		if (!res.ok) throw new Error(`read directory failed: ${res.status}`)
+		if (!res.ok) throw await buildGitHubApiError('read directory', res)
 		const data: any = await res.json()
 		if (Array.isArray(data)) {
 			const files: string[] = []
@@ -338,7 +349,7 @@ export async function createBlob(
 	})
 	if (res.status === 401) handle401Error()
 	if (res.status === 422) handle422Error()
-	if (!res.ok) throw new Error(`create blob failed: ${res.status}`)
+	if (!res.ok) throw await buildGitHubApiError('create blob', res)
 	const data = await res.json()
 	return { sha: getResponseSha(data, 'create blob') }
 }

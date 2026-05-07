@@ -24,6 +24,7 @@ const {
 	readSiteConfigDraft,
 	clearSiteConfigDraft,
 	publishSiteConfigDraft,
+	publishResolvedSiteConfigDraft,
 	canPublishSiteConfigDraft,
 	resolveSiteConfigPublishPayload,
 	buildRemovedSiteConfigSocialButtonImagePaths
@@ -618,6 +619,48 @@ test('正式保存请求为空时回退发布已有草稿', async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
+test('站点配置发布会等待正在保存的草稿再解析发布', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-publish-queued-draft-'))
+	const originalWriteFile = fs.writeFile
+	let resolveDraftWriteStarted!: () => void
+	let releaseDraftWrite!: () => void
+	const draftWriteStarted = new Promise<void>(resolve => {
+		resolveDraftWriteStarted = resolve
+	})
+	const draftWriteReleased = new Promise<void>(resolve => {
+		releaseDraftWrite = resolve
+	})
+
+	fs.writeFile = (async (...args: Parameters<typeof fs.writeFile>) => {
+		const [filePath, content] = args
+		if (typeof filePath === 'string' && filePath.includes('site-config.draft.json.tmp-') && typeof content === 'string' && content.includes('queued draft')) {
+			resolveDraftWriteStarted()
+			await draftWriteReleased
+		}
+		return originalWriteFile(...args)
+	}) as typeof fs.writeFile
+
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		await fs.writeFile(formalPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+
+		const savePromise = writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'queued draft' } } })
+		await draftWriteStarted
+		const publishPromise = publishResolvedSiteConfigDraft(tmpDir, {})
+
+		releaseDraftWrite()
+		const [, touched] = await Promise.all([savePromise, publishPromise])
+
+		assert.deepEqual(touched, ['site-content.json'])
+		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'queued draft')
+		assert.equal(await readSiteConfigDraft(tmpDir), null)
+	} finally {
+		fs.writeFile = originalWriteFile
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('正式保存草稿前会拒绝引用缺失的本地资源', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-missing-asset-'))
 	await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
@@ -662,5 +705,36 @@ test('正式保存草稿前会拒绝不安全的本地资源路径', async () =>
 		assert.deepEqual(await readSiteConfigDraft(tmpDir), draft)
 	} finally {
 		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('站点配置草稿拒绝写入被符号链接导向项目外的 data 目录', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-data-symlink-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-draft-data-outside-'))
+	try {
+		await fs.symlink(outsideDir, path.join(tmpDir, 'data'), 'dir')
+
+		await assert.rejects(() => writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'draft' } } }), /站点配置写入路径不合法/)
+		await assert.rejects(() => fs.stat(path.join(outsideDir, 'site-config.draft.json')), /ENOENT/)
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
+test('站点配置发布拒绝写入被符号链接导向项目外的 src/config 目录', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-formal-config-symlink-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'site-config-formal-config-outside-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true })
+		await fs.symlink(outsideDir, path.join(tmpDir, 'src/config'), 'dir')
+		await fs.writeFile(path.join(outsideDir, 'site-content.json'), JSON.stringify({ meta: { title: 'outside' } }, null, '\t'))
+
+		const draft = { siteContent: { meta: { title: 'draft' } } }
+		await assert.rejects(() => publishSiteConfigDraft(tmpDir, draft), /站点配置写入路径不合法/)
+		assert.equal(JSON.parse(await fs.readFile(path.join(outsideDir, 'site-content.json'), 'utf-8')).meta.title, 'outside')
+	} finally {
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
 	}
 })

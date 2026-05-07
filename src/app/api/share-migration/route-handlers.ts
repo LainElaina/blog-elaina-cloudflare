@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import { LOCAL_SHARE_SAVE_PATHS } from '../../share/services/share-artifacts.ts'
@@ -9,6 +9,7 @@ import {
   verifyShareLedgerAgainstRuntime,
   type ShareRuntimeArtifactsText
 } from '../../../lib/content-db/share-migration-contracts.ts'
+import { isPathInsideDirectory } from '../local-path.ts'
 import { buildShareMigrationFailureResponse } from './share-migration-api-contracts.ts'
 import {
   buildShareMigrationExecuteRouteResponse,
@@ -57,6 +58,13 @@ class ShareArtifactError extends Error {
   }
 }
 
+class ShareArtifactPathError extends Error {
+  constructor(message = 'share 正式产物路径不合法') {
+    super(message)
+    this.name = 'ShareArtifactPathError'
+  }
+}
+
 class ShareArtifactWriteError extends Error {
   readonly artifactPath: string
   readonly rollbackFailedArtifacts: string[]
@@ -69,6 +77,7 @@ class ShareArtifactWriteError extends Error {
     this.rollbackFailedArtifacts = rollbackFailedArtifacts
   }
 }
+
 
 const defaultReadText: ReadText = filePath => readFile(filePath, 'utf8')
 
@@ -299,6 +308,25 @@ function buildExecuteSummary() {
   return '已重建 share 正式产物。'
 }
 
+function assertSafeShareArtifactsDirectory(baseDir: string, shareDir: string) {
+  const projectDir = resolve(baseDir)
+  const expectedShareDir = resolve(projectDir, 'public/share')
+  if (shareDir !== expectedShareDir || !isPathInsideDirectory(projectDir, shareDir)) {
+    throw new ShareArtifactPathError()
+  }
+}
+
+async function assertSafeExistingShareArtifactsDirectory(baseDir: string) {
+  const projectDir = resolve(baseDir)
+  const shareDir = resolve(projectDir, 'public/share')
+  assertSafeShareArtifactsDirectory(projectDir, shareDir)
+  const realProjectDir = await realpath(projectDir)
+  const realShareDir = await realpath(shareDir)
+  if (realShareDir !== resolve(realProjectDir, 'public/share')) {
+    throw new ShareArtifactPathError()
+  }
+}
+
 async function writeShareArtifactsInOrder(params: {
   baseDir: string
   artifacts: ShareRuntimeArtifactsText
@@ -312,6 +340,7 @@ async function writeShareArtifactsInOrder(params: {
     [LOCAL_SHARE_SAVE_PATHS.folders, params.artifacts.folders],
     [LOCAL_SHARE_SAVE_PATHS.storage, params.artifacts.storage]
   ] as const
+  await assertSafeExistingShareArtifactsDirectory(params.baseDir)
   const writtenBackups: Array<{ artifactPath: string; filePath: string; content: string }> = []
 
   for (const [artifactPath, content] of artifactEntries) {
@@ -500,6 +529,17 @@ export async function executeRoute(params: {
     } catch (error) {
       if (error instanceof ShareArtifactError) {
         return buildArtifactFailureResponse({ operation: 'execute', error })
+      }
+
+      if (error instanceof ShareArtifactPathError) {
+        return {
+          status: 403,
+          body: buildShareMigrationFailureResponse({
+            operation: 'execute',
+            code: 'ARTIFACT_PATH_INVALID',
+            message: error.message
+          })
+        }
       }
 
       const artifactError = createArtifactShapeError(error)

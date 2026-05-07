@@ -29,6 +29,69 @@ type SiteContentWithSocialButtons = {
 	socialButtons?: unknown
 }
 
+const siteConfigDraftMutationLocks = new Map<string, Promise<void>>()
+
+function isPathInsideDirectory(baseDir: string, targetPath: string) {
+	const relativePath = path.relative(path.resolve(baseDir), path.resolve(targetPath))
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+}
+
+async function findExistingAncestorDirectory(dir: string): Promise<string> {
+	try {
+		await fs.realpath(dir)
+		return dir
+	} catch (error) {
+		if (!isFileNotFoundError(error)) {
+			throw error
+		}
+	}
+
+	const parentDir = path.dirname(dir)
+	if (parentDir === dir) {
+		return dir
+	}
+	return findExistingAncestorDirectory(parentDir)
+}
+
+export async function assertSafeSiteConfigProjectPath(baseDir: string, fullPath: string) {
+	const projectDir = path.resolve(baseDir)
+	const targetPath = path.resolve(fullPath)
+	if (!isPathInsideDirectory(projectDir, targetPath)) {
+		throw new SiteConfigLocalValidationError('站点配置写入路径不合法')
+	}
+
+	const existingAncestor = await findExistingAncestorDirectory(path.dirname(targetPath))
+	const existingAncestorPath = path.resolve(existingAncestor)
+	const realProjectDir = await fs.realpath(projectDir)
+	const realAncestor = await fs.realpath(existingAncestor)
+	const relativeAncestor = path.relative(projectDir, existingAncestorPath)
+	const expectedRealAncestor = path.resolve(realProjectDir, relativeAncestor)
+	if (!isPathInsideDirectory(realProjectDir, realAncestor) || realAncestor !== expectedRealAncestor) {
+		throw new SiteConfigLocalValidationError('站点配置写入路径不合法')
+	}
+}
+
+async function withSiteConfigDraftMutationLock<T>(baseDir: string, callback: () => Promise<T>): Promise<T> {
+	const lockKey = path.resolve(baseDir)
+	const previousLock = siteConfigDraftMutationLocks.get(lockKey) ?? Promise.resolve()
+	let releaseLock!: () => void
+	const currentLock = new Promise<void>(resolve => {
+		releaseLock = resolve
+	})
+	const nextLock = previousLock.catch(() => undefined).then(() => currentLock)
+	siteConfigDraftMutationLocks.set(lockKey, nextLock)
+
+	await previousLock.catch(() => undefined)
+	try {
+		return await callback()
+	} finally {
+		releaseLock()
+		if (siteConfigDraftMutationLocks.get(lockKey) === nextLock) {
+			siteConfigDraftMutationLocks.delete(lockKey)
+		}
+	}
+}
+
 function buildAtomicSiteConfigTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -143,8 +206,9 @@ export function buildSiteConfigDraftItems(payload: SiteConfigDraftPayload) {
 	return items
 }
 
-export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigDraftPayload) {
+async function writeSiteConfigDraftUnlocked(baseDir: string, payload: SiteConfigDraftPayload) {
 	const draftPath = resolveSiteConfigDraftPath(baseDir)
+	await assertSafeSiteConfigProjectPath(baseDir, draftPath)
 	await fs.mkdir(path.dirname(draftPath), { recursive: true })
 
 	let current: SiteConfigDraftPayload = {}
@@ -173,9 +237,15 @@ export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigD
 	return merged
 }
 
+export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigDraftPayload) {
+	return withSiteConfigDraftMutationLock(baseDir, () => writeSiteConfigDraftUnlocked(baseDir, payload))
+}
+
 export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDraftPayload | null> {
+	const draftPath = resolveSiteConfigDraftPath(baseDir)
+	await assertSafeSiteConfigProjectPath(baseDir, draftPath)
 	try {
-		const draft = parseSiteConfigDraftRaw(await fs.readFile(resolveSiteConfigDraftPath(baseDir), 'utf-8'))
+		const draft = parseSiteConfigDraftRaw(await fs.readFile(draftPath, 'utf-8'))
 		return hasSiteConfigDraftPayload(draft) ? draft : null
 	} catch (error) {
 		if (isFileNotFoundError(error)) {
@@ -186,7 +256,11 @@ export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDr
 }
 
 export async function clearSiteConfigDraft(baseDir: string) {
-	await fs.rm(resolveSiteConfigDraftPath(baseDir), { force: true })
+	return withSiteConfigDraftMutationLock(baseDir, async () => {
+		const draftPath = resolveSiteConfigDraftPath(baseDir)
+		await assertSafeSiteConfigProjectPath(baseDir, draftPath)
+		await fs.rm(draftPath, { force: true })
+	})
 }
 
 async function clearPublishedSiteConfigDraftKeys(baseDir: string, publishedKeys: SiteConfigDraftKey[]) {
@@ -195,6 +269,7 @@ async function clearPublishedSiteConfigDraftKeys(baseDir: string, publishedKeys:
 	}
 
 	const draftPath = resolveSiteConfigDraftPath(baseDir)
+	await assertSafeSiteConfigProjectPath(baseDir, draftPath)
 	let current: SiteConfigDraftPayload
 	try {
 		current = parseSiteConfigDraftRaw(await fs.readFile(draftPath, 'utf-8'))
@@ -369,8 +444,10 @@ async function rollbackSiteConfigFormalWrites(backups: SiteConfigFormalBackup[])
 }
 
 async function readFormalSiteContent(baseDir: string): Promise<SiteContentWithSocialButtons | null> {
+	const siteContentPath = path.join(baseDir, 'src/config/site-content.json')
+	await assertSafeSiteConfigProjectPath(baseDir, siteContentPath)
 	try {
-		const raw = await fs.readFile(path.join(baseDir, 'src/config/site-content.json'), 'utf-8')
+		const raw = await fs.readFile(siteContentPath, 'utf-8')
 		return JSON.parse(raw) as SiteContentWithSocialButtons
 	} catch (error) {
 		if (isFileNotFoundError(error)) {
@@ -456,9 +533,19 @@ async function deleteSiteConfigSocialButtonImages(baseDir: string, paths: string
 	}
 }
 
-export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
+async function publishSiteConfigDraftUnlocked(baseDir: string, draft: SiteConfigDraftPayload) {
 	if (!draft || Object.keys(draft).length === 0) {
 		throw new SiteConfigLocalValidationError('没有可发布的草稿')
+	}
+
+	const configDir = path.join(baseDir, 'src/config')
+	const writes = buildSiteConfigFormalWrites(draft)
+	const publishedKeys = getSiteConfigDraftPayloadKeys(draft)
+	if (writes.length === 0) {
+		throw new SiteConfigLocalValidationError('没有可发布的草稿')
+	}
+	for (const write of writes) {
+		await assertSafeSiteConfigProjectPath(baseDir, path.join(configDir, write.fileName))
 	}
 
 	await assertSiteConfigDraftLocalAssetsExist(baseDir, draft)
@@ -468,18 +555,13 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 		originalSiteContent,
 		draft.siteContent as SiteContentWithSocialButtons | null | undefined
 	)
-	const configDir = path.join(baseDir, 'src/config')
-	const writes = buildSiteConfigFormalWrites(draft)
-	const publishedKeys = getSiteConfigDraftPayloadKeys(draft)
-	if (writes.length === 0) {
-		throw new SiteConfigLocalValidationError('没有可发布的草稿')
-	}
 	const touchedFormal: string[] = []
 	const backups: SiteConfigFormalBackup[] = []
 
 	try {
 		for (const write of writes) {
 			const filePath = path.join(configDir, write.fileName)
+			await assertSafeSiteConfigProjectPath(baseDir, filePath)
 			backups.push(await readSiteConfigFormalBackup(filePath))
 			await writeSiteConfigFileAtomically(filePath, write.content)
 			touchedFormal.push(write.fileName)
@@ -493,6 +575,17 @@ export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigD
 
 	await deleteSiteConfigSocialButtonImages(baseDir, removedSocialButtonImagePaths)
 	return touchedFormal
+}
+
+export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
+	return withSiteConfigDraftMutationLock(baseDir, () => publishSiteConfigDraftUnlocked(baseDir, draft))
+}
+
+export async function publishResolvedSiteConfigDraft(baseDir: string, payload: SiteConfigDraftPayload) {
+	return withSiteConfigDraftMutationLock(baseDir, async () => {
+		const publishPayload = await resolveSiteConfigPublishPayload(baseDir, payload)
+		return publishSiteConfigDraftUnlocked(baseDir, publishPayload)
+	})
 }
 
 function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): LocalAssetReference[] {

@@ -22,7 +22,7 @@ type RestoreFailureReason = 'missing-draft' | 'mode-mismatch' | 'slug-mismatch'
 
 const pad = (value: number) => String(value).padStart(2, '0')
 
-const formatDateTimeLocal = (date: Date = new Date()): string => {
+export const formatDateTimeLocal = (date: Date = new Date()): string => {
 	const year = date.getFullYear()
 	const month = pad(date.getMonth() + 1)
 	const day = pad(date.getDate())

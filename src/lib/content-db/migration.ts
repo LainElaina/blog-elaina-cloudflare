@@ -1,7 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { readdir } from 'node:fs/promises'
+import { copyFile, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
+import { parseRequiredBlogStorageDB, type BlogStatus } from './blog-storage.ts'
 import { createContentDb, getDefaultContentDbPath, type ContentDb } from './client.ts'
 import { applyContentDbMigrations } from './migrations.ts'
 import {
@@ -25,9 +27,16 @@ type BlogIndexItem = {
 	category?: string
 }
 
-type BlogConfig = Record<string, unknown>
+type BlogMigrationEntry = {
+	slug: string
+	title: string
+	status: BlogStatus
+	categoryKey: string | null
+	folderKey: string | null
+	metadata: Record<string, unknown>
+	bodyPath: string | null
+}
 
-type BlogCategories = { categories?: string[] }
 
 type ShareItem = {
 	name: string
@@ -98,16 +107,29 @@ function slugify(value: string): string {
 	return slug || 'item'
 }
 
-async function loadLegacyBlogs(baseDir: string): Promise<Array<{ slug: string; title: string; categoryKey: string | null; metadata: Record<string, unknown>; bodyPath: string }>> {
+async function loadLegacyBlogs(baseDir: string): Promise<BlogMigrationEntry[]> {
 	const blogsDir = resolve(baseDir, 'public/blogs')
+	const storagePath = join(blogsDir, 'storage.json')
+	if (existsSync(storagePath)) {
+		return Object.values(parseRequiredBlogStorageDB(readFileSync(storagePath, 'utf8')).blogs).map(record => ({
+			slug: record.slug,
+			title: record.title || record.slug,
+			status: record.status,
+			categoryKey: record.category ?? null,
+			folderKey: record.folderPath ?? record.folder ?? null,
+			metadata: { storage: record },
+			bodyPath: record.status === 'published' ? `/public/blogs/${record.slug}/index.md` : null
+		}))
+	}
+
 	const indexItems = readJsonFile<BlogIndexItem[]>(join(blogsDir, 'index.json'))
-	const categories = readJsonFile<BlogCategories>(join(blogsDir, 'categories.json'))
+	const categories = readJsonFile<{ categories?: string[] }>(join(blogsDir, 'categories.json'))
 	const categoryKeys = Array.isArray(categories.categories) ? categories.categories : []
 
 	const dirEntries = await readdir(blogsDir, { withFileTypes: true })
-	const availableSlugs = new Set(dirEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name))
+	const availableSlugs = new Set(dirEntries.filter(entry => entry.isDirectory()).map(entry => entry.name))
 
-	const result: Array<{ slug: string; title: string; categoryKey: string | null; metadata: Record<string, unknown>; bodyPath: string }> = []
+	const result: BlogMigrationEntry[] = []
 	for (const item of indexItems) {
 		if (!item.slug) {
 			continue
@@ -117,12 +139,14 @@ async function loadLegacyBlogs(baseDir: string): Promise<Array<{ slug: string; t
 		}
 
 		const configPath = join(blogsDir, item.slug, 'config.json')
-		const config: BlogConfig = existsSync(configPath) ? readJsonFile<BlogConfig>(configPath) : {}
+		const config: Record<string, unknown> = existsSync(configPath) ? readJsonFile<Record<string, unknown>>(configPath) : {}
 		const categoryKey = item.category && item.category.trim() ? item.category : null
 		result.push({
 			slug: item.slug,
 			title: item.title || item.slug,
+			status: 'published',
 			categoryKey,
+			folderKey: null,
 			bodyPath: `/public/blogs/${item.slug}/index.md`,
 			metadata: {
 				index: item,
@@ -185,6 +209,34 @@ export function syncBlogRuntimeArtifacts(params: { indexRaw: string; storageRaw:
 	return syncBlogRuntimeArtifactsToLedger(params)
 }
 
+async function withDryRunContentDb<T>(dbPath: string, callback: (db: ContentDb) => Promise<T>): Promise<T> {
+	if (dbPath === ':memory:' || !existsSync(dbPath)) {
+		const db = createContentDb(':memory:')
+		try {
+			applyContentDbMigrations(db)
+			return await callback(db)
+		} finally {
+			db.close()
+		}
+	}
+
+	const tmpDir = await mkdtemp(join(tmpdir(), 'content-db-dry-run-'))
+	const tmpDbPath = join(tmpDir, 'content.db')
+	try {
+		await copyFile(dbPath, tmpDbPath)
+		const db = createContentDb(tmpDbPath)
+		try {
+			applyContentDbMigrations(db)
+			return await callback(db)
+		} finally {
+			db.close()
+		}
+	} finally {
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+}
+
+
 export function rebuildBlogRuntimeArtifacts(storageRaw: string) {
 	return rebuildBlogRuntimeArtifactsFromStorage(storageRaw)
 }
@@ -206,21 +258,17 @@ export async function migrateLegacyContentToDb(options: MigrateLegacyContentOpti
 	const dbPath = options.dbPath ?? getDefaultContentDbPath(baseDir)
 	const dryRun = Boolean(options.dryRun)
 	const confirmOverwrite = Boolean(options.confirmOverwrite)
+	const siteConfig = readJsonFile<SiteConfig>(resolve(baseDir, 'src/config/site-content.json'))
+	const layoutConfig = readJsonFile<LayoutConfig>(resolve(baseDir, 'src/config/card-styles.json'))
+	const blogs = await loadLegacyBlogs(baseDir)
+	const shares = loadLegacyShareEntries(baseDir)
 
-	const db = createContentDb(dbPath)
-	applyContentDbMigrations(db)
-
-	try {
+	async function runWithDb(db: ContentDb): Promise<MigrationResult> {
 		const before = countTables(db)
 		const hasMigratedData = before.siteConfig > 0 || before.layoutConfig > 0 || before.blogEntries > 0 || before.shareEntries > 0
 		if (hasMigratedData && !confirmOverwrite && !dryRun) {
 			throw new Error('Database already contains migrated data; re-run with confirmOverwrite=true to overwrite')
 		}
-
-		const siteConfig = readJsonFile<SiteConfig>(resolve(baseDir, 'src/config/site-content.json'))
-		const layoutConfig = readJsonFile<LayoutConfig>(resolve(baseDir, 'src/config/card-styles.json'))
-		const blogs = await loadLegacyBlogs(baseDir)
-		const shares = loadLegacyShareEntries(baseDir)
 
 		if (!dryRun) {
 			db.exec('BEGIN')
@@ -241,9 +289,9 @@ export async function migrateLegacyContentToDb(options: MigrateLegacyContentOpti
 						`blog:${blog.slug}`,
 						blog.slug,
 						blog.title,
-						'published',
+						blog.status,
 						blog.categoryKey,
-						null,
+						blog.folderKey,
 						JSON.stringify(blog.metadata),
 						blog.bodyPath
 					)
@@ -274,6 +322,16 @@ export async function migrateLegacyContentToDb(options: MigrateLegacyContentOpti
 				shareEntries: shares.length
 			}
 		}
+	}
+
+	if (dryRun) {
+		return withDryRunContentDb(dbPath, runWithDb)
+	}
+
+	const db = createContentDb(dbPath)
+	applyContentDbMigrations(db)
+	try {
+		return await runWithDb(db)
 	} finally {
 		db.close()
 	}

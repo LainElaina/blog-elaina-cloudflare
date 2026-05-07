@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, constants, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -160,8 +160,8 @@ function assertVerifyScriptFailure(error: unknown, expectedArtifactsToRebuild: s
 	return true
 }
 
-async function removeFile(path: string) {
-	await rm(path, { force: true })
+async function assertFileMissing(path: string) {
+	await assert.rejects(() => access(path, constants.F_OK), (error: NodeJS.ErrnoException) => error.code === 'ENOENT')
 }
 
 async function createVerifiedRuntimeRepo() {
@@ -257,6 +257,29 @@ test('legacy migration imports structured metadata and keeps markdown files unch
 	}
 })
 
+test('legacy migration dry-run does not create a missing database file', async () => {
+	const context = await setupTempRepo()
+
+	try {
+		await assertFileMissing(context.dbPath)
+
+		const dryRun = await migrateLegacyContentToDb({
+			baseDir: context.repoDir,
+			dbPath: context.dbPath,
+			dryRun: true
+		})
+
+		assert.equal(dryRun.dryRun, true)
+		assert.deepEqual(dryRun.before, { siteConfig: 0, layoutConfig: 0, blogEntries: 0, shareEntries: 0 })
+		assert.deepEqual(dryRun.after, dryRun.before)
+		assert.equal(dryRun.imported.blogEntries, 2)
+		assert.equal(dryRun.imported.shareEntries, 2)
+		await assertFileMissing(context.dbPath)
+	} finally {
+		await context.cleanup()
+	}
+})
+
 test('legacy migration prefers public share storage over stale source list and preserves ledger fields', async () => {
 	const context = await setupTempRepo()
 
@@ -314,6 +337,72 @@ test('legacy migration prefers public share storage over stale source list and p
 		assert.equal(freshRow.category_key, '新分类')
 		assert.equal(freshRow.folder_key, '/收藏/工具')
 		assert.equal(JSON.parse(freshRow.metadata_json).url, 'https://fresh.dev')
+		assert.equal(staleRow, undefined)
+		db.close()
+	} finally {
+		await context.cleanup()
+	}
+})
+
+test('legacy migration prefers public blog storage over stale index and preserves ledger fields', async () => {
+	const context = await setupTempRepo()
+
+	try {
+		await writeFile(
+			join(context.repoDir, 'public/blogs/storage.json'),
+			JSON.stringify(
+				{
+					version: 1,
+					updatedAt: '2026-04-15T00:00:00.000Z',
+					blogs: {
+						'fresh-blog': {
+							slug: 'fresh-blog',
+							title: 'Fresh Blog',
+							tags: ['fresh'],
+							date: '2026-04-15T00:00:00.000Z',
+							summary: 'fresh summary',
+							cover: '/blogs/fresh-blog/cover.png',
+							hidden: true,
+							category: '新分类',
+							folderPath: '/写作/迁移',
+							favorite: true,
+							status: 'archived'
+						}
+					}
+				},
+				null,
+				2
+			)
+		)
+
+		const result = await migrateLegacyContentToDb({
+			baseDir: context.repoDir,
+			dbPath: context.dbPath,
+			confirmOverwrite: true
+		})
+
+		assert.equal(result.after.blogEntries, 1)
+		assert.equal(result.imported.blogEntries, 1)
+
+		const db = createContentDb(context.dbPath)
+		const freshRow = db.prepare('SELECT slug, title, status, category_key, folder_key, metadata_json, body_path FROM blog_entries WHERE slug = ?').get('fresh-blog') as {
+			slug: string
+			title: string
+			status: string
+			category_key: string | null
+			folder_key: string | null
+			metadata_json: string
+			body_path: string | null
+		}
+		const staleRow = db.prepare('SELECT slug FROM blog_entries WHERE slug = ?').get('post-1') as { slug: string } | undefined
+
+		assert.equal(freshRow.slug, 'fresh-blog')
+		assert.equal(freshRow.title, 'Fresh Blog')
+		assert.equal(freshRow.status, 'archived')
+		assert.equal(freshRow.category_key, '新分类')
+		assert.equal(freshRow.folder_key, '/写作/迁移')
+		assert.equal(freshRow.body_path, null)
+		assert.equal(JSON.parse(freshRow.metadata_json).storage.favorite, true)
 		assert.equal(staleRow, undefined)
 		db.close()
 	} finally {

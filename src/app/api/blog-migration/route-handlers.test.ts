@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -143,6 +143,50 @@ describe('blog migration routes', () => {
 			assert.equal(await readFile(categoriesPath, 'utf8'), changedCategories)
 		} finally {
 			await context.cleanup()
+		}
+	})
+
+	it('execute route 拒绝 symlinked 博客正式产物目录且不会写到重定向目录', async () => {
+		const repoDir = await mkdtemp(join(tmpdir(), 'blog-migration-symlink-repo-'))
+		const outsideDir = await mkdtemp(join(tmpdir(), 'blog-migration-symlink-outside-'))
+
+		try {
+			await mkdir(join(repoDir, 'public'), { recursive: true })
+			await symlink(outsideDir, join(repoDir, 'public/blogs'))
+			await writeFile(
+				join(outsideDir, 'index.json'),
+				JSON.stringify(
+					[
+						{
+							slug: 'post-a',
+							title: 'A',
+							tags: [],
+							date: '2026-04-13T07:00:00.000Z',
+							category: '技术'
+						}
+					],
+					null,
+					2
+				)
+			)
+			await writeFile(join(outsideDir, 'categories.json'), JSON.stringify({ categories: [] }, null, 2))
+			await writeFile(join(outsideDir, 'folders.json'), JSON.stringify([], null, 2))
+
+			const snapshotHash = await readPreviewSnapshotHash(repoDir)
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: repoDir
+			})
+
+			assert.equal(response.status, 403)
+			assert.deepEqual(response.body, { message: '博客正式产物路径不合法' })
+			await assert.rejects(() => readFile(join(outsideDir, 'storage.json'), 'utf8'), /ENOENT/)
+			assert.deepEqual(JSON.parse(await readFile(join(outsideDir, 'categories.json'), 'utf8')), { categories: [] })
+		} finally {
+			await rm(repoDir, { recursive: true, force: true })
+			await rm(outsideDir, { recursive: true, force: true })
 		}
 	})
 

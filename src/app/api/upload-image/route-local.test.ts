@@ -178,8 +178,8 @@ test('upload image local route rejects allowlisted paths under symlinked parent 
 
 		const response = await handleUploadImage({ formData: async () => formData } as any)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '上传失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法' })
 		await assert.rejects(() => fs.readFile(join(outsideDir, 'test.png')), /ENOENT/)
 	} finally {
 		process.chdir(previousCwd)
@@ -203,8 +203,8 @@ test('upload image local route rejects allowlisted paths under repo-internal sym
 
 		const response = await handleUploadImage({ formData: async () => formData } as any)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '上传失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法' })
 		await assert.rejects(() => fs.readFile(join(repoDir, 'public/redirected-share/test.png')), /ENOENT/)
 	} finally {
 		process.chdir(previousCwd)

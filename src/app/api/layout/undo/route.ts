@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { rejectNonLocalDevelopmentRequest } from '../../local-development-request.ts'
 
-export async function POST() {
-	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
+export async function POST(request: Request) {
+	const rejected = rejectNonLocalDevelopmentRequest(request)
+	if (rejected) {
+		return rejected
 	}
 
 	const { handleLayoutUndoPost } = await import('./route-local')

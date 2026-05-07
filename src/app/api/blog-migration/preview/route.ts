@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
+import { rejectNonLocalDevelopmentRequest } from '../../local-development-request.ts'
 
-export async function GET() {
-	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ message: '仅开发环境可用' }, { status: 403 })
+export async function GET(request: Request) {
+	const rejected = rejectNonLocalDevelopmentRequest(request)
+	if (rejected) {
+		return rejected
 	}
 
 	const { previewRoute } = await import('../route-handlers.ts')

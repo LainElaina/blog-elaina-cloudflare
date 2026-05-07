@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { describe, it } from 'node:test'
@@ -335,6 +335,43 @@ describe('share migration route handlers', () => {
     }
   })
 
+  it('execute rejects a symlinked share artifact directory before writing', async () => {
+    const repoDir = await mkdtemp(join(tmpdir(), 'share-migration-symlink-repo-'))
+    const outsideDir = await mkdtemp(join(tmpdir(), 'share-migration-symlink-outside-'))
+    const artifacts = createBaseArtifacts()
+
+    try {
+      await mkdir(join(repoDir, 'public'), { recursive: true })
+      await symlink(outsideDir, join(repoDir, 'public/share'))
+      await writeFile(join(outsideDir, 'list.json'), artifacts.list)
+      await writeFile(join(outsideDir, 'categories.json'), artifacts.categories)
+      await writeFile(join(outsideDir, 'folders.json'), artifacts.folders)
+      await writeFile(join(outsideDir, 'storage.json'), artifacts.storage)
+
+      const snapshotHash = await readPreviewSnapshotHash(repoDir)
+      const response = await executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        snapshotHash,
+        baseDir: repoDir
+      })
+
+      assert.equal(response.status, 403)
+      assert.deepEqual(response.body, {
+        ok: false,
+        operation: 'execute',
+        code: 'ARTIFACT_PATH_INVALID',
+        message: 'share 正式产物路径不合法'
+      })
+      assert.deepEqual(JSON.parse(await readFile(join(outsideDir, 'categories.json'), 'utf8')), { categories: [] })
+      assert.deepEqual(JSON.parse(await readFile(join(outsideDir, 'folders.json'), 'utf8')), [])
+      assert.deepEqual(JSON.parse(await readFile(join(outsideDir, 'storage.json'), 'utf8')), JSON.parse(artifacts.storage))
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+      await rm(outsideDir, { recursive: true, force: true })
+    }
+  })
+
   it('execute writes artifacts in fixed order and verifies the post-write disk state', async () => {
     const context = await setupShareArtifactsRepo()
     const writeOrder: string[] = []
@@ -403,7 +440,7 @@ describe('share migration route handlers', () => {
   it('execute default writer replaces share artifacts atomically', async () => {
     const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf8')
 
-    assert.match(source, /import \{ readFile, rename, rm, writeFile \} from 'node:fs\/promises'/)
+    assert.match(source, /import \{ readFile, realpath, rename, rm, writeFile \} from 'node:fs\/promises'/)
     assert.match(source, /function buildAtomicShareArtifactTempPath\(filePath: string\)/)
     assert.match(source, /const defaultWriteText: WriteText = async \(filePath, content\) => \{/)
     assert.match(source, /await writeFile\(tempPath, content\)\n    await rename\(tempPath, filePath\)/)

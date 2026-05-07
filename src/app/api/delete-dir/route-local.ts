@@ -32,6 +32,10 @@ function isFileNotFoundError(error: unknown) {
 	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
 
+function isUnsafeDeleteDirParentError(error: unknown) {
+	return error instanceof Error && error.message === 'unsafe-delete-dir-parent'
+}
+
 async function assertSafeDeleteDirParent(fullPath: string) {
 	const parentDir = dirname(fullPath)
 	const parentStats = await lstat(parentDir).catch(error => {
@@ -103,6 +107,9 @@ export async function handleDeleteDir(request: NextRequest) {
 
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
+		if (isUnsafeDeleteDirParentError(error)) {
+			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })
+		}
 		console.error('Delete dir error:', error)
 		return NextResponse.json({ error: '删除失败' }, { status: 500 })
 	}

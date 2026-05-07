@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isValidLayoutConfig } from '../layout/layout-config-validation.ts'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -130,6 +131,7 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 	}
 
 	const layoutBackupPath = resolveLayoutBackupPath()
+	await assertSafeSiteConfigProjectPath(process.cwd(), layoutBackupPath)
 	await fs.mkdir(path.dirname(layoutBackupPath), { recursive: true })
 	await writeFileAtomically(layoutBackupPath, cardStylesBackup.content)
 }
@@ -171,6 +173,7 @@ export async function handleConfigPost(request: NextRequest) {
 		try {
 			for (const write of writes) {
 				const filePath = path.join(configDir, write.fileName)
+				await assertSafeSiteConfigProjectPath(process.cwd(), filePath)
 				backups.push(await readConfigBackup(filePath))
 				await writeFileAtomically(filePath, write.content)
 			}
@@ -182,6 +185,6 @@ export async function handleConfigPost(request: NextRequest) {
 
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
-		return NextResponse.json({ error: error.message }, { status: 500 })
+		return NextResponse.json({ error: error.message }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
 	}
 }

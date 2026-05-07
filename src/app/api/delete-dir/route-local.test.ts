@@ -90,8 +90,8 @@ test('delete dir route rejects symlink parent directories without removing targe
 			json: async () => ({ path: 'public/blogs/post-a' })
 		} as any)
 
-		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '删除失败' })
+		assert.equal(response.status, 403)
+		assert.deepEqual(await response.json(), { error: '路径不合法，只能删除 public/blogs 下的文章目录' })
 		assert.equal(await fs.readFile(path.join(tmpDir, 'outside-target/post-a/keep.txt'), 'utf-8'), 'keep')
 	} finally {
 		process.chdir(previousCwd)
