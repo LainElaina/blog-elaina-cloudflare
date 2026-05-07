@@ -66,4 +66,19 @@ describe('fetchBlogFoldersConfig', () => {
 			restoreFetch()
 		}
 	})
+
+	it('JSON 解析失败时回退为空配置', async () => {
+		const restoreFetch = mockFetchResponse({
+			ok: true,
+			status: 200,
+			json: async () => {
+				throw new SyntaxError('bad json')
+			}
+		})
+		try {
+			assert.deepEqual(await fetchBlogFoldersConfig('/blogs/folders.json'), { folders: [] })
+		} finally {
+			restoreFetch()
+		}
+	})
 })

@@ -32,7 +32,12 @@ export const fetchCategoriesConfig = async (url: string): Promise<CategoriesConf
 		error.status = res.status
 		throw error
 	}
-	const data = await res.json()
+	let data: unknown
+	try {
+		data = await res.json()
+	} catch {
+		return { categories: [] }
+	}
 	if (Array.isArray(data)) {
 		return { categories: normalizeStringList(data) }
 	}

@@ -90,7 +90,12 @@ export const fetchBlogFoldersConfig = async (url: string): Promise<BlogFoldersCo
 		throw error
 	}
 
-	const data = await res.json()
+	let data: unknown
+	try {
+		data = await res.json()
+	} catch {
+		return { folders: [] }
+	}
 	return parseBlogFoldersConfig(data)
 }
 
