@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import { handleDeleteFile } from './route-local.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleDeleteFile } = await import('./route-local.ts')
 
 test('delete file local route only deletes save-file allowlisted paths', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')

@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '@/app/api/limited-json-request'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -16,7 +16,7 @@ export async function GET() {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, readSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
+	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, readSiteConfigDraft } = await import('../../site-config-local-shared.ts')
 	try {
 		const draft = await readSiteConfigDraft(process.cwd())
 		if (!draft) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, writeSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
+	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, writeSiteConfigDraft } = await import('../../site-config-local-shared.ts')
 
 	try {
 		const contentLength = getContentLength(request)
@@ -64,7 +64,7 @@ export async function DELETE() {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { clearSiteConfigDraft } = await import('@/app/api/site-config-local-shared')
+	const { clearSiteConfigDraft } = await import('../../site-config-local-shared.ts')
 
 	try {
 		await clearSiteConfigDraft(process.cwd())

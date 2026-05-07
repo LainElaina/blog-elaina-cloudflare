@@ -40,6 +40,7 @@ export function buildShareMigrationPreviewRouteResponse(params: {
 	summary: string
 	notice?: string
 	artifactsToRebuild: string[]
+	snapshotHash: string
 }): ShareMigrationRouteResponse<ShareMigrationPreviewSuccessResponse> {
 	return {
 		status: 200,

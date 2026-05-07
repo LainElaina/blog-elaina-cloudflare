@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
@@ -18,6 +19,11 @@ import {
 type ShareArtifactFailureCode = 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE'
 type ReadText = (filePath: string) => Promise<string>
 type WriteText = (filePath: string, content: string) => Promise<void>
+
+type ShareArtifactSnapshot = {
+  artifacts: ShareRuntimeArtifactsText
+  snapshotHash: string
+}
 
 const PREVIEW_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。预检查基于当前磁盘快照。'
 const EXECUTE_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。执行结果已基于写回后的磁盘状态复检。'
@@ -53,12 +59,14 @@ class ShareArtifactError extends Error {
 
 class ShareArtifactWriteError extends Error {
   readonly artifactPath: string
+  readonly rollbackFailedArtifacts: string[]
 
-  constructor(artifactPath: string, cause: unknown) {
+  constructor(artifactPath: string, cause: unknown, rollbackFailedArtifacts: string[] = []) {
     const details = cause instanceof Error ? cause.message : String(cause)
     super(`写入 share 正式产物失败：${artifactPath}${details ? ` (${details})` : ''}`)
     this.name = 'ShareArtifactWriteError'
     this.artifactPath = artifactPath
+    this.rollbackFailedArtifacts = rollbackFailedArtifacts
   }
 }
 
@@ -134,6 +142,7 @@ function buildArtifactFailureResponse(params: {
 function buildWriteFailureResponse(params: {
   artifactPath: string
   writtenArtifactsPartial: string[]
+  rollbackFailedArtifacts?: string[]
 }) {
   return {
     status: 500,
@@ -144,7 +153,8 @@ function buildWriteFailureResponse(params: {
       writtenArtifactsPartial: params.writtenArtifactsPartial,
       shouldRepreview: true,
       details: {
-        artifact: params.artifactPath
+        artifact: params.artifactPath,
+        ...(params.rollbackFailedArtifacts && params.rollbackFailedArtifacts.length > 0 ? { rollbackFailedArtifacts: params.rollbackFailedArtifacts } : {})
       }
     })
   }
@@ -233,6 +243,50 @@ async function readStrictShareArtifacts(params: {
   return runtimeArtifacts
 }
 
+function createShareArtifactSnapshotHash(runtimeArtifacts: ShareRuntimeArtifactsText) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        runtimeArtifacts.list,
+        runtimeArtifacts.categories,
+        runtimeArtifacts.folders,
+        runtimeArtifacts.storage
+      ])
+    )
+    .digest('hex')
+}
+
+async function readStrictShareArtifactSnapshot(params: {
+  baseDir: string
+  readText: ReadText
+}): Promise<ShareArtifactSnapshot> {
+  const artifacts = await readStrictShareArtifacts(params)
+
+  return {
+    artifacts,
+    snapshotHash: createShareArtifactSnapshotHash(artifacts)
+  }
+}
+
+function buildStalePreviewResponse(params: {
+  expectedSnapshotHash: string | undefined
+  actualSnapshotHash: string
+}) {
+  return {
+    status: 409,
+    body: buildShareMigrationFailureResponse({
+      operation: 'execute',
+      code: 'STALE_PREVIEW',
+      message: '预检查快照已过期，请重新预检查后再执行',
+      shouldRepreview: true,
+      details: {
+        expectedSnapshotHash: params.expectedSnapshotHash ?? null,
+        actualSnapshotHash: params.actualSnapshotHash
+      }
+    })
+  }
+}
+
 function buildPreviewSummary(artifactsToRebuild: string[]) {
   if (artifactsToRebuild.length === 0) {
     return '当前 share 正式产物与账本一致，无需重建。'
@@ -262,18 +316,50 @@ async function writeShareArtifactsInOrder(params: {
 
   for (const [artifactPath, content] of artifactEntries) {
     const filePath = resolve(params.baseDir, artifactPath)
+    let previousContent: string | undefined
 
     try {
-      const previousContent = await params.readText(filePath)
-      writtenBackups.push({ artifactPath, filePath, content: previousContent })
+      previousContent = await params.readText(filePath)
       await params.writeText(filePath, content)
       params.writtenArtifacts.push(artifactPath)
+      writtenBackups.push({ artifactPath, filePath, content: previousContent })
     } catch (error) {
-      for (const backup of writtenBackups.reverse()) {
-        await params.writeText(backup.filePath, backup.content).catch(() => undefined)
+      const rollbackEntries = [...writtenBackups].reverse()
+      if (previousContent !== undefined) {
+        let currentArtifactChanged = true
+        try {
+          currentArtifactChanged = (await params.readText(filePath)) !== previousContent
+        } catch {
+          currentArtifactChanged = true
+        }
+        if (currentArtifactChanged) {
+          rollbackEntries.unshift({ artifactPath, filePath, content: previousContent })
+        }
+      }
+
+      const rollbackFailedArtifacts: string[] = []
+      for (const backup of rollbackEntries) {
+        let restoreError: unknown
+        try {
+          await params.writeText(backup.filePath, backup.content)
+        } catch (error) {
+          restoreError = error
+        }
+
+        if (restoreError) {
+          try {
+            if ((await params.readText(backup.filePath)) === backup.content) {
+              continue
+            }
+          } catch {
+            // Fall through and report the artifact as still dirty.
+          }
+          rollbackFailedArtifacts.push(backup.artifactPath)
+        }
       }
       params.writtenArtifacts.length = 0
-      throw new ShareArtifactWriteError(artifactPath, error)
+      params.writtenArtifacts.push(...rollbackFailedArtifacts)
+      throw new ShareArtifactWriteError(artifactPath, error, rollbackFailedArtifacts)
     }
   }
 }
@@ -295,20 +381,21 @@ export async function previewRoute(params: {
   const readText = params.readText ?? defaultReadText
 
   try {
-    const runtimeArtifacts = await readStrictShareArtifacts({ baseDir, readText })
+    const runtimeSnapshot = await readStrictShareArtifactSnapshot({ baseDir, readText })
     const synced = syncShareRuntimeArtifactsToLedger({
-      list: runtimeArtifacts.list,
-      storage: runtimeArtifacts.storage
+      list: runtimeSnapshot.artifacts.list,
+      storage: runtimeSnapshot.artifacts.storage
     })
     const verification = verifyShareLedgerAgainstRuntime({
       storage: synced.storage,
-      runtimeArtifacts
+      runtimeArtifacts: runtimeSnapshot.artifacts
     })
 
     return buildShareMigrationPreviewRouteResponse({
       summary: buildPreviewSummary(verification.artifactsToRebuild),
       notice: PREVIEW_NOTICE,
-      artifactsToRebuild: verification.artifactsToRebuild
+      artifactsToRebuild: verification.artifactsToRebuild,
+      snapshotHash: runtimeSnapshot.snapshotHash
     })
   } catch (error) {
     if (error instanceof ShareArtifactError) {
@@ -327,6 +414,7 @@ export async function previewRoute(params: {
 export async function executeRoute(params: {
   nodeEnv: string | undefined
   confirmed: unknown
+  snapshotHash?: string
   baseDir?: string
   readText?: ReadText
   writeText?: WriteText
@@ -356,7 +444,15 @@ export async function executeRoute(params: {
 
   return withShareMigrationExecuteLock(async () => {
     try {
-      const runtimeArtifacts = await readStrictShareArtifacts({ baseDir, readText })
+      const runtimeSnapshot = await readStrictShareArtifactSnapshot({ baseDir, readText })
+      if (params.snapshotHash !== runtimeSnapshot.snapshotHash) {
+        return buildStalePreviewResponse({
+          expectedSnapshotHash: params.snapshotHash,
+          actualSnapshotHash: runtimeSnapshot.snapshotHash
+        })
+      }
+
+      const runtimeArtifacts = runtimeSnapshot.artifacts
       const synced = syncShareRuntimeArtifactsToLedger({
         list: runtimeArtifacts.list,
         storage: runtimeArtifacts.storage
@@ -380,7 +476,8 @@ export async function executeRoute(params: {
         if (error instanceof ShareArtifactWriteError) {
           return buildWriteFailureResponse({
             artifactPath: error.artifactPath,
-            writtenArtifactsPartial: writtenArtifacts
+            writtenArtifactsPartial: writtenArtifacts,
+            rollbackFailedArtifacts: error.rollbackFailedArtifacts
           })
         }
         throw error

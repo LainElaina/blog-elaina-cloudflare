@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
+import os from 'node:os'
+import path from 'node:path'
 
-import { handleLayoutPost } from './route-local.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleLayoutPost } = await import('./route-local.ts')
 
 test('layout local route saves layout and backup atomically', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
@@ -11,10 +23,43 @@ test('layout local route saves layout and backup atomically', async () => {
 	assert.match(source, /function writeFileAtomically\(fullPath: string, content: string\)/)
 	assert.match(source, /fs\.writeFileSync\(tempPath, content, 'utf-8'\)\n\t\tfs\.renameSync\(tempPath, fullPath\)/)
 	assert.match(source, /fs\.rmSync\(tempPath, \{ force: true \}\)/)
-	assert.match(source, /writeFileAtomically\(BACKUP_PATH, current\)/)
-	assert.match(source, /writeFileAtomically\(LAYOUT_PATH, JSON\.stringify\(layout, null, '\\t'\)\)/)
-	assert.doesNotMatch(source, /fs\.writeFileSync\(BACKUP_PATH, current\)/)
-	assert.doesNotMatch(source, /fs\.writeFileSync\(LAYOUT_PATH, JSON\.stringify\(layout, null, '\\t'\)\)/)
+	assert.match(source, /writeFileAtomically\(backupPath, current\)/)
+	assert.match(source, /writeFileAtomically\(layoutPath, JSON\.stringify\(layout, null, '\\t'\)\)/)
+	assert.doesNotMatch(source, /fs\.writeFileSync\(backupPath, current\)/)
+	assert.doesNotMatch(source, /fs\.writeFileSync\(layoutPath, JSON\.stringify\(layout, null, '\\t'\)\)/)
+})
+
+test('layout local route writes current cwd layout instead of module-load cwd', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-local-cwd-'))
+	const previousCwd = process.cwd()
+	const layout = {
+		musicCard: {
+			width: 180,
+			height: 100,
+			order: 1,
+			offsetX: null,
+			offsetY: null,
+			enabled: true
+		}
+	}
+
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		process.chdir(tmpDir)
+		const response = await handleLayoutPost(
+			new Request('http://localhost/api/layout', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(layout)
+			})
+		)
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(JSON.parse(await fs.readFile(path.join(tmpDir, 'src/config/card-styles.json'), 'utf-8')), layout)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
 })
 
 test('layout local route returns 400 when JSON body is malformed', async () => {
@@ -68,11 +113,11 @@ test('layout local route rejects invalid layout payloads before writing layout',
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
 	const validationIndex = source.indexOf('if (!isValidLayoutConfig(layout))')
-	const backupIndex = source.indexOf('if (fs.existsSync(LAYOUT_PATH))')
-	const writeIndex = source.indexOf("writeFileAtomically(LAYOUT_PATH, JSON.stringify(layout, null, '\\t'))")
+	const backupIndex = source.indexOf('if (fs.existsSync(layoutPath))')
+	const writeIndex = source.indexOf("writeFileAtomically(layoutPath, JSON.stringify(layout, null, '\\t'))")
 
-	assert.match(source, /import \{ isValidLayoutConfig \} from '\.\/layout-config-validation'/)
-	assert.match(source, /export \{ isValidLayoutConfig \} from '\.\/layout-config-validation'/)
+	assert.match(source, /import \{ isValidLayoutConfig \} from '\.\/layout-config-validation\.ts'/)
+	assert.match(source, /export \{ isValidLayoutConfig \} from '\.\/layout-config-validation\.ts'/)
 	assert.match(source, /if \(!isValidLayoutConfig\(layout\)\) \{\n\s*return NextResponse\.json\(\{ error: '布局配置格式错误' \}, \{ status: 400 \}\)\n\s*\}/)
 	assert.ok(validationIndex > 0)
 	assert.ok(backupIndex > validationIndex)

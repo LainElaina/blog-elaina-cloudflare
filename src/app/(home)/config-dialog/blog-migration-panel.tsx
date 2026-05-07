@@ -10,6 +10,7 @@ type BlogMigrationResponsePayload = {
   message?: unknown
   summary?: unknown
   artifactsToRebuild?: unknown
+  snapshotHash?: unknown
 }
 
 function resolveFailureMessage(message: unknown, fallback: string) {
@@ -19,15 +20,18 @@ function resolveFailureMessage(message: unknown, fallback: string) {
 export function BlogMigrationPanel() {
   const model = BLOG_MIGRATION_PANEL_MODEL
   const [message, setMessage] = useState<string | null>(null)
+  const [previewSnapshotHash, setPreviewSnapshotHash] = useState<string | null>(null)
 
   const handlePreview = async () => {
     const response = await fetch('/api/blog-migration/preview')
     const data = await response.json().catch(() => ({}))
     const payload = (typeof data === 'object' && data ? data : {}) as BlogMigrationResponsePayload
     if (!response.ok) {
+      setPreviewSnapshotHash(null)
       setMessage(resolveFailureMessage(payload.message, '预检查失败'))
       return
     }
+    setPreviewSnapshotHash(typeof payload.snapshotHash === 'string' ? payload.snapshotHash : null)
     const artifacts = Array.isArray(payload.artifactsToRebuild) ? payload.artifactsToRebuild.join('、') : '无'
     setMessage(resolveBlogMigrationMessage(payload, `待重建产物：${artifacts}`))
   }
@@ -39,14 +43,16 @@ export function BlogMigrationPanel() {
     const response = await fetch('/api/blog-migration/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ confirmed: true })
+      body: JSON.stringify({ confirmed: true, snapshotHash: previewSnapshotHash })
     })
     const data = await response.json().catch(() => ({}))
     const payload = (typeof data === 'object' && data ? data : {}) as BlogMigrationResponsePayload
     if (!response.ok) {
+      setPreviewSnapshotHash(null)
       setMessage(resolveFailureMessage(payload.message, '执行失败'))
       return
     }
+    setPreviewSnapshotHash(null)
     setMessage(resolveBlogMigrationMessage(payload, '已执行同步/重建'))
   }
 

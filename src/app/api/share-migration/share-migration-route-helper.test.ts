@@ -38,7 +38,8 @@ describe('share migration route helper', () => {
 		const response = buildShareMigrationPreviewRouteResponse({
 			summary: '待重建 share 正式产物：public/share/storage.json',
 			notice: '只处理 share 正式产物，不会修改 logo 图片。',
-			artifactsToRebuild: ['public/share/storage.json']
+			artifactsToRebuild: ['public/share/storage.json'],
+			snapshotHash: 'hash-a'
 		})
 
 		assert.equal(response.status, 200)
@@ -47,7 +48,8 @@ describe('share migration route helper', () => {
 			operation: 'preview',
 			summary: '待重建 share 正式产物：public/share/storage.json',
 			notice: '只处理 share 正式产物，不会修改 logo 图片。',
-			artifactsToRebuild: ['public/share/storage.json']
+			artifactsToRebuild: ['public/share/storage.json'],
+			snapshotHash: 'hash-a'
 		})
 	})
 

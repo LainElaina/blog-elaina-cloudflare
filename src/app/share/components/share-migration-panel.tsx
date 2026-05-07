@@ -17,6 +17,7 @@ type ShareMigrationResponsePayload = {
 	artifactsToRebuildBeforeExecute?: unknown
 	artifactsToRebuildAfterExecute?: unknown
 	shouldRepreview?: unknown
+	snapshotHash?: unknown
 }
 
 export type ShareMigrationDirtyState = {
@@ -270,6 +271,7 @@ export function ShareMigrationPanel(props: {
 	dirtyState: ShareMigrationDirtyState
 }) {
 	const [lastResult, setLastResult] = useState<ShareMigrationPanelResult | null>(null)
+	const [previewSnapshotHash, setPreviewSnapshotHash] = useState<string | null>(null)
 	const [isPreviewPending, setIsPreviewPending] = useState(false)
 	const [isExecutePending, setIsExecutePending] = useState(false)
 	const controls = useMemo(
@@ -293,6 +295,7 @@ export function ShareMigrationPanel(props: {
 				cache: 'no-store'
 			})
 			const payload = await readShareMigrationPayload(response)
+			setPreviewSnapshotHash(response.ok && typeof payload.snapshotHash === 'string' ? payload.snapshotHash : null)
 			setLastResult(
 				normalizeShareMigrationResult({
 					operation: 'preview',
@@ -301,6 +304,7 @@ export function ShareMigrationPanel(props: {
 				})
 			)
 		} catch (error) {
+			setPreviewSnapshotHash(null)
 			setLastResult({
 				operation: 'preview',
 				tone: 'error',
@@ -333,9 +337,10 @@ export function ShareMigrationPanel(props: {
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ confirmed: true })
+				body: JSON.stringify({ confirmed: true, snapshotHash: previewSnapshotHash })
 			})
 			const payload = await readShareMigrationPayload(response)
+			setPreviewSnapshotHash(null)
 			setLastResult(
 				normalizeShareMigrationResult({
 					operation: 'execute',
@@ -344,6 +349,7 @@ export function ShareMigrationPanel(props: {
 				})
 			)
 		} catch (error) {
+			setPreviewSnapshotHash(null)
 			setLastResult({
 				operation: 'execute',
 				tone: 'error',

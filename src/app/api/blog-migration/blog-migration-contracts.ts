@@ -2,9 +2,10 @@ function formatArtifacts(artifacts: string[]) {
 	return artifacts.length > 0 ? artifacts.join('、') : '无'
 }
 
-export function buildPreviewResponse(params: { artifactsToRebuild: string[] }) {
+export function buildPreviewResponse(params: { artifactsToRebuild: string[]; snapshotHash: string }) {
 	return {
 		artifactsToRebuild: params.artifactsToRebuild,
+		snapshotHash: params.snapshotHash,
 		notice: '只会重建正式产物，不会修改 Markdown 或图片。',
 		summary:
 			params.artifactsToRebuild.length > 0

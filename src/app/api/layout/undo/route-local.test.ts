@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import { handleLayoutUndoPost } from './route-local.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleLayoutUndoPost } = await import('./route-local.ts')
 
 test('layout undo local route restores layout atomically', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')

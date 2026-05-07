@@ -1,10 +1,10 @@
-import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
-import { isPathInsideDirectory } from '../local-path'
+import { isPathInsideDirectory } from '../local-path.ts'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
 
 const MAX_FILE_CONTENT_SIZE = 10 * 1024 * 1024
@@ -52,7 +52,7 @@ async function findExistingAncestorDirectory(dir: string) {
 async function assertSafeExistingParentDirectory(projectDir: string, dir: string) {
 	const existingDir = await findExistingAncestorDirectory(dir)
 	const realParentDir = await realpath(existingDir)
-	if (!isPathInsideDirectory(projectDir, realParentDir)) {
+	if (!isPathInsideDirectory(projectDir, realParentDir) || realParentDir !== resolve(existingDir)) {
 		throw new Error('unsafe-parent-directory')
 	}
 }

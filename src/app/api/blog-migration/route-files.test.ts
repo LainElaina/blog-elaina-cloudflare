@@ -48,6 +48,16 @@ async function setupBlogArtifactsRepo() {
   }
 }
 
+async function readPreviewSnapshotHash() {
+  const response = await GET()
+  const payload = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(typeof payload.snapshotHash, 'string')
+  return payload.snapshotHash
+}
+
+
 describe('blog migration next routes', () => {
   it('preview route 返回实际 verify json response', async () => {
     const context = await setupBlogArtifactsRepo()
@@ -176,7 +186,7 @@ describe('blog migration next routes', () => {
     }
   })
 
-  it('execute route 确认后会真正写入同步与重建结果', async () => {
+  it('execute route 缺少预检查快照时返回 409', async () => {
     const context = await setupBlogArtifactsRepo()
     const previousNodeEnv = process.env.NODE_ENV
     const previousCwd = process.cwd()
@@ -189,6 +199,34 @@ describe('blog migration next routes', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmed: true })
+      })
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 409)
+      assert.equal(payload.code, 'STALE_PREVIEW')
+      assert.equal(payload.shouldRepreview, true)
+    } finally {
+      process.chdir(previousCwd)
+      process.env.NODE_ENV = previousNodeEnv
+      await context.cleanup()
+    }
+  })
+
+  it('execute route 确认后会真正写入同步与重建结果', async () => {
+    const context = await setupBlogArtifactsRepo()
+    const previousNodeEnv = process.env.NODE_ENV
+    const previousCwd = process.cwd()
+
+    try {
+      process.env.NODE_ENV = 'development'
+      process.chdir(context.repoDir)
+      const snapshotHash = await readPreviewSnapshotHash()
+
+      const request = new Request('http://localhost/api/blog-migration/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmed: true, snapshotHash })
       })
       const response = await POST(request)
       const payload = await response.json()

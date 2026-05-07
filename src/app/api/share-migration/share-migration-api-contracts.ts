@@ -1,6 +1,6 @@
 export type ShareMigrationOperation = 'preview' | 'execute'
 
-export type ShareMigrationFailureCode = 'DEV_ONLY' | 'INVALID_REQUEST_JSON' | 'REQUEST_BODY_TOO_LARGE' | 'UNCONFIRMED' | 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE' | 'WRITE_FAILED'
+export type ShareMigrationFailureCode = 'DEV_ONLY' | 'INVALID_REQUEST_JSON' | 'REQUEST_BODY_TOO_LARGE' | 'UNCONFIRMED' | 'STALE_PREVIEW' | 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE' | 'WRITE_FAILED'
 
 export type ShareMigrationPreviewSuccessResponse = {
 	ok: true
@@ -8,6 +8,7 @@ export type ShareMigrationPreviewSuccessResponse = {
 	summary: string
 	notice?: string
 	artifactsToRebuild: string[]
+	snapshotHash: string
 }
 
 export type ShareMigrationExecuteSuccessResponse = {
@@ -34,13 +35,15 @@ export function buildShareMigrationPreviewResponse(params: {
 	summary: string
 	notice?: string
 	artifactsToRebuild: string[]
+	snapshotHash: string
 }): ShareMigrationPreviewSuccessResponse {
 	return {
 		ok: true,
 		operation: 'preview',
 		summary: params.summary,
 		...(params.notice ? { notice: params.notice } : {}),
-		artifactsToRebuild: params.artifactsToRebuild
+		artifactsToRebuild: params.artifactsToRebuild,
+		snapshotHash: params.snapshotHash
 	}
 }
 

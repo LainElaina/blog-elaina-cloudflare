@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { assertSafeBlogSlug } from '../../write/services/blog-slug'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { isPathStrictlyInsideDirectory } from '../local-path.ts'
 
 const ALLOWED_SAVE_FILE_PATHS = [

@@ -13,19 +13,21 @@ describe('blog migration api contracts', () => {
 			artifactsToRebuild: [
 				'public/blogs/index.json',
 				'public/blogs/storage.json'
-			]
+			],
+			snapshotHash: 'hash-a'
 		})
 
 		assert.deepEqual(result.artifactsToRebuild, [
 			'public/blogs/index.json',
 			'public/blogs/storage.json'
 		])
+		assert.equal(result.snapshotHash, 'hash-a')
 		assert.match(result.notice, /不会修改 Markdown 或图片/)
 		assert.equal(result.summary, '待重建产物：public/blogs/index.json、public/blogs/storage.json')
 	})
 
 	it('preview 在无需重建时返回已一致说明', () => {
-		const result = buildPreviewResponse({ artifactsToRebuild: [] })
+		const result = buildPreviewResponse({ artifactsToRebuild: [], snapshotHash: 'hash-empty' })
 		assert.equal(result.summary, '当前正式产物已与账本一致，无需重建。')
 	})
 

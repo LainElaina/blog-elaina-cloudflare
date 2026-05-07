@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
@@ -22,6 +23,23 @@ const EMPTY_BLOG_STORAGE_ARTIFACT = JSON.stringify({
 	blogs: {}
 })
 
+let blogMigrationExecuteLock: Promise<void> = Promise.resolve()
+
+async function withBlogMigrationExecuteLock<T>(operation: () => Promise<T>): Promise<T> {
+	const previous = blogMigrationExecuteLock
+	let release!: () => void
+	blogMigrationExecuteLock = new Promise<void>(resolve => {
+		release = resolve
+	})
+
+	await previous
+	try {
+		return await operation()
+	} finally {
+		release()
+	}
+}
+
 type BlogArtifactFailureCode = 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE'
 
 type BlogRuntimeArtifactsText = {
@@ -29,6 +47,19 @@ type BlogRuntimeArtifactsText = {
 	categories: string
 	folders: string
 	storageRaw: string | null
+}
+
+type BlogRuntimeArtifactsToWrite = {
+	index: string
+	categories: string
+	folders: string
+	storage: string
+}
+
+type WriteBlogRuntimeArtifacts = (baseDir: string, artifacts: BlogRuntimeArtifactsToWrite) => Promise<void>
+type BlogArtifactSnapshot = {
+	artifacts: BlogRuntimeArtifactsText
+	snapshotHash: string
 }
 
 class BlogArtifactError extends Error {
@@ -199,6 +230,48 @@ function buildArtifactFailureResponse(error: BlogArtifactError) {
 	}
 }
 
+function createBlogArtifactSnapshotHash(runtimeArtifacts: BlogRuntimeArtifactsText) {
+	return createHash('sha256')
+		.update(
+			JSON.stringify([
+				runtimeArtifacts.index,
+				runtimeArtifacts.categories,
+				runtimeArtifacts.folders,
+				runtimeArtifacts.storageRaw
+			])
+		)
+		.digest('hex')
+}
+
+function buildStalePreviewResponse(params: {
+	expectedSnapshotHash: string | undefined
+	actualSnapshotHash: string
+}) {
+	return {
+		status: 409,
+		body: {
+			ok: false,
+			code: 'STALE_PREVIEW',
+			message: '预检查快照已过期，请重新预检查后再执行',
+			shouldRepreview: true,
+			details: {
+				expectedSnapshotHash: params.expectedSnapshotHash ?? null,
+				actualSnapshotHash: params.actualSnapshotHash
+			}
+		}
+	}
+}
+
+async function readRuntimeArtifactSnapshot(baseDir: string): Promise<BlogArtifactSnapshot> {
+	const artifacts = await readRuntimeArtifacts(baseDir)
+	validateStrictBlogArtifacts(artifacts)
+
+	return {
+		artifacts,
+		snapshotHash: createBlogArtifactSnapshotHash(artifacts)
+	}
+}
+
 async function readRuntimeArtifacts(baseDir: string): Promise<BlogRuntimeArtifactsText> {
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	const [index, categories, folders, storageRaw] = await Promise.all([
@@ -216,7 +289,7 @@ async function readRuntimeArtifacts(baseDir: string): Promise<BlogRuntimeArtifac
 	}
 }
 
-async function writeRuntimeArtifacts(baseDir: string, artifacts: { index: string; categories: string; folders: string; storage: string }) {
+async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArtifactsToWrite) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	const writes = [
 		{ path: join(blogsDir, 'index.json'), content: artifacts.index },
@@ -274,25 +347,25 @@ export async function previewRoute(params: { nodeEnv: string; baseDir?: string }
 
 	const baseDir = params.baseDir ?? process.cwd()
 	try {
-		const runtimeArtifacts = await readRuntimeArtifacts(baseDir)
-		validateStrictBlogArtifacts(runtimeArtifacts)
+		const runtimeSnapshot = await readRuntimeArtifactSnapshot(baseDir)
 		const synced = syncBlogRuntimeArtifactsToLedger({
-			indexRaw: runtimeArtifacts.index,
-			storageRaw: runtimeArtifacts.storageRaw
+			indexRaw: runtimeSnapshot.artifacts.index,
+			storageRaw: runtimeSnapshot.artifacts.storageRaw
 		})
-		const runtimeStorageArtifact = runtimeArtifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
+		const runtimeStorageArtifact = runtimeSnapshot.artifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
 		const verification = verifyBlogLedgerAgainstRuntime({
 			storageRaw: synced.storageRaw,
 			runtimeArtifacts: {
-				index: runtimeArtifacts.index,
-				categories: runtimeArtifacts.categories,
-				folders: runtimeArtifacts.folders,
+				index: runtimeSnapshot.artifacts.index,
+				categories: runtimeSnapshot.artifacts.categories,
+				folders: runtimeSnapshot.artifacts.folders,
 				storage: runtimeStorageArtifact
 			}
 		})
 
 		return buildPreviewRouteResponse({
-			artifactsToRebuild: verification.artifactsToRebuild
+			artifactsToRebuild: verification.artifactsToRebuild,
+			snapshotHash: runtimeSnapshot.snapshotHash
 		})
 	} catch (error) {
 		if (error instanceof BlogArtifactError) {
@@ -302,7 +375,7 @@ export async function previewRoute(params: { nodeEnv: string; baseDir?: string }
 	}
 }
 
-export async function executeRoute(params: { nodeEnv: string; confirmed: boolean; baseDir?: string }) {
+export async function executeRoute(params: { nodeEnv: string; confirmed: boolean; snapshotHash?: string; baseDir?: string; writeRuntimeArtifactsForTest?: WriteBlogRuntimeArtifacts }) {
 	const access = enforceDevelopmentOnly(params.nodeEnv)
 	if (!access.allowed) {
 		return {
@@ -316,42 +389,59 @@ export async function executeRoute(params: { nodeEnv: string; confirmed: boolean
 	}
 
 	const baseDir = params.baseDir ?? process.cwd()
-	try {
-		const runtimeArtifacts = await readRuntimeArtifacts(baseDir)
-		validateStrictBlogArtifacts(runtimeArtifacts)
-		const synced = syncBlogRuntimeArtifactsToLedger({
-			indexRaw: runtimeArtifacts.index,
-			storageRaw: runtimeArtifacts.storageRaw
-		})
-		const runtimeStorageArtifact = runtimeArtifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
-		const verificationBeforeExecute = verifyBlogLedgerAgainstRuntime({
-			storageRaw: synced.storageRaw,
-			runtimeArtifacts: {
-				index: runtimeArtifacts.index,
-				categories: runtimeArtifacts.categories,
-				folders: runtimeArtifacts.folders,
-				storage: runtimeStorageArtifact
+	const writeRuntimeArtifactsImpl = params.writeRuntimeArtifactsForTest ?? writeRuntimeArtifacts
+	return withBlogMigrationExecuteLock(async () => {
+		try {
+			const runtimeSnapshot = await readRuntimeArtifactSnapshot(baseDir)
+			if (params.snapshotHash !== runtimeSnapshot.snapshotHash) {
+				return buildStalePreviewResponse({
+					expectedSnapshotHash: params.snapshotHash,
+					actualSnapshotHash: runtimeSnapshot.snapshotHash
+				})
 			}
-		})
-		const rebuilt = rebuildBlogRuntimeArtifactsFromStorage(synced.storageRaw)
 
-		await writeRuntimeArtifacts(baseDir, rebuilt.artifacts)
+			const runtimeArtifacts = runtimeSnapshot.artifacts
+			const synced = syncBlogRuntimeArtifactsToLedger({
+				indexRaw: runtimeArtifacts.index,
+				storageRaw: runtimeArtifacts.storageRaw
+			})
+			const runtimeStorageArtifact = runtimeArtifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
+			const verificationBeforeExecute = verifyBlogLedgerAgainstRuntime({
+				storageRaw: synced.storageRaw,
+				runtimeArtifacts: {
+					index: runtimeArtifacts.index,
+					categories: runtimeArtifacts.categories,
+					folders: runtimeArtifacts.folders,
+					storage: runtimeStorageArtifact
+				}
+			})
+			const rebuilt = rebuildBlogRuntimeArtifactsFromStorage(synced.storageRaw)
 
-		const verificationAfterExecute = verifyBlogLedgerAgainstRuntime({
-			storageRaw: synced.storageRaw,
-			runtimeArtifacts: rebuilt.artifacts
-		})
+			await writeRuntimeArtifactsImpl(baseDir, rebuilt.artifacts)
 
-		return buildExecuteResponse({
-			confirmed: true,
-			writtenArtifacts: [BLOG_ARTIFACT_PATHS.index, BLOG_ARTIFACT_PATHS.categories, BLOG_ARTIFACT_PATHS.folders, BLOG_ARTIFACT_PATHS.storage],
-			artifactsToRebuildBeforeExecute: verificationBeforeExecute.artifactsToRebuild,
-			artifactsToRebuildAfterExecute: verificationAfterExecute.artifactsToRebuild
-		})
-	} catch (error) {
-		if (error instanceof BlogArtifactError) {
-			return buildArtifactFailureResponse(error)
+			const runtimeArtifactsAfterExecute = await readRuntimeArtifacts(baseDir)
+			validateStrictBlogArtifacts(runtimeArtifactsAfterExecute)
+			const verificationAfterExecute = verifyBlogLedgerAgainstRuntime({
+				storageRaw: synced.storageRaw,
+				runtimeArtifacts: {
+					index: runtimeArtifactsAfterExecute.index,
+					categories: runtimeArtifactsAfterExecute.categories,
+					folders: runtimeArtifactsAfterExecute.folders,
+					storage: runtimeArtifactsAfterExecute.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
+				}
+			})
+
+			return buildExecuteResponse({
+				confirmed: true,
+				writtenArtifacts: [BLOG_ARTIFACT_PATHS.index, BLOG_ARTIFACT_PATHS.categories, BLOG_ARTIFACT_PATHS.folders, BLOG_ARTIFACT_PATHS.storage],
+				artifactsToRebuildBeforeExecute: verificationBeforeExecute.artifactsToRebuild,
+				artifactsToRebuildAfterExecute: verificationAfterExecute.artifactsToRebuild
+			})
+		} catch (error) {
+			if (error instanceof BlogArtifactError) {
+				return buildArtifactFailureResponse(error)
+			}
+			throw error
 		}
-		throw error
-	}
+	})
 }

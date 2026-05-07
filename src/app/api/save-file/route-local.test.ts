@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { isAllowedSaveFilePath } from './local-save-file-path.ts'
-import { handleSaveFile } from './route-local.ts'
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleSaveFile } = await import('./route-local.ts')
 
 test('save-file local route allows only known content files and blog artifacts', () => {
 	const projectDir = resolve('/repo/blog')
@@ -245,6 +256,28 @@ test('save-file local route rejects allowlisted paths under symlinked parent dir
 		process.chdir(previousCwd)
 		await rm(repoDir, { recursive: true, force: true })
 		await rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
+test('save-file local route rejects allowlisted paths under repo-internal symlinked parent directories', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-inner-symlink-'))
+	try {
+		await mkdir(join(repoDir, 'public'), { recursive: true })
+		await mkdir(join(repoDir, 'public/redirected-blogs'), { recursive: true })
+		await symlink(join(repoDir, 'public/redirected-blogs'), join(repoDir, 'public/blogs'))
+		process.chdir(repoDir)
+
+		const response = await handleSaveFile({
+			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'redirected' })
+		} as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '保存失败' })
+		await assert.rejects(() => readFile(join(repoDir, 'public/redirected-blogs/post-a/index.md'), 'utf-8'), /ENOENT/)
+	} finally {
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
 	}
 })
 

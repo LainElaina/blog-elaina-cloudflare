@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { isValidLayoutConfig } from './layout/layout-config-validation'
+import { isValidLayoutConfig } from './layout/layout-config-validation.ts'
 
 export type SiteConfigDraftPayload = {
 	siteContent?: unknown

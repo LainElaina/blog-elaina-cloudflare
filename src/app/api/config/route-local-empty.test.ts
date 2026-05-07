@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import { handleConfigPost } from './route-local.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleConfigPost } = await import('./route-local.ts')
 
 async function withTemporaryCwd<T>(callback: (tmpDir: string) => Promise<T>): Promise<T> {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'config-route-local-'))

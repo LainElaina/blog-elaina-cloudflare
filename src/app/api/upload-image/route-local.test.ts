@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { handleUploadImage, isAllowedImageContent, isAllowedUploadImagePath } from './route-local.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleUploadImage, isAllowedImageContent, isAllowedUploadImagePath } = await import('./route-local.ts')
 
 test('upload image local route writes uploaded image atomically', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')

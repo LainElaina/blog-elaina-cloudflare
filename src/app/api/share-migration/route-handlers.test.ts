@@ -76,6 +76,18 @@ async function setupShareArtifactsRepo(options: ShareRepoSetupOptions = {}) {
   }
 }
 
+async function readPreviewSnapshotHash(baseDir: string) {
+  const response = await previewRoute({
+    nodeEnv: 'development',
+    baseDir
+  })
+
+  assert.equal(response.status, 200)
+  assert.equal(typeof response.body.snapshotHash, 'string')
+  return response.body.snapshotHash
+}
+
+
 describe('share migration route handlers', () => {
   it('preview rejects non-development requests', async () => {
     const response = await previewRoute({
@@ -268,14 +280,71 @@ describe('share migration route handlers', () => {
     }
   })
 
-  it('execute writes artifacts in fixed order and verifies the post-write disk state', async () => {
+  it('execute rejects a missing preview snapshot before writing', async () => {
     const context = await setupShareArtifactsRepo()
-    const writeOrder: string[] = []
+    let writeCalled = false
 
     try {
       const response = await executeRoute({
         nodeEnv: 'development',
         confirmed: true,
+        baseDir: context.repoDir,
+        writeText: async () => {
+          writeCalled = true
+          throw new Error('writeText should not be called')
+        }
+      })
+
+      assert.equal(response.status, 409)
+      assert.equal(response.body.code, 'STALE_PREVIEW')
+      assert.equal(response.body.shouldRepreview, true)
+      assert.equal(writeCalled, false)
+    } finally {
+      await context.cleanup()
+    }
+  })
+
+  it('execute rejects a stale preview snapshot before writing', async () => {
+    const context = await setupShareArtifactsRepo()
+    let writeCalled = false
+
+    try {
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+      const categoriesPath = join(context.repoDir, SHARE_ARTIFACT_PATHS.categories)
+      const changedCategories = JSON.stringify({ categories: ['外部更新'] }, null, 2)
+      await writeFile(categoriesPath, changedCategories)
+
+      const response = await executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        snapshotHash,
+        baseDir: context.repoDir,
+        writeText: async () => {
+          writeCalled = true
+          throw new Error('writeText should not be called')
+        }
+      })
+
+      assert.equal(response.status, 409)
+      assert.equal(response.body.code, 'STALE_PREVIEW')
+      assert.equal(response.body.shouldRepreview, true)
+      assert.equal(writeCalled, false)
+      assert.equal(await readFile(categoriesPath, 'utf8'), changedCategories)
+    } finally {
+      await context.cleanup()
+    }
+  })
+
+  it('execute writes artifacts in fixed order and verifies the post-write disk state', async () => {
+    const context = await setupShareArtifactsRepo()
+    const writeOrder: string[] = []
+
+    try {
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+      const response = await executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        snapshotHash,
         baseDir: context.repoDir,
         writeText: async (filePath, content) => {
           const artifactPath = relative(context.repoDir, filePath)
@@ -356,6 +425,7 @@ describe('share migration route handlers', () => {
     let storageWriteCount = 0
 
     try {
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
       const writeText = async (filePath: string, content: string) => {
         const artifactPath = relative(context.repoDir, filePath)
         events.push(artifactPath)
@@ -372,6 +442,7 @@ describe('share migration route handlers', () => {
       const firstExecute = executeRoute({
         nodeEnv: 'development',
         confirmed: true,
+        snapshotHash,
         baseDir: context.repoDir,
         writeText
       })
@@ -380,6 +451,7 @@ describe('share migration route handlers', () => {
       const secondExecute = executeRoute({
         nodeEnv: 'development',
         confirmed: true,
+        snapshotHash,
         baseDir: context.repoDir,
         writeText
       })
@@ -396,14 +468,9 @@ describe('share migration route handlers', () => {
       const [firstResponse, secondResponse] = await Promise.all([firstExecute, secondExecute])
 
       assert.equal(firstResponse.status, 200)
-      assert.equal(secondResponse.status, 200)
-      assert.deepEqual(events.slice(0, 4), [
-        SHARE_ARTIFACT_PATHS.list,
-        SHARE_ARTIFACT_PATHS.categories,
-        SHARE_ARTIFACT_PATHS.folders,
-        SHARE_ARTIFACT_PATHS.storage
-      ])
-      assert.deepEqual(events.slice(4), [
+      assert.equal(secondResponse.status, 409)
+      assert.equal(secondResponse.body.code, 'STALE_PREVIEW')
+      assert.deepEqual(events, [
         SHARE_ARTIFACT_PATHS.list,
         SHARE_ARTIFACT_PATHS.categories,
         SHARE_ARTIFACT_PATHS.folders,
@@ -425,9 +492,11 @@ describe('share migration route handlers', () => {
       const originalFoldersRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8')
       const originalStorageRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8')
 
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
       const response = await executeRoute({
         nodeEnv: 'development',
         confirmed: true,
+        snapshotHash,
         baseDir: context.repoDir,
         writeText: async (filePath, content) => {
           const artifactPath = relative(context.repoDir, filePath)
@@ -444,7 +513,6 @@ describe('share migration route handlers', () => {
       assert.deepEqual(writeOrder, [
         SHARE_ARTIFACT_PATHS.list,
         SHARE_ARTIFACT_PATHS.categories,
-        SHARE_ARTIFACT_PATHS.folders,
         SHARE_ARTIFACT_PATHS.folders,
         SHARE_ARTIFACT_PATHS.categories,
         SHARE_ARTIFACT_PATHS.list
@@ -471,6 +539,59 @@ describe('share migration route handlers', () => {
     }
   })
 
+
+  it('execute reports rollback restore failures when write recovery also fails', async () => {
+    const context = await setupShareArtifactsRepo()
+    const writeOrder: string[] = []
+
+    try {
+      const originalListRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8')
+      const originalCategoriesRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8')
+      let foldersWriteFailed = false
+
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+      const response = await executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        snapshotHash,
+        baseDir: context.repoDir,
+        writeText: async (filePath, content) => {
+          const artifactPath = relative(context.repoDir, filePath)
+          writeOrder.push(artifactPath)
+
+          if (artifactPath === SHARE_ARTIFACT_PATHS.folders) {
+            foldersWriteFailed = true
+            throw new Error('simulated folders write failure')
+          }
+          if (foldersWriteFailed && artifactPath === SHARE_ARTIFACT_PATHS.categories) {
+            throw new Error('simulated categories rollback failure')
+          }
+
+          await writeFile(filePath, content)
+        }
+      })
+
+      assert.deepEqual(writeOrder, [
+        SHARE_ARTIFACT_PATHS.list,
+        SHARE_ARTIFACT_PATHS.categories,
+        SHARE_ARTIFACT_PATHS.folders,
+        SHARE_ARTIFACT_PATHS.categories,
+        SHARE_ARTIFACT_PATHS.list
+      ])
+      assert.equal(response.status, 500)
+      assert.equal(response.body.code, 'WRITE_FAILED')
+      assert.deepEqual(response.body.writtenArtifactsPartial, [SHARE_ARTIFACT_PATHS.categories])
+      assert.deepEqual(response.body.details, {
+        artifact: SHARE_ARTIFACT_PATHS.folders,
+        rollbackFailedArtifacts: [SHARE_ARTIFACT_PATHS.categories]
+      })
+      assert.equal(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.list), 'utf8'), originalListRaw)
+      assert.notEqual(await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.categories), 'utf8'), originalCategoriesRaw)
+    } finally {
+      await context.cleanup()
+    }
+  })
+
   it('execute rolls back the current artifact when write fails after mutating it', async () => {
     const context = await setupShareArtifactsRepo()
 
@@ -480,9 +601,11 @@ describe('share migration route handlers', () => {
       const originalFoldersRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.folders), 'utf8')
       const originalStorageRaw = await readFile(join(context.repoDir, SHARE_ARTIFACT_PATHS.storage), 'utf8')
 
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
       const response = await executeRoute({
         nodeEnv: 'development',
         confirmed: true,
+        snapshotHash,
         baseDir: context.repoDir,
         writeText: async (filePath, content) => {
           const artifactPath = relative(context.repoDir, filePath)

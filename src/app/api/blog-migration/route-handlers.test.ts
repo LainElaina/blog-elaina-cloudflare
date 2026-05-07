@@ -6,6 +6,13 @@ import { describe, it } from 'node:test'
 
 import { previewRoute, executeRoute } from './route-handlers.ts'
 
+type BlogRuntimeArtifactsToWrite = {
+	index: string
+	categories: string
+	folders: string
+	storage: string
+}
+
 async function setupBlogArtifactsRepo() {
 	const repoDir = await mkdtemp(join(tmpdir(), 'blog-migration-route-'))
 	const blogsDir = join(repoDir, 'public/blogs')
@@ -37,6 +44,25 @@ async function setupBlogArtifactsRepo() {
 	}
 }
 
+async function writeBlogArtifacts(baseDir: string, artifacts: BlogRuntimeArtifactsToWrite) {
+	const blogsDir = join(baseDir, 'public/blogs')
+	await writeFile(join(blogsDir, 'index.json'), artifacts.index)
+	await writeFile(join(blogsDir, 'categories.json'), artifacts.categories)
+	await writeFile(join(blogsDir, 'folders.json'), artifacts.folders)
+	await writeFile(join(blogsDir, 'storage.json'), artifacts.storage)
+}
+
+async function readPreviewSnapshotHash(baseDir: string) {
+	const response = await previewRoute({
+		nodeEnv: 'development',
+		baseDir
+	})
+
+	assert.equal(response.status, 200)
+	assert.equal(typeof response.body.snapshotHash, 'string')
+	return response.body.snapshotHash
+}
+
 describe('blog migration routes', () => {
 	it('preview route 在非 development 环境返回 403', async () => {
 		const response = await previewRoute({ nodeEnv: 'production', baseDir: '/tmp/unused-blog-migration' })
@@ -63,6 +89,61 @@ describe('blog migration routes', () => {
 		const response = await executeRoute({ nodeEnv: 'development', confirmed: false, baseDir: '/tmp/unused-blog-migration' })
 		assert.equal(response.status, 400)
 		assert.equal(response.body.message, '执行前需要明确确认')
+	})
+
+	it('execute route 缺少预检查快照时返回 409 且不会写回', async () => {
+		const context = await setupBlogArtifactsRepo()
+		let writeCalled = false
+
+		try {
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest: async () => {
+					writeCalled = true
+					throw new Error('writeRuntimeArtifactsForTest should not be called')
+				}
+			})
+
+			assert.equal(response.status, 409)
+			assert.equal(response.body.code, 'STALE_PREVIEW')
+			assert.equal(response.body.shouldRepreview, true)
+			assert.equal(writeCalled, false)
+		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('execute route 拒绝过期预检查快照且不会写回', async () => {
+		const context = await setupBlogArtifactsRepo()
+		let writeCalled = false
+
+		try {
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			const categoriesPath = join(context.repoDir, 'public/blogs/categories.json')
+			const changedCategories = JSON.stringify({ categories: ['外部更新'] }, null, 2)
+			await writeFile(categoriesPath, changedCategories)
+
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest: async () => {
+					writeCalled = true
+					throw new Error('writeRuntimeArtifactsForTest should not be called')
+				}
+			})
+
+			assert.equal(response.status, 409)
+			assert.equal(response.body.code, 'STALE_PREVIEW')
+			assert.equal(response.body.shouldRepreview, true)
+			assert.equal(writeCalled, false)
+			assert.equal(await readFile(categoriesPath, 'utf8'), changedCategories)
+		} finally {
+			await context.cleanup()
+		}
 	})
 
 	it('preview route 拒绝非法博客正式产物结构', async () => {
@@ -285,9 +366,11 @@ describe('blog migration routes', () => {
 		const context = await setupBlogArtifactsRepo()
 
 		try {
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
 			const response = await executeRoute({
 				nodeEnv: 'development',
 				confirmed: true,
+				snapshotHash,
 				baseDir: context.repoDir
 			})
 
@@ -307,6 +390,87 @@ describe('blog migration routes', () => {
 			assert.deepEqual(JSON.parse(categoriesRaw), { categories: ['技术'] })
 			assert.equal(JSON.parse(storageRaw).blogs['post-a'].slug, 'post-a')
 		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('execute route 基于写回后的磁盘状态复检', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest: async (baseDir, artifacts) => {
+					await writeBlogArtifacts(baseDir, artifacts)
+					await writeFile(join(baseDir, 'public/blogs/categories.json'), JSON.stringify({ categories: [] }, null, 2))
+				}
+			})
+
+			assert.equal(response.status, 200)
+			assert.deepEqual(response.body.artifactsToRebuildAfterExecute, ['public/blogs/categories.json'])
+		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('execute route 会串行化并发确认迁移', async () => {
+		const context = await setupBlogArtifactsRepo()
+		const events: string[] = []
+		let releaseFirstWrite!: () => void
+		const firstWriteStarted = new Promise<void>(resolve => {
+			releaseFirstWrite = resolve
+		})
+		let firstWriteRelease!: () => void
+		const firstWriteBlocked = new Promise<void>(resolve => {
+			firstWriteRelease = resolve
+		})
+		let writeCount = 0
+
+		try {
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			const writeRuntimeArtifactsForTest = async (baseDir: string, artifacts: BlogRuntimeArtifactsToWrite) => {
+				writeCount += 1
+				events.push(`write-${writeCount}`)
+				if (writeCount === 1) {
+					releaseFirstWrite()
+					await firstWriteBlocked
+				}
+				await writeBlogArtifacts(baseDir, artifacts)
+			}
+
+			const firstExecute = executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest
+			})
+			await firstWriteStarted
+
+			const secondExecute = executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest
+			})
+			await Promise.resolve()
+
+			assert.deepEqual(events, ['write-1'])
+
+			firstWriteRelease()
+			const [firstResponse, secondResponse] = await Promise.all([firstExecute, secondExecute])
+
+			assert.equal(firstResponse.status, 200)
+			assert.equal(secondResponse.status, 409)
+			assert.equal(secondResponse.body.code, 'STALE_PREVIEW')
+			assert.deepEqual(events, ['write-1'])
+		} finally {
+			firstWriteRelease?.()
 			await context.cleanup()
 		}
 	})

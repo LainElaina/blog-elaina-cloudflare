@@ -2,8 +2,8 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request'
-import { isValidLayoutConfig } from '../layout/layout-config-validation'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { isValidLayoutConfig } from '../layout/layout-config-validation.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 

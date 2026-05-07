@@ -29,11 +29,12 @@ export async function POST(request: Request) {
 		}
 		return NextResponse.json({ message: '请求 JSON 格式错误' }, { status: 400 })
 	}
-	const body = (rawBody && typeof rawBody === 'object' ? rawBody : {}) as { confirmed?: boolean }
+	const body = (rawBody && typeof rawBody === 'object' ? rawBody : {}) as { confirmed?: boolean; snapshotHash?: unknown }
 	const { executeRoute } = await import('../route-handlers.ts')
 	const result = await executeRoute({
 		nodeEnv: 'development',
 		confirmed: body.confirmed === true,
+		snapshotHash: typeof body.snapshotHash === 'string' ? body.snapshotHash : undefined,
 		baseDir: process.cwd()
 	})
 

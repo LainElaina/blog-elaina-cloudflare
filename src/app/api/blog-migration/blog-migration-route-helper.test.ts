@@ -18,11 +18,13 @@ describe('blog migration route helper', () => {
 
   it('preview route 返回 preview payload', () => {
     const response = buildPreviewRouteResponse({
-      artifactsToRebuild: ['public/blogs/storage.json']
+      artifactsToRebuild: ['public/blogs/storage.json'],
+      snapshotHash: 'hash-a'
     })
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body.artifactsToRebuild, ['public/blogs/storage.json'])
+    assert.equal(response.body.snapshotHash, 'hash-a')
     assert.match(response.body.notice, /不会修改 Markdown 或图片/)
   })
 

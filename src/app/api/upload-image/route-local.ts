@@ -2,8 +2,8 @@ import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { assertSafeBlogSlug } from '../../write/services/blog-slug'
-import { isPathInsideDirectory, isPathStrictlyInsideDirectory } from '../local-path'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
+import { isPathInsideDirectory, isPathStrictlyInsideDirectory } from '../local-path.ts'
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
 const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']

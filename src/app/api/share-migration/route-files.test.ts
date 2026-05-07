@@ -70,6 +70,15 @@ async function setupShareArtifactsRepo() {
   }
 }
 
+async function readPreviewSnapshotHash() {
+  const response = await GET()
+  const payload = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(typeof payload.snapshotHash, 'string')
+  return payload.snapshotHash
+}
+
 function restoreNodeEnv(previousNodeEnv: string | undefined) {
   if (previousNodeEnv === undefined) {
     delete process.env.NODE_ENV
@@ -244,7 +253,7 @@ describe('share migration next routes', () => {
     }
   })
 
-  it('execute route confirmed=true 时返回 200 并写入重建结果', async () => {
+  it('execute route 缺少预检查快照时返回 409', async () => {
     const context = await setupShareArtifactsRepo()
     const previousNodeEnv = process.env.NODE_ENV
     const previousCwd = process.cwd()
@@ -257,6 +266,34 @@ describe('share migration next routes', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmed: true })
+      })
+      const response = await POST(request)
+      const payload = await response.json()
+
+      assert.equal(response.status, 409)
+      assert.equal(payload.code, 'STALE_PREVIEW')
+      assert.equal(payload.shouldRepreview, true)
+    } finally {
+      process.chdir(previousCwd)
+      restoreNodeEnv(previousNodeEnv)
+      await context.cleanup()
+    }
+  })
+
+  it('execute route confirmed=true 时返回 200 并写入重建结果', async () => {
+    const context = await setupShareArtifactsRepo()
+    const previousNodeEnv = process.env.NODE_ENV
+    const previousCwd = process.cwd()
+
+    try {
+      process.env.NODE_ENV = 'development'
+      process.chdir(context.repoDir)
+      const snapshotHash = await readPreviewSnapshotHash()
+
+      const request = new Request('http://localhost/api/share-migration/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmed: true, snapshotHash })
       })
       const response = await POST(request)
       const payload = await response.json()

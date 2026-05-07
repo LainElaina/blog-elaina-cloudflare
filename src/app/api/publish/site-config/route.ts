@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '@/app/api/limited-json-request'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
 	}
 
-	const { isSiteConfigLocalValidationError, publishSiteConfigDraft, resolveSiteConfigPublishPayload } = await import('@/app/api/site-config-local-shared')
+	const { isSiteConfigLocalValidationError, publishSiteConfigDraft, resolveSiteConfigPublishPayload } = await import('../../site-config-local-shared.ts')
 
 	try {
 		const cwd = process.cwd()

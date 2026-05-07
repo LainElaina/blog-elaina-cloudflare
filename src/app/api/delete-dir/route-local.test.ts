@@ -1,17 +1,27 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import { handleDeleteDir } from './route-local.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'next/server') {
+			return nextResolve('next/server.js', context)
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { handleDeleteDir } = await import('./route-local.ts')
 
 test('delete dir route only allows deleting single safe blog directories', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /import \{ lstat, realpath, rm \} from 'fs\/promises'/)
 	assert.match(source, /import \{ dirname, relative, resolve \} from 'path'/)
-	assert.match(source, /import \{ assertSafeBlogSlug \} from '\.\.\/\.\.\/write\/services\/blog-slug'/)
+	assert.match(source, /import \{ assertSafeBlogSlug \} from '\.\.\/\.\.\/write\/services\/blog-slug\.ts'/)
 	assert.match(source, /function isAllowedBlogDirectoryPath\(blogDir: string, fullPath: string\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
 	assert.match(source, /只能删除 public\/blogs 下的文章目录/)

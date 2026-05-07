@@ -20,7 +20,7 @@ export function enforceDevelopmentOnly(nodeEnv: string) {
   }
 }
 
-export function buildPreviewRouteResponse(params: { artifactsToRebuild: string[] }) {
+export function buildPreviewRouteResponse(params: { artifactsToRebuild: string[]; snapshotHash: string }) {
   return {
     status: 200,
     body: buildPreviewResponse(params)

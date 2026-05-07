@@ -2,9 +2,9 @@ import { lstat, realpath, rm } from 'fs/promises'
 import { dirname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { assertSafeBlogSlug } from '../../write/services/blog-slug'
+import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
-import { isPathStrictlyInsideDirectory } from '../local-path'
+import { isPathStrictlyInsideDirectory } from '../local-path.ts'
 
 const MAX_DELETE_DIR_REQUEST_BODY_SIZE = 1024 * 1024
 

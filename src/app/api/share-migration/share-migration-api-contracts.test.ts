@@ -12,7 +12,8 @@ describe('share migration api contracts', () => {
 		const response = buildShareMigrationPreviewResponse({
 			summary: '待重建 share 正式产物：public/share/list.json',
 			notice: '只处理 share 正式产物，不会修改 logo 图片。',
-			artifactsToRebuild: ['public/share/list.json']
+			artifactsToRebuild: ['public/share/list.json'],
+			snapshotHash: 'hash-a'
 		})
 
 		assert.deepEqual(response, {
@@ -20,7 +21,8 @@ describe('share migration api contracts', () => {
 			operation: 'preview',
 			summary: '待重建 share 正式产物：public/share/list.json',
 			notice: '只处理 share 正式产物，不会修改 logo 图片。',
-			artifactsToRebuild: ['public/share/list.json']
+			artifactsToRebuild: ['public/share/list.json'],
+			snapshotHash: 'hash-a'
 		})
 	})
 

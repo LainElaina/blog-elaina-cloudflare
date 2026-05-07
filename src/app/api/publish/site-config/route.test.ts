@@ -1,37 +1,14 @@
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { registerHooks } from 'node:module'
-import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
-
-const projectSrcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../')
-
-function resolveSourcePath(sourcePath: string) {
-	for (const candidate of [sourcePath, `${sourcePath}.ts`, `${sourcePath}.tsx`]) {
-		if (existsSync(candidate)) {
-			return candidate
-		}
-	}
-	return sourcePath
-}
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
 		if (specifier === 'next/server') {
 			return nextResolve('next/server.js', context)
-		}
-		if (specifier.startsWith('@/')) {
-			const sourcePath = path.join(projectSrcDir, specifier.slice(2))
-			return nextResolve(pathToFileURL(resolveSourcePath(sourcePath)).href, context)
-		}
-		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL?.startsWith('file:')) {
-			const sourcePath = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier)
-			if (sourcePath.startsWith(projectSrcDir + path.sep)) {
-				return nextResolve(pathToFileURL(resolveSourcePath(sourcePath)).href, context)
-			}
 		}
 		return nextResolve(specifier, context)
 	}

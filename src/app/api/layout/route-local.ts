@@ -1,14 +1,20 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
-import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request'
-import { isValidLayoutConfig } from './layout-config-validation'
+import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { isValidLayoutConfig } from './layout-config-validation.ts'
 
-export { isValidLayoutConfig } from './layout-config-validation'
+export { isValidLayoutConfig } from './layout-config-validation.ts'
 
 const LAYOUT_REQUEST_MAX_BYTES = 1024 * 1024
-const LAYOUT_PATH = path.join(process.cwd(), 'src/config/card-styles.json')
-const BACKUP_PATH = path.join(process.cwd(), 'data/layout.bak.json')
+
+function getLayoutPath() {
+	return path.join(process.cwd(), 'src/config/card-styles.json')
+}
+
+function getBackupPath() {
+	return path.join(process.cwd(), 'data/layout.bak.json')
+}
 
 function getContentLength(request: Request) {
 	const value = request.headers?.get('content-length')
@@ -34,7 +40,7 @@ function writeFileAtomically(fullPath: string, content: string) {
 
 export async function handleLayoutGet() {
 	try {
-		const data = fs.readFileSync(LAYOUT_PATH, 'utf-8')
+		const data = fs.readFileSync(getLayoutPath(), 'utf-8')
 		return NextResponse.json(JSON.parse(data))
 	} catch (error) {
 		return NextResponse.json({ error: 'Failed to read layout' }, { status: 500 })
@@ -58,16 +64,18 @@ export async function handleLayoutPost(request: Request) {
 			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })
 		}
 
-		if (fs.existsSync(LAYOUT_PATH)) {
+		const layoutPath = getLayoutPath()
+		const backupPath = getBackupPath()
+		if (fs.existsSync(layoutPath)) {
 			const dataDir = path.join(process.cwd(), 'data')
 			if (!fs.existsSync(dataDir)) {
 				fs.mkdirSync(dataDir, { recursive: true })
 			}
-			const current = fs.readFileSync(LAYOUT_PATH, 'utf-8')
-			writeFileAtomically(BACKUP_PATH, current)
+			const current = fs.readFileSync(layoutPath, 'utf-8')
+			writeFileAtomically(backupPath, current)
 		}
 
-		writeFileAtomically(LAYOUT_PATH, JSON.stringify(layout, null, '\t'))
+		writeFileAtomically(layoutPath, JSON.stringify(layout, null, '\t'))
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
