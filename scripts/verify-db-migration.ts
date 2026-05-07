@@ -87,7 +87,7 @@ async function main(): Promise<void> {
 			index: runtimeArtifacts.index,
 			categories: runtimeArtifacts.categories,
 			folders: runtimeArtifacts.folders,
-			storage: runtimeArtifacts.storage ?? ''
+			storage: runtimeArtifacts.storage ?? synced.storageRaw
 		}
 	})
 

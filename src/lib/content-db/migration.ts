@@ -9,6 +9,7 @@ import {
 	syncBlogRuntimeArtifactsToLedger,
 	verifyBlogLedgerAgainstRuntime
 } from './migration-contracts.ts'
+import { parseRequiredShareStorageDB, type ShareStatus } from './share-storage.ts'
 
 type SiteConfig = Record<string, unknown>
 type LayoutConfig = Record<string, unknown>
@@ -35,6 +36,19 @@ type ShareItem = {
 	description?: string
 	tags?: string[]
 	stars?: number
+	category?: string
+	folder?: string
+	folderPath?: string
+}
+
+type ShareMigrationEntry = {
+	id: string
+	slug: string
+	title: string
+	status: ShareStatus
+	categoryKey: string | null
+	folderKey: string | null
+	metadata: Record<string, unknown>
 }
 
 export type MigrationCounters = {
@@ -121,9 +135,11 @@ async function loadLegacyBlogs(baseDir: string): Promise<Array<{ slug: string; t
 	return result
 }
 
-function loadLegacyShareEntries(baseDir: string): Array<{ id: string; slug: string; title: string; metadata: Record<string, unknown> }> {
-	const shareListPath = resolve(baseDir, 'src/app/share/list.json')
-	const list = readJsonFile<ShareItem[]>(shareListPath)
+function normalizeShareFolderKey(item: ShareItem): string | null {
+	return item.folderPath ?? item.folder ?? null
+}
+
+function buildShareEntriesFromList(list: ShareItem[]): ShareMigrationEntry[] {
 	const slugCounter = new Map<string, number>()
 
 	return list.map((item) => {
@@ -135,9 +151,34 @@ function loadLegacyShareEntries(baseDir: string): Array<{ id: string; slug: stri
 			id: `share:${slug}`,
 			slug,
 			title: item.name,
+			status: 'published',
+			categoryKey: item.category ?? null,
+			folderKey: normalizeShareFolderKey(item),
 			metadata: item as Record<string, unknown>
 		}
 	})
+}
+
+function loadLegacyShareEntries(baseDir: string): ShareMigrationEntry[] {
+	const storagePath = resolve(baseDir, 'public/share/storage.json')
+	if (existsSync(storagePath)) {
+		return Object.values(parseRequiredShareStorageDB(readFileSync(storagePath, 'utf8')).shares).map((record) => ({
+			id: `share:${record.slug}`,
+			slug: record.slug,
+			title: record.name,
+			status: record.status,
+			categoryKey: record.category ?? null,
+			folderKey: record.folderPath ?? record.folder ?? null,
+			metadata: record as Record<string, unknown>
+		}))
+	}
+
+	const publicShareListPath = resolve(baseDir, 'public/share/list.json')
+	if (existsSync(publicShareListPath)) {
+		return buildShareEntriesFromList(readJsonFile<ShareItem[]>(publicShareListPath))
+	}
+
+	return buildShareEntriesFromList(readJsonFile<ShareItem[]>(resolve(baseDir, 'src/app/share/list.json')))
 }
 
 export function syncBlogRuntimeArtifacts(params: { indexRaw: string; storageRaw: string | null }) {
@@ -210,7 +251,7 @@ export async function migrateLegacyContentToDb(options: MigrateLegacyContentOpti
 
 				const insertShare = db.prepare('INSERT INTO share_entries (id, slug, title, status, category_key, folder_key, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)')
 				for (const share of shares) {
-					insertShare.run(share.id, share.slug, share.title, 'published', null, null, JSON.stringify(share.metadata))
+					insertShare.run(share.id, share.slug, share.title, share.status, share.categoryKey, share.folderKey, JSON.stringify(share.metadata))
 				}
 
 				db.exec('COMMIT')

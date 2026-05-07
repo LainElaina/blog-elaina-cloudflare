@@ -257,6 +257,70 @@ test('legacy migration imports structured metadata and keeps markdown files unch
 	}
 })
 
+test('legacy migration prefers public share storage over stale source list and preserves ledger fields', async () => {
+	const context = await setupTempRepo()
+
+	try {
+		await mkdir(join(context.repoDir, 'public/share'), { recursive: true })
+		await writeFile(
+			join(context.repoDir, 'public/share/storage.json'),
+			JSON.stringify(
+				{
+					version: 1,
+					updatedAt: '2026-04-15T00:00:00.000Z',
+					shares: {
+						'fresh-tool': {
+							slug: 'fresh-tool',
+							name: 'Fresh Tool',
+							logo: '/fresh.svg',
+							url: 'https://fresh.dev',
+							description: 'fresh share from storage',
+							tags: ['fresh'],
+							stars: 7,
+							category: '新分类',
+							folderPath: '/收藏/工具',
+							status: 'archived'
+						}
+					}
+				},
+				null,
+				2
+			)
+		)
+
+		const result = await migrateLegacyContentToDb({
+			baseDir: context.repoDir,
+			dbPath: context.dbPath,
+			confirmOverwrite: true
+		})
+
+		assert.equal(result.after.shareEntries, 1)
+		assert.equal(result.imported.shareEntries, 1)
+
+		const db = createContentDb(context.dbPath)
+		const freshRow = db.prepare('SELECT slug, title, status, category_key, folder_key, metadata_json FROM share_entries WHERE slug = ?').get('fresh-tool') as {
+			slug: string
+			title: string
+			status: string
+			category_key: string | null
+			folder_key: string | null
+			metadata_json: string
+		}
+		const staleRow = db.prepare('SELECT slug FROM share_entries WHERE slug = ?').get('tool-a') as { slug: string } | undefined
+
+		assert.equal(freshRow.slug, 'fresh-tool')
+		assert.equal(freshRow.title, 'Fresh Tool')
+		assert.equal(freshRow.status, 'archived')
+		assert.equal(freshRow.category_key, '新分类')
+		assert.equal(freshRow.folder_key, '/收藏/工具')
+		assert.equal(JSON.parse(freshRow.metadata_json).url, 'https://fresh.dev')
+		assert.equal(staleRow, undefined)
+		db.close()
+	} finally {
+		await context.cleanup()
+	}
+})
+
 test('legacy migration fails when blog index references a missing directory', async () => {
 	const context = await setupTempRepo()
 
