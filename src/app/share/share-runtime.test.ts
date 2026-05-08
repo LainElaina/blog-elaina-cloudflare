@@ -330,6 +330,51 @@ describe('share runtime', () => {
 		)
 	})
 
+	it('snapshot 会过滤危险协议 URL，避免持久化数据进入前台链接', () => {
+		const result = buildShareRuntimeSnapshot({
+			items: [
+				...items,
+				{
+					name: 'Unsafe Script',
+					logo: '/logos/script.png',
+					url: 'javascript:alert(1)',
+					description: 'unsafe protocol',
+					tags: ['utility'],
+					stars: 1,
+					category: 'tool',
+					folderPath: '/design/images'
+				},
+				{
+					name: 'Unsafe Data',
+					logo: '/logos/data.png',
+					url: 'data:text/html,<script></script>',
+					description: 'unsafe protocol',
+					tags: ['utility'],
+					stars: 1,
+					category: 'tool',
+					folderPath: '/design/images'
+				},
+				{
+					name: 'Trimmed Safe',
+					logo: '/logos/safe.png',
+					url: ' http://safe.dev/path ',
+					description: 'safe protocol',
+					tags: ['utility'],
+					stars: 1,
+					category: 'tool',
+					folderPath: '/design/images'
+				}
+			],
+			categories,
+			folders,
+			filters: createFilters({ activeDirectory: '/design', activeCategory: 'tool' })
+		})
+
+		assert.equal(result.visibleItems.some(item => item.url.startsWith('javascript:')), false)
+		assert.equal(result.visibleItems.some(item => item.url.startsWith('data:')), false)
+		assert.equal(result.visibleItems.some(item => item.url === 'http://safe.dev/path'), true)
+	})
+
 	it('snapshot 会过滤脏 share 条目，避免搜索或标签过滤崩溃', () => {
 		const result = buildShareRuntimeSnapshot({
 			items: [

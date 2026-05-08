@@ -2,15 +2,14 @@ import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent } from '../../../lib/image-content-validation.ts'
+import { ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_FILE_BYTES, isAllowedImageContent } from '../../../lib/image-content-validation.ts'
 import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 import { getLocalUploadImageMutationScope, isAllowedLocalUploadImagePath } from '../local-upload-image-path.ts'
 import { isPathInsideDirectory } from '../local-path.ts'
 
 export { isAllowedImageContent }
 export { isAllowedLocalUploadImagePath as isAllowedUploadImagePath } from '../local-upload-image-path.ts'
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const MAX_REQUEST_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024
+const MAX_REQUEST_BODY_SIZE = MAX_IMAGE_FILE_BYTES + 1024 * 1024
 
 function getContentLength(request: NextRequest) {
 	const value = request.headers?.get('content-length')
@@ -135,7 +134,7 @@ export async function handleUploadImage(request: NextRequest) {
 			return NextResponse.json({ error: '上传文件不能为空' }, { status: 400 })
 		}
 
-		if (file.size > MAX_FILE_SIZE) {
+		if (file.size > MAX_IMAGE_FILE_BYTES) {
 			return NextResponse.json({ error: '文件大小超过 10MB 限制' }, { status: 413 })
 		}
 

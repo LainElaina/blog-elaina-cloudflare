@@ -127,6 +127,23 @@ describe('share-folder-select view model', () => {
 		})
 	})
 
+	it('create/edit 提交会拒绝危险协议 URL', () => {
+		assert.throws(
+			() =>
+				buildShareEditSubmitPayload({
+					share: { url: 'javascript:alert(1)', name: 'Unsafe Share' }
+				}),
+			/URL 仅支持 http 或 https/
+		)
+		assert.throws(
+			() =>
+				buildShareEditSubmitPayload({
+					share: { url: 'data:text/html,<script></script>', name: 'Unsafe Share' }
+				}),
+			/URL 仅支持 http 或 https/
+		)
+	})
+
 	it('URL 输入会统一归一化为 trim 后的 canonical form', () => {
 		assert.equal(normalizeShareUrlInput(' https://example.com/share '), 'https://example.com/share')
 		assert.equal(normalizeShareUrlInput('   '), '')
@@ -153,6 +170,29 @@ describe('share-folder-select view model', () => {
 		})
 
 		assert.deepEqual(Array.from(next.entries()), [['https://new.example', { kind: 'new-logo' }]])
+	})
+
+	it('待保存 URL 可用性检查会拒绝危险协议', () => {
+		assert.throws(
+			() =>
+				assertPendingShareUrlAvailable({
+					currentUrl: 'javascript:alert(1)',
+					shares: [],
+					renamedUrls: new Map(),
+					deletedPublishedUrls: new Set()
+				}),
+			/URL 仅支持 http 或 https/
+		)
+		assert.throws(
+			() =>
+				assertPendingShareUrlAvailable({
+					currentUrl: 'data:text/html,<script></script>',
+					shares: [],
+					renamedUrls: new Map(),
+					deletedPublishedUrls: new Set()
+				}),
+			/URL 仅支持 http 或 https/
+		)
 	})
 
 	it('编辑时改成当前列表已占用 URL 会失败', () => {

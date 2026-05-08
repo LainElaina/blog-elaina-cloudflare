@@ -1,3 +1,5 @@
+import { isAllowedShareUrl, normalizeShareUrlInput } from './share-url.ts'
+
 export const SHARE_DIRECTORY_ALL = 'all'
 export const SHARE_CATEGORY_ALL = 'all'
 
@@ -42,12 +44,16 @@ export function normalizeShareRuntimeItems(items: unknown): ShareRuntimeItem[] {
 		}
 
 		const { category, folderPath, ...shareFields } = share
+		const url = normalizeShareUrlInput(share.url)
+		if (!isAllowedShareUrl(url)) {
+			return []
+		}
 		return [
 			{
 				...shareFields,
 				name: share.name,
 				logo: share.logo,
-				url: share.url,
+				url,
 				description: share.description,
 				tags: share.tags,
 				stars: share.stars,

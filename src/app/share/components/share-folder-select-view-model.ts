@@ -1,6 +1,9 @@
-import { buildBlogFolderTree } from '@/lib/content-db/blog-folders'
-import type { ShareCategoriesArtifact } from '../share-page-state'
-import type { ShareFolderNode, ShareRuntimeItem } from '../share-runtime'
+import { buildBlogFolderTree } from '../../../lib/content-db/blog-folders.ts'
+import type { ShareCategoriesArtifact } from '../share-page-state.ts'
+import type { ShareFolderNode, ShareRuntimeItem } from '../share-runtime.ts'
+import { assertAllowedShareUrlInput, normalizeShareUrlInput } from '../share-url.ts'
+
+export { normalizeShareUrlInput } from '../share-url.ts'
 
 export type ShareFolderSelectOption = {
 	value: string
@@ -29,10 +32,6 @@ export type ShareUrlMapping = {
 export type ShareRuntimeArtifacts = {
 	categories: ShareCategoriesArtifact
 	folders: ShareFolderNode[]
-}
-
-export function normalizeShareUrlInput(input: string): string {
-	return input.trim()
 }
 
 export function normalizeShareFolderPathInput(input?: string): string | undefined {
@@ -132,8 +131,8 @@ export function buildShareEditSubmitPayload<TShare extends { url: string }, TLog
 	oldUrl?: string
 	logoItem?: TLogoItem
 }): ShareEditSubmitPayload<TShare, TLogoItem> {
-	const currentUrl = normalizeShareUrlInput(params.share.url)
-	const oldUrl = params.oldUrl ? normalizeShareUrlInput(params.oldUrl) || undefined : undefined
+	const currentUrl = assertAllowedShareUrlInput(params.share.url)
+	const oldUrl = params.oldUrl ? assertAllowedShareUrlInput(params.oldUrl) || undefined : undefined
 
 	return {
 		share: { ...params.share, url: currentUrl },
@@ -147,8 +146,8 @@ export function updatePendingShareUrlMappings(
 	next: Map<string, string>,
 	params: { oldUrl?: string; currentUrl?: string }
 ): Map<string, string> {
-	const oldUrl = params.oldUrl ? normalizeShareUrlInput(params.oldUrl) : undefined
-	const currentUrl = params.currentUrl ? normalizeShareUrlInput(params.currentUrl) : undefined
+	const currentUrl = params.currentUrl ? assertAllowedShareUrlInput(params.currentUrl) : undefined
+	const oldUrl = params.oldUrl ? assertAllowedShareUrlInput(params.oldUrl) : undefined
 	if (!oldUrl || !currentUrl || oldUrl === currentUrl) {
 		return next
 	}
@@ -165,8 +164,8 @@ export function migratePendingShareLogoItems<T>(
 	next: Map<string, T>,
 	params: { oldUrl?: string; currentUrl: string; logoItem?: T }
 ): Map<string, T> {
-	const oldUrl = params.oldUrl ? normalizeShareUrlInput(params.oldUrl) : undefined
-	const currentUrl = normalizeShareUrlInput(params.currentUrl)
+	const oldUrl = params.oldUrl ? assertAllowedShareUrlInput(params.oldUrl) : undefined
+	const currentUrl = assertAllowedShareUrlInput(params.currentUrl)
 
 	if (params.logoItem !== undefined) {
 		if (oldUrl && oldUrl !== currentUrl) {
@@ -196,8 +195,8 @@ export function assertPendingShareUrlAvailable(params: {
 	deletedPublishedUrls: Set<string>
 	draftOnlyUrls?: Set<string>
 }): void {
-	const currentUrl = normalizeShareUrlInput(params.currentUrl)
-	const oldUrl = params.oldUrl ? normalizeShareUrlInput(params.oldUrl) : undefined
+	const currentUrl = assertAllowedShareUrlInput(params.currentUrl)
+	const oldUrl = params.oldUrl ? assertAllowedShareUrlInput(params.oldUrl) : undefined
 	if (!currentUrl) {
 		return
 	}

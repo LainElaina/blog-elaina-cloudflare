@@ -1,5 +1,6 @@
+import { mkdirSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 export type ContentDb = DatabaseSync
 
@@ -8,5 +9,8 @@ export function getDefaultContentDbPath(baseDir: string = process.cwd()): string
 }
 
 export function createContentDb(dbPath: string = getDefaultContentDbPath()): ContentDb {
+	if (dbPath !== ':memory:') {
+		mkdirSync(dirname(dbPath), { recursive: true })
+	}
 	return new DatabaseSync(dbPath)
 }

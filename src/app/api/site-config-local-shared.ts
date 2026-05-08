@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { isValidLayoutConfig } from './layout/layout-config-validation.ts'
+import { withLocalContentMutationLock } from './local-content-mutation-lock.ts'
 
 export type SiteConfigDraftPayload = {
 	siteContent?: unknown
@@ -29,10 +30,12 @@ type SiteContentWithSocialButtons = {
 	socialButtons?: unknown
 }
 
-const siteConfigLocalMutationLocks = new Map<string, Promise<void>>()
+export async function withSiteConfigLocalMutationLock<T>(baseDir: string, callback: () => Promise<T>): Promise<T> {
+	return withLocalContentMutationLock(baseDir, 'site-config', callback)
+}
 
-function isPathInsideDirectory(baseDir: string, targetPath: string) {
-	const relativePath = path.relative(path.resolve(baseDir), path.resolve(targetPath))
+function isPathInsideDirectory(baseDir: string, fullPath: string) {
+	const relativePath = path.relative(path.resolve(baseDir), path.resolve(fullPath))
 	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
@@ -78,27 +81,6 @@ export async function assertSafeSiteConfigProjectPath(baseDir: string, fullPath:
 	})
 	if (targetStats !== null && !targetStats.isFile()) {
 		throw new SiteConfigLocalValidationError('站点配置写入路径不合法')
-	}
-}
-
-export async function withSiteConfigLocalMutationLock<T>(baseDir: string, callback: () => Promise<T>): Promise<T> {
-	const lockKey = path.resolve(baseDir)
-	const previousLock = siteConfigLocalMutationLocks.get(lockKey) ?? Promise.resolve()
-	let releaseLock!: () => void
-	const currentLock = new Promise<void>(resolve => {
-		releaseLock = resolve
-	})
-	const nextLock = previousLock.catch(() => undefined).then(() => currentLock)
-	siteConfigLocalMutationLocks.set(lockKey, nextLock)
-
-	await previousLock.catch(() => undefined)
-	try {
-		return await callback()
-	} finally {
-		releaseLock()
-		if (siteConfigLocalMutationLocks.get(lockKey) === nextLock) {
-			siteConfigLocalMutationLocks.delete(lockKey)
-		}
 	}
 }
 

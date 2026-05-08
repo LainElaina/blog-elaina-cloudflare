@@ -3,16 +3,20 @@ import type { LocalContentMutationScope } from './local-content-mutation-lock.ts
 import { isPathStrictlyInsideDirectory } from './local-path.ts'
 import { assertSafeBlogSlug } from '../write/services/blog-slug.ts'
 
-const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
-const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
+const SITE_CONFIG_EXACT_UPLOAD_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
+const SITE_CONFIG_UPLOAD_IMAGE_DIRECTORIES = [
 	'public/images/art',
 	'public/images/background',
+	'public/images/social-buttons'
+]
+const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = SITE_CONFIG_EXACT_UPLOAD_IMAGE_PATHS
+const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
+	...SITE_CONFIG_UPLOAD_IMAGE_DIRECTORIES,
 	'public/images/blogger',
 	'public/images/custom-components',
 	'public/images/pictures',
 	'public/images/project',
-	'public/images/share',
-	'public/images/social-buttons'
+	'public/images/share'
 ]
 
 function isSafeUploadedImageFilename(filename: string) {
@@ -55,12 +59,22 @@ export function isAllowedLocalUploadImagePath(projectDir: string, fullPath: stri
 	)
 }
 
+function isSiteConfigImagePath(projectDir: string, fullPath: string) {
+	return (
+		SITE_CONFIG_EXACT_UPLOAD_IMAGE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
+		SITE_CONFIG_UPLOAD_IMAGE_DIRECTORIES.some(allowedDir => isDirectChildFilePath(resolve(projectDir, allowedDir), fullPath))
+	)
+}
+
 export function getLocalUploadImageMutationScope(projectDir: string, fullPath: string): LocalContentMutationScope | null {
 	if (isAllowedBlogImagePath(projectDir, fullPath)) {
 		return 'blog'
 	}
 	if (isDirectChildFilePath(resolve(projectDir, 'public/images/share'), fullPath)) {
 		return 'share'
+	}
+	if (isSiteConfigImagePath(projectDir, fullPath)) {
+		return 'site-config'
 	}
 	return null
 }

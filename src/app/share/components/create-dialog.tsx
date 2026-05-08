@@ -88,19 +88,19 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 			return
 		}
 
-		const currentUrl = normalizeShareUrlInput(formData.url)
-		const nextShare: Share = {
-			...formData,
-			url: currentUrl,
-			category: normalizeShareCategoryInput(formData.category ?? ''),
-			folderPath: normalizeShareFolderPathInput(formData.folderPath ?? '')
-		}
-		const payload = buildShareEditSubmitPayload({
-			share: nextShare,
-			oldUrl: share?.url,
-			logoItem: logoItem ?? undefined
-		})
 		try {
+			const currentUrl = normalizeShareUrlInput(formData.url)
+			const nextShare: Share = {
+				...formData,
+				url: currentUrl,
+				category: normalizeShareCategoryInput(formData.category ?? ''),
+				folderPath: normalizeShareFolderPathInput(formData.folderPath ?? '')
+			}
+			const payload = buildShareEditSubmitPayload({
+				share: nextShare,
+				oldUrl: share?.url,
+				logoItem: logoItem ?? undefined
+			})
 			onSave(payload)
 			setLogoItem(null)
 			onClose()

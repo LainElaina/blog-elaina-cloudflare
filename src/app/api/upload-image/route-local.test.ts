@@ -337,6 +337,46 @@ test('upload image local route waits for the blog content mutation lock before w
 	}
 })
 
+test('upload image local route waits for the site config mutation lock before writing site config images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-site-config-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/images/social-buttons/icon.png'
+	const fullPath = join(repoDir, filePath)
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/social-buttons'), { recursive: true })
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'site-config', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const formData = new FormData()
+		formData.set('file', new File([pngBytes], 'icon.png', { type: 'image/png' }))
+		formData.set('path', filePath)
+		const responsePromise = handleUploadImage({ formData: async () => formData } as any)
+		await Promise.resolve()
+
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true, path: filePath })
+		assert.deepEqual(await fs.readFile(fullPath), pngBytes)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
 test('upload image local route validates allowed image signatures', () => {
 	assert.equal(isAllowedImageContent('.png', pngBytes), true)
 	assert.equal(isAllowedImageContent('.jpg', Buffer.from([0xff, 0xd8, 0xff, 0x00])), true)

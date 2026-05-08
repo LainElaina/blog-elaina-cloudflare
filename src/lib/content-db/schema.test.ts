@@ -73,6 +73,22 @@ test('content database client defaults to repository data/content.db path', () =
 	assert.equal(getDefaultContentDbPath('/app/blog-elaina-cloudflare'), resolve('/app/blog-elaina-cloudflare', 'data/content.db'))
 })
 
+test('content database client creates missing parent directory before opening database', async () => {
+	const tempDir = await mkdtemp(join(tmpdir(), 'content-db-missing-parent-'))
+	const dbPath = join(tempDir, 'nested/data/content.db')
+
+	try {
+		const db = createContentDb(dbPath)
+		try {
+			assert.equal((db.prepare('SELECT 1 AS value').get() as { value: number }).value, 1)
+		} finally {
+			db.close()
+		}
+	} finally {
+		await rm(tempDir, { recursive: true, force: true })
+	}
+})
+
 test('migrations upgrade legacy draft_items table to include Task 3 columns', async () => {
 	await withTempDb((dbPath) => {
 		const db = createContentDb(dbPath)

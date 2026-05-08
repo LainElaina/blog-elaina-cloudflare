@@ -1,4 +1,5 @@
 export const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
+export const MAX_IMAGE_FILE_BYTES = 10 * 1024 * 1024
 
 function startsWithBytes(buffer: Uint8Array, bytes: number[]) {
 	return buffer.length >= bytes.length && bytes.every((byte, index) => buffer[index] === byte)
@@ -69,6 +70,9 @@ export async function assertAllowedImageFile(file: File, extension: string = get
 	}
 	if (file.size === 0) {
 		throw new Error('图片文件不能为空')
+	}
+	if (file.size > MAX_IMAGE_FILE_BYTES) {
+		throw new Error('图片文件不能超过 10MB')
 	}
 	const buffer = new Uint8Array(await file.arrayBuffer())
 	if (buffer.length === 0) {

@@ -234,6 +234,46 @@ test('delete image route waits for the blog content mutation lock before unlinki
 	}
 })
 
+test('delete image route waits for the site config mutation lock before unlinking site config images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-site-config-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/images/social-buttons/icon.png'
+	const fullPath = join(repoDir, filePath)
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/social-buttons'), { recursive: true })
+		await fs.writeFile(fullPath, 'image', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'site-config', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleDeleteImage({
+			json: async () => ({ path: filePath })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
 test('delete image route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {
 		const response = await handleDeleteImage({

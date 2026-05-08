@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-export type LocalContentMutationScope = 'blog' | 'share'
+export type LocalContentMutationScope = 'blog' | 'share' | 'site-config'
 
 const localContentMutationLocks = new Map<string, Promise<void>>()
 
