@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 import { isPathStrictlyInsideDirectory } from '../local-path.ts'
 
 const MAX_DELETE_DIR_REQUEST_BODY_SIZE = 1024 * 1024
@@ -82,30 +83,35 @@ export async function handleDeleteDir(request: NextRequest) {
 			return NextResponse.json({ error: '缺少目录路径' }, { status: 400 })
 		}
 
-		const blogDir = resolve(process.cwd(), 'public/blogs')
-		const fullPath = resolve(process.cwd(), dirPath)
+		const projectDir = resolve(process.cwd())
+		const blogDir = resolve(projectDir, 'public/blogs')
+		const fullPath = resolve(projectDir, dirPath)
 
 		if (!isAllowedBlogDirectoryPath(blogDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })
 		}
 
-		await assertSafeDeleteDirParent(fullPath)
+		const deleteDir = async () => {
+			await assertSafeDeleteDirParent(fullPath)
 
-		try {
-			const targetStat = await lstat(fullPath)
-			if (!targetStat.isDirectory()) {
-				return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
+			try {
+				const targetStat = await lstat(fullPath)
+				if (!targetStat.isDirectory()) {
+					return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
+				}
+			} catch (error) {
+				if (isFileNotFoundError(error)) {
+					return NextResponse.json({ success: true })
+				}
+				throw error
 			}
-		} catch (error) {
-			if (isFileNotFoundError(error)) {
-				return NextResponse.json({ success: true })
-			}
-			throw error
+
+			await rm(fullPath, { recursive: true, force: true })
+
+			return NextResponse.json({ success: true })
 		}
 
-		await rm(fullPath, { recursive: true, force: true })
-
-		return NextResponse.json({ success: true })
+		return await withLocalContentMutationLock(projectDir, 'blog', deleteDir)
 	} catch (error: any) {
 		if (isUnsafeDeleteDirParentError(error)) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })

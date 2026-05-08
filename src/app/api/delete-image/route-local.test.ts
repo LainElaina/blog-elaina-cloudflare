@@ -15,16 +15,30 @@ registerHooks({
 })
 
 const { handleDeleteImage, isAllowedDeleteImagePath } = await import('./route-local.ts')
+const { withLocalContentMutationLock } = await import('../local-content-mutation-lock.ts')
+
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>(next => {
+		resolve = next
+	})
+	return { promise, resolve }
+}
 
 test('delete image route keeps extension validation and uses upload-managed path allowlist', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /import \{ lstat, realpath, unlink \} from 'fs\/promises'/)
-	assert.match(source, /import \{ dirname, extname, relative, resolve \} from 'path'/)
-	assert.match(source, /const ALLOWED_IMAGE_EXTENSIONS = new Set\(\['\.jpg', '\.jpeg', '\.png', '\.gif', '\.webp', '\.svg', '\.ico', '\.avif'\]\)/)
+	assert.match(source, /import \{ dirname, extname, resolve \} from 'path'/)
+	assert.match(source, /import \{ ALLOWED_IMAGE_EXTENSIONS \} from '\.\.\/\.\.\/\.\.\/lib\/image-content-validation\.ts'/)
+	assert.match(source, /import \{ withLocalContentMutationLock \} from '\.\.\/local-content-mutation-lock\.ts'/)
+	assert.match(source, /import \{ getLocalUploadImageMutationScope, isAllowedLocalUploadImagePath \} from '\.\.\/local-upload-image-path\.ts'/)
+	assert.match(source, /export \{ isAllowedLocalUploadImagePath as isAllowedDeleteImagePath \} from '\.\.\/local-upload-image-path\.ts'/)
 	assert.match(source, /const ext = extname\(filePath\)\.toLowerCase\(\)/)
 	assert.match(source, /if \(!ALLOWED_IMAGE_EXTENSIONS\.has\(ext\)\) \{/)
-	assert.match(source, /if \(!isAllowedDeleteImagePath\(projectDir, fullPath\)\) \{/)
+	assert.match(source, /if \(!isAllowedLocalUploadImagePath\(projectDir, fullPath\)\) \{/)
+	assert.match(source, /const mutationScope = getLocalUploadImageMutationScope\(projectDir, fullPath\)/)
+	assert.match(source, /return await withLocalContentMutationLock\(projectDir, mutationScope, deleteImage\)/)
 	assert.match(source, /只能删除本地上传目录内的图片文件/)
 	assert.doesNotMatch(source, /isPathInsideDirectory/)
 	assert.match(source, /async function assertSafeDeleteImageDirectory\(fullPath: string\)/)
@@ -140,7 +154,85 @@ test('delete image route returns 400 when JSON body is malformed', async () => {
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
 
+test('delete image route waits for the share content mutation lock before unlinking share images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-share-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/images/share/logo.png'
+	const fullPath = join(repoDir, filePath)
 
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/share'), { recursive: true })
+		await fs.writeFile(fullPath, 'image', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'share', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleDeleteImage({
+			json: async () => ({ path: filePath })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('delete image route waits for the blog content mutation lock before unlinking blog images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-blog-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/blogs/post-a/cover.png'
+	const fullPath = join(repoDir, filePath)
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/blogs/post-a'), { recursive: true })
+		await fs.writeFile(fullPath, 'image', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'blog', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleDeleteImage({
+			json: async () => ({ path: filePath })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
 
 test('delete image route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {

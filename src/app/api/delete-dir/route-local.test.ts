@@ -15,13 +15,25 @@ registerHooks({
 })
 
 const { handleDeleteDir } = await import('./route-local.ts')
+const { withLocalContentMutationLock } = await import('../local-content-mutation-lock.ts')
+
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>(next => {
+		resolve = next
+	})
+	return { promise, resolve }
+}
 
 test('delete dir route only allows deleting single safe blog directories', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /import \{ lstat, realpath, rm \} from 'fs\/promises'/)
 	assert.match(source, /import \{ dirname, relative, resolve \} from 'path'/)
-	assert.match(source, /import \{ assertSafeBlogSlug \} from '\.\.\/\.\.\/write\/services\/blog-slug\.ts'/)
+	assert.match(source, /import \{ withLocalContentMutationLock \} from '\.\.\/local-content-mutation-lock\.ts'/)
+	assert.match(source, /const projectDir = resolve\(process\.cwd\(\)\)/)
+	assert.match(source, /const blogDir = resolve\(projectDir, 'public\/blogs'\)/)
+	assert.match(source, /const fullPath = resolve\(projectDir, dirPath\)/)
 	assert.match(source, /function isAllowedBlogDirectoryPath\(blogDir: string, fullPath: string\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
 	assert.match(source, /只能删除 public\/blogs 下的文章目录/)
@@ -38,7 +50,8 @@ test('delete dir route only allows deleting single safe blog directories', async
 test('delete dir route rejects files and nested paths before removing', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tawait assertSafeDeleteDirParent\(fullPath\)\n\n\t\ttry \{\n\t\t\tconst targetStat = await lstat\(fullPath\)/)
+	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tconst deleteDir = async \(\) => \{\n\t\t\tawait assertSafeDeleteDirParent\(fullPath\)\n\n\t\t\ttry \{\n\t\t\t\tconst targetStat = await lstat\(fullPath\)/)
+	assert.match(source, /return await withLocalContentMutationLock\(projectDir, 'blog', deleteDir\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
 	assert.doesNotMatch(source, /await rm\(fullPath, \{ recursive: true, force: true \}\)[\s\S]*?const targetStat = await lstat\(fullPath\)/)
 })
@@ -99,6 +112,45 @@ test('delete dir route rejects symlink parent directories without removing targe
 	}
 })
 
+test('delete dir route waits for the blog content mutation lock before removing blog directories', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-dir-blog-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const dirPath = 'public/blogs/post-a'
+	const markerPath = path.join(repoDir, dirPath, 'index.md')
+
+	try {
+		await fs.mkdir(path.dirname(markerPath), { recursive: true })
+		await fs.writeFile(markerPath, '# Post A', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'blog', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleDeleteDir({
+			json: async () => ({ path: dirPath })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await fs.readFile(markerPath, 'utf-8'), '# Post A')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		await assert.rejects(() => fs.readFile(markerPath, 'utf-8'), /ENOENT/)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
 
 test('delete dir route returns 413 for oversized request before JSON parsing', async () => {
 	let jsonCalled = false

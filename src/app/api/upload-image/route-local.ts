@@ -1,23 +1,14 @@
 import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
-import { dirname, extname, relative, resolve } from 'path'
+import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent } from '../../../lib/image-content-validation.ts'
-import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
-import { isPathInsideDirectory, isPathStrictlyInsideDirectory } from '../local-path.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
+import { getLocalUploadImageMutationScope, isAllowedLocalUploadImagePath } from '../local-upload-image-path.ts'
+import { isPathInsideDirectory } from '../local-path.ts'
 
 export { isAllowedImageContent }
-const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
-const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
-	'public/images/art',
-	'public/images/background',
-	'public/images/blogger',
-	'public/images/custom-components',
-	'public/images/pictures',
-	'public/images/project',
-	'public/images/share',
-	'public/images/social-buttons'
-]
+export { isAllowedLocalUploadImagePath as isAllowedUploadImagePath } from '../local-upload-image-path.ts'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_REQUEST_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024
 
@@ -26,10 +17,6 @@ function getContentLength(request: NextRequest) {
 	if (!value) return null
 	const length = Number(value)
 	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
-function isSafeUploadedImageFilename(filename: string) {
-	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
 }
 
 async function findExistingAncestorDirectory(dir: string): Promise<string> {
@@ -59,34 +46,6 @@ async function assertSafeExistingParentDirectory(projectDir: string, dir: string
 
 function isUnsafeParentDirectoryError(error: unknown) {
 	return error instanceof Error && error.message === 'unsafe-parent-directory'
-}
-
-function isDirectChildFilePath(baseDir: string, fullPath: string) {
-	if (!isPathStrictlyInsideDirectory(baseDir, fullPath)) {
-		return false
-	}
-
-	return isSafeUploadedImageFilename(relative(baseDir, fullPath))
-}
-
-function isAllowedBlogUploadImagePath(projectDir: string, fullPath: string) {
-	const blogsDir = resolve(projectDir, 'public/blogs')
-	if (!isPathStrictlyInsideDirectory(blogsDir, fullPath)) {
-		return false
-	}
-
-	const relativePath = relative(blogsDir, fullPath).replace(/\\/g, '/')
-	const parts = relativePath.split('/')
-	if (parts.length !== 2 || !isSafeUploadedImageFilename(parts[1])) {
-		return false
-	}
-
-	try {
-		assertSafeBlogSlug(parts[0])
-		return true
-	} catch {
-		return false
-	}
 }
 
 class MultipartRequestBodyTooLargeError extends Error {
@@ -130,14 +89,6 @@ async function buildLimitedMultipartRequest(request: NextRequest, maxBytes: numb
 		headers: request.headers,
 		body: new Blob(chunks)
 	})
-}
-
-export function isAllowedUploadImagePath(projectDir: string, fullPath: string) {
-	return (
-		ALLOWED_EXACT_UPLOAD_IMAGE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
-		ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES.some(allowedDir => isDirectChildFilePath(resolve(projectDir, allowedDir), fullPath)) ||
-		isAllowedBlogUploadImagePath(projectDir, fullPath)
-	)
 }
 
 function buildAtomicUploadTempPath(fullPath: string) {
@@ -201,7 +152,7 @@ export async function handleUploadImage(request: NextRequest) {
 			return NextResponse.json({ error: `路径不合法，只能写入 public 目录` }, { status: 403 })
 		}
 
-		if (!isAllowedUploadImagePath(projectDir, fullPath)) {
+		if (!isAllowedLocalUploadImagePath(projectDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法，只能上传到本地上传目录内的图片文件' }, { status: 403 })
 		}
 
@@ -214,13 +165,20 @@ export async function handleUploadImage(request: NextRequest) {
 			return NextResponse.json({ error: '图片内容与文件类型不匹配' }, { status: 400 })
 		}
 
-		const dir = dirname(fullPath)
-		await assertSafeExistingParentDirectory(projectDir, dir)
-		await mkdir(dir, { recursive: true })
+		const writeImage = async () => {
+			const dir = dirname(fullPath)
+			await assertSafeExistingParentDirectory(projectDir, dir)
+			await mkdir(dir, { recursive: true })
 
-		await writeImageAtomically(fullPath, buffer)
+			await writeImageAtomically(fullPath, buffer)
+			return NextResponse.json({ success: true, path })
+		}
 
-		return NextResponse.json({ success: true, path })
+		const mutationScope = getLocalUploadImageMutationScope(projectDir, fullPath)
+		if (mutationScope) {
+			return await withLocalContentMutationLock(projectDir, mutationScope, writeImage)
+		}
+		return await writeImage()
 	} catch (error: any) {
 		if (isUnsafeParentDirectoryError(error)) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })

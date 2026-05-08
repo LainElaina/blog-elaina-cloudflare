@@ -1,24 +1,15 @@
 import { lstat, realpath, unlink } from 'fs/promises'
-import { dirname, extname, relative, resolve } from 'path'
+import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
+import { ALLOWED_IMAGE_EXTENSIONS } from '../../../lib/image-content-validation.ts'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
-import { isPathStrictlyInsideDirectory } from '../local-path.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
+import { getLocalUploadImageMutationScope, isAllowedLocalUploadImagePath } from '../local-upload-image-path.ts'
 
 const MAX_DELETE_IMAGE_REQUEST_BODY_SIZE = 1024 * 1024
-const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
-const ALLOWED_EXACT_IMAGE_PATHS = ['public/favicon.png', 'public/images/avatar.png']
-const ALLOWED_DIRECT_IMAGE_DIRECTORIES = [
-	'public/images/art',
-	'public/images/background',
-	'public/images/blogger',
-	'public/images/custom-components',
-	'public/images/pictures',
-	'public/images/project',
-	'public/images/share',
-	'public/images/social-buttons'
-]
+
+export { isAllowedLocalUploadImagePath as isAllowedDeleteImagePath } from '../local-upload-image-path.ts'
 
 function getContentLength(request: NextRequest) {
 	const value = request.headers?.get('content-length')
@@ -33,46 +24,6 @@ function isFileNotFoundError(error: unknown) {
 
 function isUnsafeDeleteImageDirectoryError(error: unknown) {
 	return error instanceof Error && error.message === 'unsafe-image-directory'
-}
-
-function isSafeUploadedImageFilename(filename: string) {
-	return Boolean(filename) && !filename.includes('/') && !filename.includes('\\') && !filename.includes('..')
-}
-
-function isDirectChildFilePath(baseDir: string, fullPath: string) {
-	if (!isPathStrictlyInsideDirectory(baseDir, fullPath)) {
-		return false
-	}
-
-	return isSafeUploadedImageFilename(relative(baseDir, fullPath))
-}
-
-function isAllowedBlogImagePath(projectDir: string, fullPath: string) {
-	const blogsDir = resolve(projectDir, 'public/blogs')
-	if (!isPathStrictlyInsideDirectory(blogsDir, fullPath)) {
-		return false
-	}
-
-	const relativePath = relative(blogsDir, fullPath).replace(/\\/g, '/')
-	const parts = relativePath.split('/')
-	if (parts.length !== 2 || !isSafeUploadedImageFilename(parts[1])) {
-		return false
-	}
-
-	try {
-		assertSafeBlogSlug(parts[0])
-		return true
-	} catch {
-		return false
-	}
-}
-
-export function isAllowedDeleteImagePath(projectDir: string, fullPath: string) {
-	return (
-		ALLOWED_EXACT_IMAGE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) ||
-		ALLOWED_DIRECT_IMAGE_DIRECTORIES.some(allowedDir => isDirectChildFilePath(resolve(projectDir, allowedDir), fullPath)) ||
-		isAllowedBlogImagePath(projectDir, fullPath)
-	)
 }
 
 async function assertSafeDeleteImageDirectory(fullPath: string) {
@@ -129,32 +80,40 @@ export async function handleDeleteImage(request: NextRequest) {
 		const projectDir = resolve(process.cwd())
 		const fullPath = resolve(process.cwd(), filePath)
 
-		if (!isAllowedDeleteImagePath(projectDir, fullPath)) {
+		if (!isAllowedLocalUploadImagePath(projectDir, fullPath)) {
 			return NextResponse.json({ error: '路径不合法，只能删除本地上传目录内的图片文件' }, { status: 403 })
 		}
 
-		await assertSafeDeleteImageDirectory(fullPath)
-		const fileStats = await lstat(fullPath).catch(error => {
-			if (isFileNotFoundError(error)) {
-				return null
-			}
-			throw error
-		})
+		const deleteImage = async () => {
+			await assertSafeDeleteImageDirectory(fullPath)
+			const fileStats = await lstat(fullPath).catch(error => {
+				if (isFileNotFoundError(error)) {
+					return null
+				}
+				throw error
+			})
 
-		if (fileStats === null) {
+			if (fileStats === null) {
+				return NextResponse.json({ success: true })
+			}
+
+			if (!fileStats.isFile()) {
+				return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
+			}
+
+			await unlink(fullPath).catch(error => {
+				if (!isFileNotFoundError(error)) {
+					throw error
+				}
+			})
 			return NextResponse.json({ success: true })
 		}
 
-		if (!fileStats.isFile()) {
-			return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
+		const mutationScope = getLocalUploadImageMutationScope(projectDir, fullPath)
+		if (mutationScope) {
+			return await withLocalContentMutationLock(projectDir, mutationScope, deleteImage)
 		}
-
-		await unlink(fullPath).catch(error => {
-			if (!isFileNotFoundError(error)) {
-				throw error
-			}
-		})
-		return NextResponse.json({ success: true })
+		return await deleteImage()
 	} catch (error: any) {
 		if (isUnsafeDeleteImageDirectoryError(error)) {
 			return NextResponse.json({ error: '路径不合法，只能删除本地上传目录内的图片文件' }, { status: 403 })

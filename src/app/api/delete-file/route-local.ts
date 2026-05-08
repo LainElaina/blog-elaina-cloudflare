@@ -3,7 +3,8 @@ import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
-import { isAllowedSaveFilePath } from '../save-file/local-save-file-path.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
+import { getSaveFileLocalContentMutationScope, isAllowedSaveFilePath } from '../save-file/local-save-file-path.ts'
 
 const MAX_DELETE_FILE_REQUEST_BODY_SIZE = 1024 * 1024
 
@@ -75,29 +76,37 @@ export async function handleDeleteFile(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 
-		await assertSafeDeleteFileDirectory(fullPath)
+		const deleteFile = async () => {
+			await assertSafeDeleteFileDirectory(fullPath)
 
-		const fileStats = await lstat(fullPath).catch(error => {
-			if (isFileNotFoundError(error)) {
-				return null
+			const fileStats = await lstat(fullPath).catch(error => {
+				if (isFileNotFoundError(error)) {
+					return null
+				}
+				throw error
+			})
+
+			if (fileStats === null) {
+				return NextResponse.json({ success: true })
 			}
-			throw error
-		})
 
-		if (fileStats === null) {
+			if (!fileStats.isFile()) {
+				return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
+			}
+
+			await unlink(fullPath).catch(error => {
+				if (!isFileNotFoundError(error)) {
+					throw error
+				}
+			})
 			return NextResponse.json({ success: true })
 		}
 
-		if (!fileStats.isFile()) {
-			return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
+		const mutationScope = getSaveFileLocalContentMutationScope(projectDir, fullPath)
+		if (mutationScope) {
+			return await withLocalContentMutationLock(projectDir, mutationScope, deleteFile)
 		}
-
-		await unlink(fullPath).catch(error => {
-			if (!isFileNotFoundError(error)) {
-				throw error
-			}
-		})
-		return NextResponse.json({ success: true })
+		return await deleteFile()
 	} catch (error: any) {
 		if (isUnsafeDeleteFileDirectoryError(error)) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })

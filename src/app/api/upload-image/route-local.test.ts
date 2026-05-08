@@ -15,6 +15,17 @@ registerHooks({
 })
 
 const { handleUploadImage, isAllowedImageContent, isAllowedUploadImagePath } = await import('./route-local.ts')
+const { withLocalContentMutationLock } = await import('../local-content-mutation-lock.ts')
+
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>(next => {
+		resolve = next
+	})
+	return { promise, resolve }
+}
+
+const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 test('upload image local route writes uploaded image atomically', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
@@ -25,6 +36,8 @@ test('upload image local route writes uploaded image atomically', async () => {
 	assert.match(source, /await writeFile\(tempPath, buffer\)\n\t\tawait rename\(tempPath, fullPath\)/)
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 	assert.match(source, /await writeImageAtomically\(fullPath, buffer\)/)
+	assert.match(source, /const mutationScope = getLocalUploadImageMutationScope\(projectDir, fullPath\)/)
+	assert.match(source, /return await withLocalContentMutationLock\(projectDir, mutationScope, writeImage\)/)
 	assert.doesNotMatch(source, /await writeFile\(fullPath, buffer\)/)
 })
 
@@ -173,7 +186,7 @@ test('upload image local route rejects allowlisted paths under symlinked parent 
 		process.chdir(repoDir)
 
 		const formData = new FormData()
-		formData.set('file', new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'test.png', { type: 'image/png' }))
+		formData.set('file', new File([pngBytes], 'test.png', { type: 'image/png' }))
 		formData.set('path', 'public/images/share/test.png')
 
 		const response = await handleUploadImage({ formData: async () => formData } as any)
@@ -198,7 +211,7 @@ test('upload image local route rejects allowlisted paths under repo-internal sym
 		process.chdir(repoDir)
 
 		const formData = new FormData()
-		formData.set('file', new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'test.png', { type: 'image/png' }))
+		formData.set('file', new File([pngBytes], 'test.png', { type: 'image/png' }))
 		formData.set('path', 'public/images/share/test.png')
 
 		const response = await handleUploadImage({ formData: async () => formData } as any)
@@ -244,10 +257,88 @@ test('upload image local route rejects unsafe SVG uploads without writing files'
 		await fs.rm(repoDir, { recursive: true, force: true })
 	}
 })
+test('upload image local route waits for the share content mutation lock before writing share images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-share-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/images/share/logo.png'
+	const fullPath = join(repoDir, filePath)
 
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/share'), { recursive: true })
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'share', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const formData = new FormData()
+		formData.set('file', new File([pngBytes], 'logo.png', { type: 'image/png' }))
+		formData.set('path', filePath)
+		const responsePromise = handleUploadImage({ formData: async () => formData } as any)
+		await Promise.resolve()
+
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true, path: filePath })
+		assert.deepEqual(await fs.readFile(fullPath), pngBytes)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('upload image local route waits for the blog content mutation lock before writing blog images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-blog-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/blogs/post-a/cover.png'
+	const fullPath = join(repoDir, filePath)
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/blogs/post-a'), { recursive: true })
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'blog', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const formData = new FormData()
+		formData.set('file', new File([pngBytes], 'cover.png', { type: 'image/png' }))
+		formData.set('path', filePath)
+		const responsePromise = handleUploadImage({ formData: async () => formData } as any)
+		await Promise.resolve()
+
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true, path: filePath })
+		assert.deepEqual(await fs.readFile(fullPath), pngBytes)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
 
 test('upload image local route validates allowed image signatures', () => {
-	assert.equal(isAllowedImageContent('.png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), true)
+	assert.equal(isAllowedImageContent('.png', pngBytes), true)
 	assert.equal(isAllowedImageContent('.jpg', Buffer.from([0xff, 0xd8, 0xff, 0x00])), true)
 	assert.equal(isAllowedImageContent('.gif', Buffer.from('GIF89a', 'ascii')), true)
 	assert.equal(isAllowedImageContent('.webp', Buffer.from('RIFF0000WEBP', 'ascii')), true)
