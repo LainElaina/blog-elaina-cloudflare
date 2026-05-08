@@ -1,8 +1,69 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 
-import { buildBatchDeleteArtifactContents, buildDeleteArtifactContents, hasBlogRecordForDelete } from './delete-blog'
+const srcRootUrl = new URL('../../../', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined }'
+			}
+		}
+
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export default {}'
+			}
+		}
+
+		if (context.parentURL && specifier.endsWith('site-content.json')) {
+			const directUrl = new URL(specifier, context.parentURL)
+			if (fileURLToPath(directUrl).endsWith('/src/config/site-content.json')) {
+				return {
+					shortCircuit: true,
+					url: 'data:text/javascript,export default {}'
+				}
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const url = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (url) return { shortCircuit: true, url }
+		}
+
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const { buildBatchDeleteArtifactContents, buildDeleteArtifactContents, hasBlogRecordForDelete } = await import('./delete-blog.ts')
 
 describe('buildDeleteArtifactContents', () => {
 	it('远端删除应同时生成 index/categories/folders/storage 四个正式产物内容', async () => {
@@ -124,6 +185,17 @@ describe('hasBlogRecordForDelete', () => {
 			true
 		)
 		assert.equal(hasBlogRecordForDelete({ slug: 'post-3', storageRaw: null, indexRaw: '[]' }), false)
+	})
+
+	it('storage 或 legacy index 损坏时拒绝判断删除记录', () => {
+		assert.throws(
+			() => hasBlogRecordForDelete({ slug: 'post-1', storageRaw: '{bad json', indexRaw: null }),
+			/博客 storage\.json 解析失败/
+		)
+		assert.throws(
+			() => hasBlogRecordForDelete({ slug: 'post-1', storageRaw: null, indexRaw: '{bad json' }),
+			/博客 index\.json 解析失败/
+		)
 	})
 })
 

@@ -1,8 +1,62 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 
-import { loadBlog } from '@/lib/load-blog'
-import { exportStaticBlogArtifacts, parseBlogStorageDB } from '@/lib/content-db/blog-storage'
+const srcRootUrl = new URL('../', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export default {}'
+			}
+		}
+
+		if (context.parentURL && specifier.endsWith('site-content.json')) {
+			const directUrl = new URL(specifier, context.parentURL)
+			if (fileURLToPath(directUrl).endsWith('/src/config/site-content.json')) {
+				return {
+					shortCircuit: true,
+					url: 'data:text/javascript,export default {}'
+				}
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const url = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (url) return { shortCircuit: true, url }
+		}
+
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const { loadBlog } = await import('@/lib/load-blog')
+const { exportStaticBlogArtifacts, parseBlogStorageDB } = await import('@/lib/content-db/blog-storage')
 
 describe('loadBlog', () => {
 	type FetchCall = { input: string; init?: RequestInit }
@@ -133,7 +187,7 @@ describe('loadBlog', () => {
 		)
 	})
 
-	it('falls back to blog config when storage JSON is malformed', async () => {
+	it('aborts when blog storage JSON is malformed', async () => {
 		await withMockFetch(
 			new Map<string, Response>([
 				['/blogs/storage.json', new Response('{bad json', { status: 200 })],
@@ -141,17 +195,11 @@ describe('loadBlog', () => {
 				['/blogs/post-a/index.md', new Response('# hello', { status: 200 })]
 			]),
 			async calls => {
-				const loaded = await loadBlog('post-a')
+				await assert.rejects(() => loadBlog('post-a'), /博客存储格式错误/)
 
-				assert.deepEqual(loaded.config, { title: 'Fallback', tags: ['x'], date: '2026-03-27' })
-				assert.equal(loaded.markdown, '# hello')
 				assert.deepEqual(
 					calls.map(call => ({ input: call.input, cache: call.init?.cache })),
-					[
-						{ input: '/blogs/storage.json', cache: 'no-store' },
-						{ input: '/blogs/post-a/config.json', cache: 'no-store' },
-						{ input: '/blogs/post-a/index.md', cache: 'no-store' }
-					]
+					[{ input: '/blogs/storage.json', cache: 'no-store' }]
 				)
 			}
 		)

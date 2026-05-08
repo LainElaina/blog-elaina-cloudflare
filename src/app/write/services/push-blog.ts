@@ -12,8 +12,8 @@ import {
 } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent } from '@/lib/image-content-validation'
-import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
-import { prepareBlogStaticArtifacts, serializeCategoriesConfig, type BlogIndexItem } from '@/lib/blog-index'
+import { parseRequiredBlogStorageDB } from '@/lib/content-db/blog-storage'
+import { parseBlogIndexItemsRaw, prepareBlogStaticArtifacts, serializeCategoriesConfig, type BlogIndexItem } from '@/lib/blog-index'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import type { ImageItem } from '../types'
@@ -95,19 +95,14 @@ export function assertEditableSlug(params: Pick<PushBlogParams, 'form' | 'mode' 
 
 export function hasExistingBlogSlug(params: { slug: string; storageRaw: string | null; indexRaw: string | null }): boolean {
 	assertSafeBlogSlug(params.slug)
-	const storage = parseBlogStorageDB(params.storageRaw)
+	const storage = parseRequiredBlogStorageDB(params.storageRaw)
 	if (storage.blogs[params.slug]) {
 		return true
 	}
-	if (!params.indexRaw) {
-		return false
+	if (!params.storageRaw && params.indexRaw) {
+		return parseBlogIndexItemsRaw(params.indexRaw).some(item => item.slug === params.slug)
 	}
-	try {
-		const index = JSON.parse(params.indexRaw)
-		return Array.isArray(index) && index.some(item => item?.slug === params.slug)
-	} catch {
-		return false
-	}
+	return false
 }
 
 export function assertCreateBlogSlugAvailable(params: { slug: string; storageRaw: string | null; indexRaw: string | null; hasExistingFiles?: boolean }): void {

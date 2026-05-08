@@ -181,6 +181,17 @@ describe('create blog slug availability', () => {
 		)
 		assert.doesNotThrow(() => assertCreateBlogSlugAvailable({ slug: 'post-3', storageRaw: null, indexRaw: '[]', hasExistingFiles: false }))
 	})
+
+	it('storage 或 legacy index 损坏时拒绝判断 slug 可用性', () => {
+		assert.throws(
+			() => hasExistingBlogSlug({ slug: 'post-1', storageRaw: '{bad json', indexRaw: null }),
+			/博客 storage\.json 解析失败/
+		)
+		assert.throws(
+			() => hasExistingBlogSlug({ slug: 'post-1', storageRaw: null, indexRaw: '{bad json' }),
+			/博客 index\.json 解析失败/
+		)
+	})
 })
 
 describe('buildBlogUpsertItem', () => {

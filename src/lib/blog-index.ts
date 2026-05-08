@@ -45,7 +45,7 @@ function isBlogIndexItem(value: unknown): value is BlogIndexItem {
 	)
 }
 
-function parseBlogIndexItemsRaw(raw: string): BlogIndexItem[] {
+export function parseBlogIndexItemsRaw(raw: string): BlogIndexItem[] {
 	let parsed: unknown
 	try {
 		parsed = JSON.parse(raw)
@@ -78,9 +78,9 @@ export async function prepareBlogStaticArtifacts(params: {
 	const storageRaw = await params.readStorageRaw()
 	let db = parseRequiredBlogStorageDB(storageRaw)
 
-	if (!storageRaw && params.fallbackReadIndexRaw) {
+	if (storageRaw === null && params.fallbackReadIndexRaw) {
 		const fallbackRaw = await params.fallbackReadIndexRaw()
-		if (fallbackRaw) {
+		if (fallbackRaw !== null) {
 			db = buildBlogStorageFromIndex(parseBlogIndexItemsRaw(fallbackRaw), now)
 		}
 	}
@@ -134,7 +134,7 @@ export async function removeBlogFromIndex(token: string, owner: string, repo: st
 
 export async function prepareBlogStorageArtifacts(token: string, owner: string, repo: string, branch: string): Promise<StaticBlogArtifacts> {
 	const storageRaw = await readTextFileFromRepo(token, owner, repo, BLOG_STORAGE_PATH, branch)
-	if (storageRaw) {
+	if (storageRaw !== null) {
 		return exportStaticBlogArtifacts(parseRequiredBlogStorageDB(storageRaw))
 	}
 	const index = await readIndexItemsFromRepo(token, owner, repo, branch)

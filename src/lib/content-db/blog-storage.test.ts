@@ -1,19 +1,79 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
+import type { BlogIndexItem } from '@/app/blog/types'
 
-import {
+const srcRootUrl = new URL('../../', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined }'
+			}
+		}
+
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export default {}'
+			}
+		}
+
+		if (context.parentURL && specifier.endsWith('site-content.json')) {
+			const directUrl = new URL(specifier, context.parentURL)
+			if (fileURLToPath(directUrl).endsWith('/src/config/site-content.json')) {
+				return {
+					shortCircuit: true,
+					url: 'data:text/javascript,export default {}'
+				}
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const url = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (url) return { shortCircuit: true, url }
+		}
+
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const {
 	buildBlogStorageFromIndex,
 	exportStaticBlogArtifacts,
 	upsertBlogRecord,
 	createEmptyBlogStorageDB,
 	parseBlogStorageDB,
 	parseRequiredBlogStorageDB
-} from '@/lib/content-db/blog-storage'
-import { prepareBlogStaticArtifacts, prepareBlogStorageArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
-import { loadBlog } from '@/lib/load-blog'
-import { buildArtifactsForSaveBlogEdits } from '@/app/blog/services/save-blog-edits'
-
-import type { BlogIndexItem } from '@/app/blog/types'
+} = await import('@/lib/content-db/blog-storage')
+const { prepareBlogStaticArtifacts, prepareBlogStorageArtifacts, serializeCategoriesConfig } = await import('@/lib/blog-index')
+const { loadBlog } = await import('@/lib/load-blog')
+const { buildArtifactsForSaveBlogEdits } = await import('@/app/blog/services/save-blog-edits')
 
 describe('blog storage model', () => {
 	it('仅将元数据写入数据库，不包含 Markdown 正文', () => {
@@ -389,6 +449,17 @@ describe('blog storage model', () => {
 		)
 	})
 
+	it('storage 缺失但 index 为空字符串时会失败而不是重建空库', async () => {
+		await assert.rejects(
+			() =>
+				prepareBlogStaticArtifacts({
+					readStorageRaw: async () => null,
+					fallbackReadIndexRaw: async () => ''
+				}),
+			/博客 index\.json 解析失败/
+		)
+	})
+
 	it('storage 缺失但 index 不是数组时会失败而不是重建空库', async () => {
 		await assert.rejects(
 			() =>
@@ -415,7 +486,7 @@ describe('blog storage model', () => {
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = (async (input: RequestInfo | URL) => {
 			const url = input.toString()
-			if (url.includes('public%2Fblogs%2Fstorage.json')) {
+			if (url.includes('public/blogs/storage.json')) {
 				return new Response(JSON.stringify({ content: Buffer.from('{invalid json', 'utf-8').toString('base64') }), { status: 200 })
 			}
 			return new Response(null, { status: 404 })
@@ -432,10 +503,10 @@ describe('blog storage model', () => {
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = (async (input: RequestInfo | URL) => {
 			const url = input.toString()
-			if (url.includes('public%2Fblogs%2Fstorage.json')) {
+			if (url.includes('public/blogs/storage.json')) {
 				return new Response(null, { status: 404 })
 			}
-			if (url.includes('public%2Fblogs%2Findex.json')) {
+			if (url.includes('public/blogs/index.json')) {
 				return new Response(null, { status: 500 })
 			}
 			return new Response(null, { status: 404 })
@@ -452,10 +523,10 @@ describe('blog storage model', () => {
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = (async (input: RequestInfo | URL) => {
 			const url = input.toString()
-			if (url.includes('public%2Fblogs%2Fstorage.json')) {
+			if (url.includes('public/blogs/storage.json')) {
 				return new Response(null, { status: 404 })
 			}
-			if (url.includes('public%2Fblogs%2Findex.json')) {
+			if (url.includes('public/blogs/index.json')) {
 				return new Response(JSON.stringify({ content: Buffer.from('{invalid json', 'utf-8').toString('base64') }), { status: 200 })
 			}
 			return new Response(null, { status: 404 })
@@ -472,10 +543,10 @@ describe('blog storage model', () => {
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = (async (input: RequestInfo | URL) => {
 			const url = input.toString()
-			if (url.includes('public%2Fblogs%2Fstorage.json')) {
+			if (url.includes('public/blogs/storage.json')) {
 				return new Response(null, { status: 404 })
 			}
-			if (url.includes('public%2Fblogs%2Findex.json')) {
+			if (url.includes('public/blogs/index.json')) {
 				return new Response(JSON.stringify({ content: Buffer.from(JSON.stringify([null]), 'utf-8').toString('base64') }), { status: 200 })
 			}
 			return new Response(null, { status: 404 })

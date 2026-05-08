@@ -9,12 +9,12 @@ import {
 	listRepoFilesRecursive,
 	readTextFileFromRepo,
 	toBase64Utf8,
-	TreeItem,
 	isGitHubUpdateRefConflictError,
 	updateRef
 } from '@/lib/github-client'
-import { prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
-import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
+import type { TreeItem } from '@/lib/github-client'
+import { parseBlogIndexItemsRaw, prepareBlogStaticArtifacts, serializeCategoriesConfig } from '@/lib/blog-index'
+import { parseRequiredBlogStorageDB } from '@/lib/content-db/blog-storage'
 import { assertSafeBlogSlug } from './blog-slug'
 
 export async function buildDeleteArtifactContents(params: {
@@ -55,19 +55,14 @@ export async function buildBatchDeleteArtifactContents(params: {
 
 export function hasBlogRecordForDelete(params: { slug: string; storageRaw: string | null; indexRaw: string | null }): boolean {
 	assertSafeBlogSlug(params.slug)
-	const storage = parseBlogStorageDB(params.storageRaw)
+	const storage = parseRequiredBlogStorageDB(params.storageRaw)
 	if (storage.blogs[params.slug]) {
 		return true
 	}
-	if (!params.indexRaw) {
-		return false
+	if (!params.storageRaw && params.indexRaw) {
+		return parseBlogIndexItemsRaw(params.indexRaw).some(item => item.slug === params.slug)
 	}
-	try {
-		const index = JSON.parse(params.indexRaw)
-		return Array.isArray(index) && index.some(item => item?.slug === params.slug)
-	} catch {
-		return false
-	}
+	return false
 }
 
 export async function deleteBlog(slug: string): Promise<void> {

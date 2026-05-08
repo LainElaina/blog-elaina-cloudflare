@@ -187,7 +187,7 @@ export function parseBlogStorageDB(raw: string | null): BlogStorageDB {
 }
 
 export function parseRequiredBlogStorageDB(raw: string | null): BlogStorageDB {
-	if (!raw) {
+	if (raw === null) {
 		return createEmptyBlogStorageDB()
 	}
 	try {
