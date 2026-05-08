@@ -1,5 +1,4 @@
 import { NextConfig } from 'next'
-import { codeInspectorPlugin } from 'code-inspector-plugin'
 
 const UTC8_OFFSET_MS = 8 * 60 * 60 * 1000
 

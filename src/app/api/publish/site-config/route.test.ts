@@ -80,7 +80,7 @@ test('site config publish rejects oversized JSON before parsing without publishi
 		)
 		const payload = await response.json()
 
-		assert.equal(response.status, 400)
+		assert.equal(response.status, 413)
 		assert.deepEqual(payload, { error: '请求 JSON 过大' })
 		assert.equal(JSON.parse(await fs.readFile(formalPath, 'utf-8')).meta.title, 'formal')
 		assert.equal((await fs.readFile(path.join(tmpDir, 'data/site-config.draft.json'), 'utf-8')).includes('saved draft'), true)

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
-import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
 import { isValidLayoutConfig } from './layout-config-validation.ts'
 
@@ -15,13 +15,6 @@ function getLayoutPath() {
 
 function getBackupPath() {
 	return path.join(process.cwd(), 'data/layout.bak.json')
-}
-
-function getContentLength(request: Request) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
 }
 
 function buildAtomicLayoutTempPath(fullPath: string) {
@@ -50,16 +43,14 @@ export async function handleLayoutGet() {
 
 export async function handleLayoutPost(request: Request) {
 	try {
-		const contentLength = getContentLength(request)
-		if (contentLength !== null && contentLength > LAYOUT_REQUEST_MAX_BYTES) {
-			return NextResponse.json({ error: '请求体过大' }, { status: 400 })
-		}
-
 		let layout: unknown
 		try {
 			layout = await readLimitedJsonRequest(request, LAYOUT_REQUEST_MAX_BYTES)
 		} catch (error) {
-			return NextResponse.json({ error: isJsonRequestBodyTooLargeError(error) ? '请求体过大' : '请求体格式错误' }, { status: 400 })
+			return NextResponse.json(
+				{ error: isJsonRequestBodyTooLargeError(error) ? '请求体过大' : '请求体格式错误' },
+				{ status: getLimitedJsonRequestErrorStatus(error) }
+			)
 		}
 		if (!isValidLayoutConfig(layout)) {
 			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })

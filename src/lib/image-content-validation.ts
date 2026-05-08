@@ -23,9 +23,13 @@ function hasAvifSignature(buffer: Uint8Array) {
 	return brands.some(brand => brand === 'avif' || brand === 'avis')
 }
 
+function hasUnsafeSvgContent(content: string) {
+	return /<\s*script(?:\s|>|\/)/i.test(content) || /\son[a-z]+\s*=/i.test(content) || /\b(?:href|xlink:href)\s*=\s*(['\"]?)\s*(?:javascript|data:text\/html)\s*:/i.test(content)
+}
+
 function hasSvgSignature(buffer: Uint8Array) {
 	const content = utf8Text(buffer).replace(/^﻿/, '').trimStart()
-	return /^(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg(?:\s|>)/i.test(content)
+	return /^(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg(?:\s|>)/i.test(content) && !hasUnsafeSvgContent(content)
 }
 
 function readUint16LE(buffer: Uint8Array, offset: number) {

@@ -6,10 +6,17 @@ export type LocalShareSaveFileBackup = {
 	content: string
 }
 
-export type LocalShareSaveUploadBackup = {
-	path: string
-	existed: boolean
-}
+export type LocalShareSaveUploadBackup =
+	| {
+			path: string
+			existed: false
+		}
+	| {
+			path: string
+			existed: true
+			content: ArrayBuffer
+			contentType: string
+		}
 
 type LocalShareSaveFetch = (input: string, init?: RequestInit) => Promise<Response>
 
@@ -49,7 +56,10 @@ export async function readLocalShareSaveFileBackup(path: string, fetchLocal: Loc
 export async function readLocalShareSaveUploadBackup(path: string, fetchLocal: LocalShareSaveFetch = fetch): Promise<LocalShareSaveUploadBackup> {
 	const response = await fetchLocal(toPublicUrl(path), { cache: 'no-store' })
 	await assertLocalShareBackupReadOk(response, path)
-	return { path, existed: response.ok }
+	if (response.status === 404) {
+		return { path, existed: false }
+	}
+	return { path, existed: true, content: await response.arrayBuffer(), contentType: response.headers.get('content-type') || 'application/octet-stream' }
 }
 
 export async function readOptionalLocalShareStorageRaw(fetchLocal: LocalShareSaveFetch = fetch): Promise<string | null> {
@@ -126,6 +136,16 @@ async function deleteLocalShareImage(path: string, fetchLocal: LocalShareSaveFet
 	})
 }
 
+async function restoreLocalShareUpload(backup: Extract<LocalShareSaveUploadBackup, { existed: true }>, fetchLocal: LocalShareSaveFetch) {
+	const formData = new FormData()
+	formData.append('file', new File([backup.content], backup.path.split('/').pop() || 'logo', { type: backup.contentType }))
+	formData.append('path', backup.path)
+	const response = await fetchLocal('/api/upload-image', { method: 'POST', body: formData })
+	if (!response.ok) {
+		throw new Error(`恢复 ${backup.path} 失败`)
+	}
+}
+
 export async function deleteLocalShareLogo(path: string, fetchLocal: LocalShareSaveFetch = fetch) {
 	await assertLocalShareSaveOk(await deleteLocalShareImage(path, fetchLocal), '删除旧分享图标')
 }
@@ -150,15 +170,17 @@ export async function rollbackLocalShareSave(
 	}
 
 	for (const backup of [...uploadedFiles].reverse()) {
-		if (!backup.existed) {
-			try {
+		try {
+			if (backup.existed) {
+				await restoreLocalShareUpload(backup, fetchLocal)
+			} else {
 				const response = await deleteLocalShareImage(backup.path, fetchLocal)
 				if (!response.ok) {
 					throw new Error(`删除 ${backup.path} 失败`)
 				}
-			} catch {
-				rollbackErrors.push(backup.path)
 			}
+		} catch {
+			rollbackErrors.push(backup.path)
 		}
 	}
 

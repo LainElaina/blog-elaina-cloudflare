@@ -49,7 +49,7 @@ test('site config draft rejects oversized JSON before parsing without writing dr
 		)
 		const payload = await response.json()
 
-		assert.equal(response.status, 400)
+		assert.equal(response.status, 413)
 		assert.deepEqual(payload, { error: '请求 JSON 过大' })
 		await assertDraftFileMissing(tmpDir)
 	})

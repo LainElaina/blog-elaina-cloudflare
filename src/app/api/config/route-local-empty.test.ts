@@ -121,7 +121,7 @@ test('local config write rejects oversized JSON body before parsing', async () =
 		}
 	} as any)
 
-	assert.equal(response.status, 400)
+	assert.equal(response.status, 413)
 	assert.equal(jsonCalled, false)
 	assert.deepEqual(await response.json(), { error: '请求体过大' })
 })

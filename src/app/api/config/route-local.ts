@@ -2,18 +2,11 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isValidLayoutConfig } from '../layout/layout-config-validation.ts'
 import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
-
-function getContentLength(request: Request) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
-}
 
 const CARD_STYLES_FILE_NAME = 'card-styles.json'
 function resolveLayoutBackupPath() {
@@ -138,16 +131,14 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 
 export async function handleConfigPost(request: NextRequest) {
 	try {
-		const contentLength = getContentLength(request)
-		if (contentLength !== null && contentLength > SITE_CONFIG_REQUEST_MAX_BYTES) {
-			return NextResponse.json({ error: '请求体过大' }, { status: 400 })
-		}
-
 		let payload: unknown
 		try {
 			payload = await readLimitedJsonRequest(request, SITE_CONFIG_REQUEST_MAX_BYTES)
 		} catch (error) {
-			return NextResponse.json({ error: isJsonRequestBodyTooLargeError(error) ? '请求体过大' : '请求体格式错误' }, { status: 400 })
+			return NextResponse.json(
+				{ error: isJsonRequestBodyTooLargeError(error) ? '请求体过大' : '请求体格式错误' },
+				{ status: getLimitedJsonRequestErrorStatus(error) }
+			)
 		}
 		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
 			return NextResponse.json({ error: '请求体格式错误' }, { status: 400 })
@@ -184,7 +175,10 @@ export async function handleConfigPost(request: NextRequest) {
 		}
 
 		return NextResponse.json({ success: true })
-	} catch (error: any) {
-		return NextResponse.json({ error: error.message }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
+	} catch (error: unknown) {
+		return NextResponse.json(
+			{ error: isSiteConfigLocalValidationError(error) ? error.message : '保存站点配置失败' },
+			{ status: isSiteConfigLocalValidationError(error) ? 400 : 500 }
+		)
 	}
 }

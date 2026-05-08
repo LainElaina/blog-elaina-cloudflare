@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
 	deleteLocalShareLogo,
+	readLocalShareSaveUploadBackup,
 	readOptionalLocalShareStorageRaw,
 	rollbackLocalShareSave,
 	saveLocalShareFile,
@@ -75,6 +76,22 @@ test('local share storage read only treats 404 as missing before merging artifac
 	assert.equal(existing, '{"version":1}')
 })
 
+test('local share logo backup stores existing file bytes for rollback', async () => {
+	const calls: FetchCall[] = []
+	const backup = await readLocalShareSaveUploadBackup('public/images/share/logo.png', async (input, init) => {
+		calls.push({ input, init })
+		return new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } })
+	})
+
+	assert.equal(backup.path, 'public/images/share/logo.png')
+	assert.equal(backup.existed, true)
+	if (backup.existed) {
+		assert.equal(backup.contentType, 'image/png')
+		assert.deepEqual(Array.from(new Uint8Array(backup.content)), [1, 2, 3])
+	}
+	assert.deepEqual(calls.map(call => call.input), ['/images/share/logo.png'])
+})
+
 test('local share logo backup read failure aborts before uploading file', async () => {
 	const calls: FetchCall[] = []
 	const uploadedFiles: LocalShareSaveUploadBackup[] = []
@@ -134,6 +151,29 @@ test('local share save rollback reports artifacts that failed to restore', async
 	}
 
 	await assert.rejects(() => rollbackLocalShareSave(writtenFiles, uploadedFiles, fetchLocal), /回滚失败：public\/share\/list\.json/)
+})
+
+test('local share save rollback restores overwritten logos', async () => {
+	const calls: FetchCall[] = []
+	const oldLogo = new Uint8Array([1, 2, 3]).buffer
+	const uploadedFiles: LocalShareSaveUploadBackup[] = [
+		{ path: 'public/images/share/logo.png', existed: true, content: oldLogo, contentType: 'image/png' }
+	]
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		return textResponse('{"success":true}')
+	}
+
+	await rollbackLocalShareSave([], uploadedFiles, fetchLocal)
+
+	assert.equal(calls.length, 1)
+	assert.equal(calls[0].input, '/api/upload-image')
+	assert.equal(calls[0].init?.method, 'POST')
+	const formData = calls[0].init?.body as FormData
+	assert.equal(formData.get('path'), 'public/images/share/logo.png')
+	const file = formData.get('file') as File
+	assert.equal(file.type, 'image/png')
+	assert.deepEqual(Array.from(new Uint8Array(await file.arrayBuffer())), [1, 2, 3])
 })
 
 test('local share logo cleanup deletes unused saved logo through delete-image endpoint', async () => {

@@ -73,7 +73,7 @@ test('layout local route returns 400 when JSON body is malformed', async () => {
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
 })
 
-test('layout local route returns 400 for oversized request before JSON parsing', async () => {
+test('layout local route returns 413 for oversized request before JSON parsing', async () => {
 	let jsonCalled = false
 	const response = await handleLayoutPost({
 		headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
@@ -83,7 +83,7 @@ test('layout local route returns 400 for oversized request before JSON parsing',
 		}
 	} as any)
 
-	assert.equal(response.status, 400)
+	assert.equal(response.status, 413)
 	assert.equal(jsonCalled, false)
 	assert.deepEqual(await response.json(), { error: '请求体过大' })
 })
@@ -104,7 +104,7 @@ test('layout local route limits streamed JSON requests without content-length', 
 		} as RequestInit)
 	)
 
-	assert.equal(response.status, 400)
+	assert.equal(response.status, 413)
 	assert.equal(pulled <= 6, true)
 	assert.deepEqual(await response.json(), { error: '请求体过大' })
 })

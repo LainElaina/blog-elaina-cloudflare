@@ -9,17 +9,24 @@ export function isJsonRequestBodyTooLargeError(error: unknown) {
 	return error instanceof JsonRequestBodyTooLargeError
 }
 
-export async function readLimitedJsonRequest(request: Request, maxBytes: number): Promise<unknown> {
-	if (!('headers' in request) || !('body' in request)) {
-		return request.json()
-	}
+export function getLimitedJsonRequestErrorStatus(error: unknown) {
+	return isJsonRequestBodyTooLargeError(error) ? 413 : 400
+}
 
-	const contentLength = Number(request.headers.get('content-length'))
-	if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+function getJsonRequestContentLength(request: Request) {
+	const value = request.headers?.get('content-length')
+	if (!value) return null
+	const length = Number(value)
+	return Number.isFinite(length) && length >= 0 ? length : null
+}
+
+export async function readLimitedJsonRequest(request: Request, maxBytes: number): Promise<unknown> {
+	const contentLength = getJsonRequestContentLength(request)
+	if (contentLength !== null && contentLength > maxBytes) {
 		throw new JsonRequestBodyTooLargeError()
 	}
 
-	if (!request.body) {
+	if (!('body' in request) || !request.body) {
 		return request.json()
 	}
 
