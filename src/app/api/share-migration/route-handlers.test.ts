@@ -5,6 +5,7 @@ import { join, relative } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { executeRoute, previewRoute } from './route-handlers.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 
 type ShareRepoSetupOptions = {
   omitArtifacts?: Array<'list' | 'categories' | 'folders' | 'storage'>
@@ -85,6 +86,14 @@ async function readPreviewSnapshotHash(baseDir: string) {
   assert.equal(response.status, 200)
   assert.equal(typeof response.body.snapshotHash, 'string')
   return response.body.snapshotHash
+}
+
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>(next => {
+    resolve = next
+  })
+  return { promise, resolve }
 }
 
 
@@ -515,6 +524,53 @@ describe('share migration route handlers', () => {
       ])
     } finally {
       firstStorageWriteRelease?.()
+      await context.cleanup()
+    }
+  })
+
+  it('execute waits for the shared share content mutation lock before reading and writing', async () => {
+    const context = await setupShareArtifactsRepo()
+    const releaseLock = deferred()
+    const lockEntered = deferred()
+    let readCalled = false
+    let writeCalled = false
+
+    try {
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+      const lock = withLocalContentMutationLock(context.repoDir, 'share', async () => {
+        lockEntered.resolve()
+        await releaseLock.promise
+      })
+      await lockEntered.promise
+
+      const responsePromise = executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        snapshotHash,
+        baseDir: context.repoDir,
+        readText: async filePath => {
+          readCalled = true
+          return readFile(filePath, 'utf8')
+        },
+        writeText: async (filePath, content) => {
+          writeCalled = true
+          await writeFile(filePath, content)
+        }
+      })
+      await Promise.resolve()
+
+      assert.equal(readCalled, false)
+      assert.equal(writeCalled, false)
+
+      releaseLock.resolve()
+      const response = await responsePromise
+      await lock
+
+      assert.equal(response.status, 200)
+      assert.equal(readCalled, true)
+      assert.equal(writeCalled, true)
+    } finally {
+      releaseLock.resolve()
       await context.cleanup()
     }
   })

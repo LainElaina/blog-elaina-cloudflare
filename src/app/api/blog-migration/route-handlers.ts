@@ -8,6 +8,7 @@ import {
 	verifyBlogLedgerAgainstRuntime
 } from '../../../lib/content-db/migration-contracts.ts'
 import { isPathInsideDirectory } from '../local-path.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
 import { buildExecuteResponse, buildPreviewRouteResponse, enforceDevelopmentOnly } from './blog-migration-route-helper.ts'
 
@@ -23,23 +24,6 @@ const EMPTY_BLOG_STORAGE_ARTIFACT = JSON.stringify({
 	updatedAt: '',
 	blogs: {}
 })
-
-let blogMigrationExecuteLock: Promise<void> = Promise.resolve()
-
-async function withBlogMigrationExecuteLock<T>(operation: () => Promise<T>): Promise<T> {
-	const previous = blogMigrationExecuteLock
-	let release!: () => void
-	blogMigrationExecuteLock = new Promise<void>(resolve => {
-		release = resolve
-	})
-
-	await previous
-	try {
-		return await operation()
-	} finally {
-		release()
-	}
-}
 
 type BlogArtifactFailureCode = 'ARTIFACT_MISSING' | 'ARTIFACT_INVALID_JSON' | 'ARTIFACT_INVALID_SHAPE'
 
@@ -417,7 +401,7 @@ export async function executeRoute(params: { nodeEnv: string; confirmed: boolean
 
 	const baseDir = params.baseDir ?? process.cwd()
 	const writeRuntimeArtifactsImpl = params.writeRuntimeArtifactsForTest ?? writeRuntimeArtifacts
-	return withBlogMigrationExecuteLock(async () => {
+	return withLocalContentMutationLock(baseDir, 'blog', async () => {
 		try {
 			const runtimeSnapshot = await readRuntimeArtifactSnapshot(baseDir)
 			if (params.snapshotHash !== runtimeSnapshot.snapshotHash) {

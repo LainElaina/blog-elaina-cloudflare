@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { test } from 'node:test'
+import { withLocalContentMutationLock } from './local-content-mutation-lock.ts'
+
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>(next => {
+		resolve = next
+	})
+	return { promise, resolve }
+}
+
+test('local content mutation lock serializes callbacks for the same project and scope', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-'))
+	const releaseFirst = deferred()
+	const firstEntered = deferred()
+	const events: string[] = []
+
+	try {
+		const first = withLocalContentMutationLock(tmpDir, 'share', async () => {
+			events.push('first:start')
+			firstEntered.resolve()
+			await releaseFirst.promise
+			events.push('first:end')
+		})
+		await firstEntered.promise
+
+		const second = withLocalContentMutationLock(tmpDir, 'share', async () => {
+			events.push('second:start')
+		})
+		await Promise.resolve()
+
+		assert.deepEqual(events, ['first:start'])
+
+		releaseFirst.resolve()
+		await Promise.all([first, second])
+
+		assert.deepEqual(events, ['first:start', 'first:end', 'second:start'])
+	} finally {
+		releaseFirst.resolve()
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('local content mutation lock keeps blog and share scopes independent', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-scope-'))
+	const releaseShare = deferred()
+	const shareEntered = deferred()
+	const events: string[] = []
+
+	try {
+		const share = withLocalContentMutationLock(tmpDir, 'share', async () => {
+			events.push('share:start')
+			shareEntered.resolve()
+			await releaseShare.promise
+			events.push('share:end')
+		})
+		await shareEntered.promise
+
+		await withLocalContentMutationLock(tmpDir, 'blog', async () => {
+			events.push('blog:start')
+		})
+
+		assert.deepEqual(events, ['share:start', 'blog:start'])
+
+		releaseShare.resolve()
+		await share
+
+		assert.deepEqual(events, ['share:start', 'blog:start', 'share:end'])
+	} finally {
+		releaseShare.resolve()
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+})

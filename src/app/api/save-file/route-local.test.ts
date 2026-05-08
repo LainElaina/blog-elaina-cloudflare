@@ -4,7 +4,8 @@ import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { registerHooks } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { isAllowedSaveFilePath } from './local-save-file-path.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
+import { isAllowedSaveFilePath, getSaveFileLocalContentMutationScope } from './local-save-file-path.ts'
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
@@ -17,6 +18,14 @@ registerHooks({
 
 const { handleSaveFile } = await import('./route-local.ts')
 
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>(next => {
+		resolve = next
+	})
+	return { promise, resolve }
+}
+
 test('save-file local route allows only known content files and blog artifacts', () => {
 	const projectDir = resolve('/repo/blog')
 
@@ -24,6 +33,15 @@ test('save-file local route allows only known content files and blog artifacts',
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/share/storage.json')), true)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs/post-a/index.md')), true)
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs/post-a/config.json')), true)
+})
+
+test('save-file local route maps share and blog artifacts to local content mutation scopes', () => {
+	const projectDir = resolve('/repo/blog')
+
+	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'public/share/storage.json')), 'share')
+	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'public/blogs/storage.json')), 'blog')
+	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'public/blogs/post-a/index.md')), 'blog')
+	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'src/app/about/list.json')), null)
 })
 
 test('save-file local route rejects blog artifact directory root as a file path', () => {
@@ -63,6 +81,44 @@ test('save-file local route replaces files atomically', async () => {
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 	assert.match(source, /await writeFileAtomically\(fullPath, content\)/)
 	assert.doesNotMatch(source, /await writeFile\(fullPath, content, 'utf-8'\)/)
+})
+
+test('save-file local route waits for the share content mutation lock before writing share artifacts', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-share-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/share/categories.json'
+	try {
+		await mkdir(join(repoDir, 'public/share'), { recursive: true })
+		await writeFile(join(repoDir, filePath), '{"categories":[]}', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'share', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleSaveFile({
+			json: async () => ({ path: filePath, content: JSON.stringify({ categories: ['新分类'] }) })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), '{"categories":[]}')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		assert.deepEqual(JSON.parse(await readFile(join(repoDir, filePath), 'utf-8')), { categories: ['新分类'] })
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
+	}
 })
 
 test('save-file local route rejects invalid JSON content without replacing existing files', async () => {

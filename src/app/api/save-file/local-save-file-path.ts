@@ -1,6 +1,21 @@
 import { resolve } from 'path'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
+import type { LocalContentMutationScope } from '../local-content-mutation-lock.ts'
 import { isPathStrictlyInsideDirectory } from '../local-path.ts'
+
+const BLOG_CONTENT_SAVE_FILE_PATHS = [
+	'public/blogs/index.json',
+	'public/blogs/categories.json',
+	'public/blogs/folders.json',
+	'public/blogs/storage.json'
+]
+
+const SHARE_CONTENT_SAVE_FILE_PATHS = [
+	'public/share/list.json',
+	'public/share/categories.json',
+	'public/share/folders.json',
+	'public/share/storage.json'
+]
 
 const ALLOWED_SAVE_FILE_PATHS = [
 	'src/app/about/list.json',
@@ -8,14 +23,8 @@ const ALLOWED_SAVE_FILE_PATHS = [
 	'src/app/pictures/list.json',
 	'src/app/projects/list.json',
 	'src/app/snippets/list.json',
-	'public/blogs/index.json',
-	'public/blogs/categories.json',
-	'public/blogs/folders.json',
-	'public/blogs/storage.json',
-	'public/share/list.json',
-	'public/share/categories.json',
-	'public/share/folders.json',
-	'public/share/storage.json'
+	...BLOG_CONTENT_SAVE_FILE_PATHS,
+	...SHARE_CONTENT_SAVE_FILE_PATHS
 ]
 
 const ALLOWED_BLOG_POST_FILENAMES = new Set(['index.md', 'config.json'])
@@ -38,6 +47,16 @@ function isAllowedBlogPostFilePath(projectDir: string, fullPath: string) {
 	} catch {
 		return false
 	}
+}
+
+export function getSaveFileLocalContentMutationScope(projectDir: string, fullPath: string): LocalContentMutationScope | null {
+	if (BLOG_CONTENT_SAVE_FILE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath) || isAllowedBlogPostFilePath(projectDir, fullPath)) {
+		return 'blog'
+	}
+	if (SHARE_CONTENT_SAVE_FILE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath)) {
+		return 'share'
+	}
+	return null
 }
 
 export function isAllowedSaveFilePath(projectDir: string, fullPath: string) {

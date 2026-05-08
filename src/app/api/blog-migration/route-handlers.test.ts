@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { previewRoute, executeRoute } from './route-handlers.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 
 type BlogRuntimeArtifactsToWrite = {
 	index: string
@@ -61,6 +62,14 @@ async function readPreviewSnapshotHash(baseDir: string) {
 	assert.equal(response.status, 200)
 	assert.equal(typeof response.body.snapshotHash, 'string')
 	return response.body.snapshotHash
+}
+
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>(next => {
+		resolve = next
+	})
+	return { promise, resolve }
 }
 
 describe('blog migration routes', () => {
@@ -457,6 +466,49 @@ describe('blog migration routes', () => {
 			assert.equal(response.status, 200)
 			assert.deepEqual(response.body.artifactsToRebuildAfterExecute, ['public/blogs/categories.json'])
 		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('execute route 会等待共享博客内容写入锁', async () => {
+		const context = await setupBlogArtifactsRepo()
+		const releaseLock = deferred()
+		const lockEntered = deferred()
+		let writeCalled = false
+
+		try {
+			const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
+			assert.match(source, /return withLocalContentMutationLock\(baseDir, 'blog', async \(\) => \{\s*try \{\s*const runtimeSnapshot = await readRuntimeArtifactSnapshot\(baseDir\)/)
+
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			const lock = withLocalContentMutationLock(context.repoDir, 'blog', async () => {
+				lockEntered.resolve()
+				await releaseLock.promise
+			})
+			await lockEntered.promise
+
+			const responsePromise = executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest: async (baseDir, artifacts) => {
+					writeCalled = true
+					await writeBlogArtifacts(baseDir, artifacts)
+				}
+			})
+			await Promise.resolve()
+
+			assert.equal(writeCalled, false)
+
+			releaseLock.resolve()
+			const response = await responsePromise
+			await lock
+
+			assert.equal(response.status, 200)
+			assert.equal(writeCalled, true)
+		} finally {
+			releaseLock.resolve()
 			await context.cleanup()
 		}
 	})

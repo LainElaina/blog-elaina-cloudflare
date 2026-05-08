@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
 import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
-import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock } from '../site-config-local-shared.ts'
 import { isValidLayoutConfig } from './layout-config-validation.ts'
 
 export { isValidLayoutConfig } from './layout-config-validation.ts'
@@ -56,20 +56,22 @@ export async function handleLayoutPost(request: Request) {
 			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })
 		}
 
-		const layoutPath = getLayoutPath()
-		const backupPath = getBackupPath()
-		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
-		await assertSafeSiteConfigProjectPath(process.cwd(), backupPath)
-		if (fs.existsSync(layoutPath)) {
-			const dataDir = path.join(process.cwd(), 'data')
-			if (!fs.existsSync(dataDir)) {
-				fs.mkdirSync(dataDir, { recursive: true })
+		await withSiteConfigLocalMutationLock(process.cwd(), async () => {
+			const layoutPath = getLayoutPath()
+			const backupPath = getBackupPath()
+			await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
+			await assertSafeSiteConfigProjectPath(process.cwd(), backupPath)
+			if (fs.existsSync(layoutPath)) {
+				const dataDir = path.join(process.cwd(), 'data')
+				if (!fs.existsSync(dataDir)) {
+					fs.mkdirSync(dataDir, { recursive: true })
+				}
+				const current = fs.readFileSync(layoutPath, 'utf-8')
+				writeFileAtomically(backupPath, current)
 			}
-			const current = fs.readFileSync(layoutPath, 'utf-8')
-			writeFileAtomically(backupPath, current)
-		}
 
-		writeFileAtomically(layoutPath, JSON.stringify(layout, null, '\t'))
+			writeFileAtomically(layoutPath, JSON.stringify(layout, null, '\t'))
+		})
 
 		return NextResponse.json({ success: true })
 	} catch (error) {

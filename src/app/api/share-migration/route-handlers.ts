@@ -10,6 +10,7 @@ import {
   type ShareRuntimeArtifactsText
 } from '../../../lib/content-db/share-migration-contracts.ts'
 import { isPathInsideDirectory } from '../local-path.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 import { buildShareMigrationFailureResponse } from './share-migration-api-contracts.ts'
 import {
   buildShareMigrationExecuteRouteResponse,
@@ -28,23 +29,6 @@ type ShareArtifactSnapshot = {
 
 const PREVIEW_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。预检查基于当前磁盘快照。'
 const EXECUTE_NOTICE = '只处理 share 正式产物，不会修改 logo 图片。执行结果已基于写回后的磁盘状态复检。'
-
-let shareMigrationExecuteLock: Promise<void> = Promise.resolve()
-
-async function withShareMigrationExecuteLock<T>(operation: () => Promise<T>): Promise<T> {
-  const previous = shareMigrationExecuteLock
-  let release!: () => void
-  shareMigrationExecuteLock = new Promise<void>(resolve => {
-    release = resolve
-  })
-
-  await previous
-  try {
-    return await operation()
-  } finally {
-    release()
-  }
-}
 
 class ShareArtifactError extends Error {
   readonly failureCode: ShareArtifactFailureCode
@@ -471,7 +455,7 @@ export async function executeRoute(params: {
   const readText = params.readText ?? defaultReadText
   const writeText = params.writeText ?? defaultWriteText
 
-  return withShareMigrationExecuteLock(async () => {
+  return withLocalContentMutationLock(baseDir, 'share', async () => {
     try {
       const runtimeSnapshot = await readStrictShareArtifactSnapshot({ baseDir, readText })
       if (params.snapshotHash !== runtimeSnapshot.snapshotHash) {

@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isValidLayoutConfig } from '../layout/layout-config-validation.ts'
-import { assertSafeSiteConfigProjectPath, assertSiteConfigDraftLocalAssetsExist, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, assertSiteConfigDraftLocalAssetsExist, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock } from '../site-config-local-shared.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -165,18 +165,20 @@ export async function handleConfigPost(request: NextRequest) {
 		}
 		const backups: ConfigBackup[] = []
 
-		try {
-			for (const write of writes) {
-				const filePath = path.join(configDir, write.fileName)
-				await assertSafeSiteConfigProjectPath(process.cwd(), filePath)
-				backups.push(await readConfigBackup(filePath))
-				await writeFileAtomically(filePath, write.content)
+		await withSiteConfigLocalMutationLock(process.cwd(), async () => {
+			try {
+				for (const write of writes) {
+					const filePath = path.join(configDir, write.fileName)
+					await assertSafeSiteConfigProjectPath(process.cwd(), filePath)
+					backups.push(await readConfigBackup(filePath))
+					await writeFileAtomically(filePath, write.content)
+				}
+				await writeLayoutBackupIfNeeded(writes, backups)
+			} catch (error) {
+				await rollbackConfigWrites(backups)
+				throw error
 			}
-			await writeLayoutBackupIfNeeded(writes, backups)
-		} catch (error) {
-			await rollbackConfigWrites(backups)
-			throw error
-		}
+		})
 
 		return NextResponse.json({ success: true })
 	} catch (error: unknown) {

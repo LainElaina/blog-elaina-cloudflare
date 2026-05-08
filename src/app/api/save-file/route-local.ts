@@ -4,8 +4,9 @@ import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
+import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 import { isPathInsideDirectory } from '../local-path.ts'
-import { isAllowedSaveFilePath } from './local-save-file-path.ts'
+import { getSaveFileLocalContentMutationScope, isAllowedSaveFilePath } from './local-save-file-path.ts'
 
 const MAX_FILE_CONTENT_SIZE = 10 * 1024 * 1024
 const MAX_REQUEST_BODY_SIZE = MAX_FILE_CONTENT_SIZE + 1024 * 1024
@@ -350,11 +351,19 @@ export async function handleSaveFile(request: NextRequest) {
 			return NextResponse.json({ error: 'JSON 内容结构错误' }, { status: 400 })
 		}
 
-		const dir = dirname(fullPath)
-		await assertSafeExistingParentDirectory(projectDir, dir)
-		await mkdir(dir, { recursive: true })
+		const writeContent = async () => {
+			const dir = dirname(fullPath)
+			await assertSafeExistingParentDirectory(projectDir, dir)
+			await mkdir(dir, { recursive: true })
 
-		await writeFileAtomically(fullPath, content)
+			await writeFileAtomically(fullPath, content)
+		}
+		const mutationScope = getSaveFileLocalContentMutationScope(projectDir, fullPath)
+		if (mutationScope) {
+			await withLocalContentMutationLock(projectDir, mutationScope, writeContent)
+		} else {
+			await writeContent()
+		}
 		return NextResponse.json({ success: true })
 	} catch (error: any) {
 		if (isUnsafeParentDirectoryError(error)) {

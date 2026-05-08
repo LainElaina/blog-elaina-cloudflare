@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
-import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock } from '../../site-config-local-shared.ts'
 import { isValidLayoutConfig } from '../layout-config-validation.ts'
 
 function getLayoutPath() {
@@ -16,6 +16,10 @@ function buildAtomicLayoutUndoTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+class LayoutBackupMissingError extends Error {}
+
+class LayoutBackupInvalidError extends Error {}
+
 function writeFileAtomically(fullPath: string, content: string) {
 	const tempPath = buildAtomicLayoutUndoTempPath(fullPath)
 	try {
@@ -29,29 +33,37 @@ function writeFileAtomically(fullPath: string, content: string) {
 
 export async function handleLayoutUndoPost() {
 	try {
-		const layoutPath = getLayoutPath()
-		const backupPath = getBackupPath()
-		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
-		await assertSafeSiteConfigProjectPath(process.cwd(), backupPath)
-		if (!fs.existsSync(backupPath)) {
-			return NextResponse.json({ error: 'No backup found' }, { status: 404 })
-		}
+		await withSiteConfigLocalMutationLock(process.cwd(), async () => {
+			const layoutPath = getLayoutPath()
+			const backupPath = getBackupPath()
+			await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
+			await assertSafeSiteConfigProjectPath(process.cwd(), backupPath)
+			if (!fs.existsSync(backupPath)) {
+				throw new LayoutBackupMissingError()
+			}
 
-		const backup = fs.readFileSync(backupPath, 'utf-8')
-		let parsedBackup: unknown
-		try {
-			parsedBackup = JSON.parse(backup)
-		} catch {
-			return NextResponse.json({ error: '备份布局配置格式错误' }, { status: 400 })
-		}
-		if (!isValidLayoutConfig(parsedBackup)) {
-			return NextResponse.json({ error: '备份布局配置格式错误' }, { status: 400 })
-		}
+			const backup = fs.readFileSync(backupPath, 'utf-8')
+			let parsedBackup: unknown
+			try {
+				parsedBackup = JSON.parse(backup)
+			} catch {
+				throw new LayoutBackupInvalidError()
+			}
+			if (!isValidLayoutConfig(parsedBackup)) {
+				throw new LayoutBackupInvalidError()
+			}
 
-		writeFileAtomically(layoutPath, backup)
+			writeFileAtomically(layoutPath, backup)
+		})
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
+		if (error instanceof LayoutBackupMissingError) {
+			return NextResponse.json({ error: 'No backup found' }, { status: 404 })
+		}
+		if (error instanceof LayoutBackupInvalidError) {
+			return NextResponse.json({ error: '备份布局配置格式错误' }, { status: 400 })
+		}
 		if (isSiteConfigLocalValidationError(error)) {
 			return NextResponse.json({ error: error.message }, { status: 400 })
 		}

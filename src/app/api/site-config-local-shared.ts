@@ -29,7 +29,7 @@ type SiteContentWithSocialButtons = {
 	socialButtons?: unknown
 }
 
-const siteConfigDraftMutationLocks = new Map<string, Promise<void>>()
+const siteConfigLocalMutationLocks = new Map<string, Promise<void>>()
 
 function isPathInsideDirectory(baseDir: string, targetPath: string) {
 	const relativePath = path.relative(path.resolve(baseDir), path.resolve(targetPath))
@@ -81,23 +81,23 @@ export async function assertSafeSiteConfigProjectPath(baseDir: string, fullPath:
 	}
 }
 
-async function withSiteConfigDraftMutationLock<T>(baseDir: string, callback: () => Promise<T>): Promise<T> {
+export async function withSiteConfigLocalMutationLock<T>(baseDir: string, callback: () => Promise<T>): Promise<T> {
 	const lockKey = path.resolve(baseDir)
-	const previousLock = siteConfigDraftMutationLocks.get(lockKey) ?? Promise.resolve()
+	const previousLock = siteConfigLocalMutationLocks.get(lockKey) ?? Promise.resolve()
 	let releaseLock!: () => void
 	const currentLock = new Promise<void>(resolve => {
 		releaseLock = resolve
 	})
 	const nextLock = previousLock.catch(() => undefined).then(() => currentLock)
-	siteConfigDraftMutationLocks.set(lockKey, nextLock)
+	siteConfigLocalMutationLocks.set(lockKey, nextLock)
 
 	await previousLock.catch(() => undefined)
 	try {
 		return await callback()
 	} finally {
 		releaseLock()
-		if (siteConfigDraftMutationLocks.get(lockKey) === nextLock) {
-			siteConfigDraftMutationLocks.delete(lockKey)
+		if (siteConfigLocalMutationLocks.get(lockKey) === nextLock) {
+			siteConfigLocalMutationLocks.delete(lockKey)
 		}
 	}
 }
@@ -248,7 +248,7 @@ async function writeSiteConfigDraftUnlocked(baseDir: string, payload: SiteConfig
 }
 
 export async function writeSiteConfigDraft(baseDir: string, payload: SiteConfigDraftPayload) {
-	return withSiteConfigDraftMutationLock(baseDir, () => writeSiteConfigDraftUnlocked(baseDir, payload))
+	return withSiteConfigLocalMutationLock(baseDir, () => writeSiteConfigDraftUnlocked(baseDir, payload))
 }
 
 export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDraftPayload | null> {
@@ -266,7 +266,7 @@ export async function readSiteConfigDraft(baseDir: string): Promise<SiteConfigDr
 }
 
 export async function clearSiteConfigDraft(baseDir: string) {
-	return withSiteConfigDraftMutationLock(baseDir, async () => {
+	return withSiteConfigLocalMutationLock(baseDir, async () => {
 		const draftPath = resolveSiteConfigDraftPath(baseDir)
 		await assertSafeSiteConfigProjectPath(baseDir, draftPath)
 		await fs.rm(draftPath, { force: true })
@@ -588,11 +588,11 @@ async function publishSiteConfigDraftUnlocked(baseDir: string, draft: SiteConfig
 }
 
 export async function publishSiteConfigDraft(baseDir: string, draft: SiteConfigDraftPayload) {
-	return withSiteConfigDraftMutationLock(baseDir, () => publishSiteConfigDraftUnlocked(baseDir, draft))
+	return withSiteConfigLocalMutationLock(baseDir, () => publishSiteConfigDraftUnlocked(baseDir, draft))
 }
 
 export async function publishResolvedSiteConfigDraft(baseDir: string, payload: SiteConfigDraftPayload) {
-	return withSiteConfigDraftMutationLock(baseDir, async () => {
+	return withSiteConfigLocalMutationLock(baseDir, async () => {
 		const publishPayload = await resolveSiteConfigPublishPayload(baseDir, payload)
 		return publishSiteConfigDraftUnlocked(baseDir, publishPayload)
 	})
