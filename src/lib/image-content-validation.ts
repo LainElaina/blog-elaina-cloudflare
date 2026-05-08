@@ -57,3 +57,24 @@ export function isAllowedImageContent(extension: string, buffer: Uint8Array) {
 			return false
 	}
 }
+
+export function getImageFileExtension(filename: string): string {
+	const dotIndex = filename.lastIndexOf('.')
+	return dotIndex >= 0 ? filename.slice(dotIndex).toLowerCase() : ''
+}
+
+export async function assertAllowedImageFile(file: File, extension: string = getImageFileExtension(file.name)): Promise<void> {
+	if (!ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
+		throw new Error(`不允许的图片文件类型: ${extension}`)
+	}
+	if (file.size === 0) {
+		throw new Error('图片文件不能为空')
+	}
+	const buffer = new Uint8Array(await file.arrayBuffer())
+	if (buffer.length === 0) {
+		throw new Error('图片文件不能为空')
+	}
+	if (!isAllowedImageContent(extension, buffer)) {
+		throw new Error('图片内容与文件类型不匹配')
+	}
+}

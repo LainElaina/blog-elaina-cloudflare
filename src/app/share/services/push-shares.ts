@@ -15,7 +15,7 @@ import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import type { Share } from '../components/share-card'
 import type { LogoItem } from '../components/logo-upload-dialog'
-import { getFileExt } from '@/lib/utils'
+import { assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
 import { toast } from 'sonner'
 import { parseRequiredShareStorageDB } from '@/lib/content-db/share-storage'
 import { applyShareLogoPathUpdates, buildLocalShareSaveFilePayloads, buildUnusedShareLogoRepoPaths } from './share-artifacts'
@@ -133,8 +133,9 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 			toast.info('正在上传图标...')
 			for (const [url, logoItem] of logoItems.entries()) {
 				if (logoItem.type === 'file') {
+					const ext = getImageFileExtension(logoItem.file.name)
+					await assertAllowedImageFile(logoItem.file, ext)
 					const hash = logoItem.hash || (await hashFileSHA256(logoItem.file))
-					const ext = getFileExt(logoItem.file.name)
 					const filename = `${hash}${ext}`
 					const publicPath = `/images/share/${filename}`
 					const uploadKey = filename

@@ -38,9 +38,20 @@ function findCallContaining(source: string, callee: string, content: string) {
 	assert.notEqual(contentIndex, -1)
 	const callStart = source.lastIndexOf(`${callee}(`, contentIndex)
 	assert.notEqual(callStart, -1)
-	const callEnd = source.indexOf('\n\t)', contentIndex)
-	assert.notEqual(callEnd, -1)
-	return source.slice(callStart, callEnd)
+
+	let depth = 0
+	for (let index = callStart + callee.length; index < source.length; index++) {
+		if (source[index] === '(') {
+			depth++
+		} else if (source[index] === ')') {
+			depth--
+			if (depth === 0) {
+				return source.slice(callStart, index + 1)
+			}
+		}
+	}
+
+	assert.fail(`Could not find end of ${callee} call`)
 }
 
 const originalFetch = globalThis.fetch
@@ -145,6 +156,25 @@ test('putFile encodes nested contents paths segment by segment', async () => {
 	assert.deepEqual(urls, [
 		`${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world/index.md?ref=main`,
 		`${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world/index.md`
+	])
+})
+
+test('listRepoFilesRecursive encodes nested directory paths segment by segment', async () => {
+	const urls: string[] = []
+	globalThis.fetch = (async input => {
+		urls.push(String(input))
+		if (urls.length === 1) {
+			return new Response(JSON.stringify([{ type: 'dir', path: 'public/blogs/hello world/assets' }]), { status: 200 })
+		}
+		return new Response(JSON.stringify([{ type: 'file', path: 'public/blogs/hello world/assets/a.png' }]), { status: 200 })
+	}) as typeof fetch
+
+	assert.deepEqual(await listRepoFilesRecursive('token', 'owner', 'repo', 'public/blogs/hello world', 'main'), [
+		'public/blogs/hello world/assets/a.png'
+	])
+	assert.deepEqual(urls, [
+		`${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world?ref=main`,
+		`${GH_API}/repos/owner/repo/contents/public/blogs/hello%20world/assets?ref=main`
 	])
 })
 

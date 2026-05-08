@@ -1,8 +1,64 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
-import { buildUnusedBloggerAvatarDeleteTreeItems, filterExistingBloggerAvatarDeleteTreeItems } from './services/push-bloggers'
+const srcRootUrl = new URL('../../', import.meta.url)
+const testDirUrl = new URL('./', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined, error: () => undefined }'
+			}
+		}
+
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:application/json,{}'
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const resolved = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (resolved) {
+				return { shortCircuit: true, url: resolved }
+			}
+		}
+
+		if (specifier.startsWith('./') || specifier.startsWith('../')) {
+			const resolved = resolveProjectModule(new URL(context.parentURL ?? testDirUrl.href), specifier)
+			if (resolved) {
+				return { shortCircuit: true, url: resolved }
+			}
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const { buildUnusedBloggerAvatarDeleteTreeItems, filterExistingBloggerAvatarDeleteTreeItems } = await import('./services/push-bloggers')
 
 test('remote bloggers save filters delete items to existing baseline avatar files', () => {
 	const previousBloggers = [
@@ -42,12 +98,13 @@ test('remote bloggers save removes avatar files no longer referenced by list', a
 	const source = (await fs.readFile(new URL('./services/push-bloggers.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /readTextFileFromRepo/)
+	assert.match(source, /const previousBloggers = parsePreviousBloggerList\(previousListJson\)/)
 	assert.match(source, /listRepoFilesRecursive\([^\n]*'public\/images\/blogger', latestCommitSha\)/)
 	assert.match(source, /function bloggerAvatarRepoDeletePath\(publicPath: string\): string \| null/)
 	assert.match(source, /const pathOnly = publicPath\.split/)
 	assert.match(source, /const filename = pathOnly\.slice\(BLOGGER_AVATAR_PUBLIC_PREFIX\.length\)/)
 	assert.match(source, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
-	assert.match(source, /const previousBloggers: Blogger\[] = JSON\.parse\(previousListJson\)/)
+	assert.match(source, /function parsePreviousBloggerList\(previousListJson: string \| null\): Blogger\[]/)
 	assert.match(source, /filterExistingBloggerAvatarDeleteTreeItems\(/)
 	assert.match(source, /buildUnusedBloggerAvatarDeleteTreeItems\(previousBloggers, updatedBloggers\)/)
 	assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
@@ -57,15 +114,33 @@ test('remote bloggers save removes avatar files no longer referenced by list', a
 	assert.doesNotMatch(source, /正在检查需要删除的文件/)
 })
 
-test('remote bloggers save dedupes avatar uploads by filename to avoid hash extension collisions', async () => {
+test('remote bloggers publish validates avatar content and retries the full attempt on ref conflicts', async () => {
 	const source = (await fs.readFile(new URL('./services/push-bloggers.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const attemptStart = source.indexOf('async function attemptPushBloggers(): Promise<Blogger[]>')
+	const extIndex = source.indexOf('const ext = getImageFileExtension(avatarItem.file.name)', attemptStart)
+	const validateIndex = source.indexOf('await assertAllowedImageFile(avatarItem.file, ext)', attemptStart)
+	const hashIndex = source.indexOf('const hash = avatarItem.hash || (await hashFileSHA256(avatarItem.file))', attemptStart)
+	const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
 
-	assert.match(source, /const uploadedAvatarPaths = new Map<string, string>\(\)/)
-	assert.match(source, /const publicPath = `\/images\/blogger\/\$\{filename\}`/)
-	assert.match(source, /const filename = `\$\{hash\}\$\{ext\}`\n\s*const publicPath = `\/images\/blogger\/\$\{filename\}`\n\s*const uploadKey = filename/)
-	assert.match(source, /if \(!uploadedAvatarPaths\.has\(uploadKey\)\) \{[\s\S]*?uploadedAvatarPaths\.set\(uploadKey, publicPath\)[\s\S]*?\}/)
-	assert.match(source, /const uploadedPath = uploadedAvatarPaths\.get\(uploadKey\)!\n\s*updatedBloggers = updatedBloggers\.map\(b => \(b\.url === url \? \{ \.\.\.b, avatar: uploadedPath \} : b\)\)/)
-	assert.doesNotMatch(source, /uploadedAvatarPaths\.has\(hash\)/)
-	assert.doesNotMatch(source, /uploadedAvatarPaths\.set\(hash, publicPath\)/)
-	assert.doesNotMatch(source, /uploadedHashes/)
+	assert.notEqual(attemptStart, -1)
+	assert.ok(attemptStart < extIndex)
+	assert.ok(extIndex < validateIndex)
+	assert.ok(validateIndex < hashIndex)
+	assert.notEqual(retryIndex, -1)
+	assert.match(source, /try \{\n\s*return await attemptPushBloggers\(\)\n\s*\} catch \(error\) \{[\s\S]*return attemptPushBloggers\(\)/)
+	assert.doesNotMatch(source, /getFileExt/)
+})
+
+test('remote bloggers cleanup errors are not reported as list parse errors', async () => {
+	const source = (await fs.readFile(new URL('./services/push-bloggers.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const parseStart = source.indexOf('function parsePreviousBloggerList')
+	const parseEnd = source.indexOf('export async function pushBloggers')
+	const cleanupIndex = source.indexOf('await listRepoFilesRecursive', parseEnd)
+
+	assert.notEqual(parseStart, -1)
+	assert.notEqual(parseEnd, -1)
+	assert.notEqual(cleanupIndex, -1)
+	assert.ok(parseStart < parseEnd)
+	assert.ok(parseEnd < cleanupIndex)
+	assert.doesNotMatch(source.slice(parseStart, parseEnd), /listRepoFilesRecursive/)
 })

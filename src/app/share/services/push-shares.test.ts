@@ -1,14 +1,70 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
 import { describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 
-import { buildLocalShareSaveFilePayloads } from './share-artifacts.ts'
-import {
+const srcRootUrl = new URL('../../../', import.meta.url)
+const testDirUrl = new URL('./', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined, error: () => undefined }'
+			}
+		}
+
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:application/json,{}'
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const resolved = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (resolved) {
+				return { shortCircuit: true, url: resolved }
+			}
+		}
+
+		if (specifier.startsWith('./') || specifier.startsWith('../')) {
+			const resolved = resolveProjectModule(new URL(context.parentURL ?? testDirUrl.href), specifier)
+			if (resolved) {
+				return { shortCircuit: true, url: resolved }
+			}
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const { buildLocalShareSaveFilePayloads } = await import('./share-artifacts.ts')
+const {
 	buildRemoteShareArtifactContents,
 	buildUnusedShareLogoDeleteTreeItems,
 	buildUnusedShareLogoDeleteTreeItemsForStorage,
 	filterExistingShareLogoDeleteTreeItems
-} from './push-shares.ts'
+} = await import('./push-shares.ts')
 
 describe('buildUnusedShareLogoDeleteTreeItems', () => {
 	it('只删除旧列表中不再被当前分享引用的 share 图标文件', () => {

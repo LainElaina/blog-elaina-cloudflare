@@ -11,3 +11,17 @@ test('remote share logo uploads reuse the actual uploaded path for duplicate fil
 	assert.match(source, /nextLogoPaths\.set\(url, uploadedLogoPaths\.get\(uploadKey\)!\)/)
 	assert.doesNotMatch(source, /uploadedHashes/)
 })
+
+test('remote share logo uploads validate image content before hashing', async () => {
+	const source = (await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const attemptStart = source.indexOf('async function attemptPushShares(): Promise<PushSharesResult>')
+	const extIndex = source.indexOf('const ext = getImageFileExtension(logoItem.file.name)', attemptStart)
+	const validateIndex = source.indexOf('await assertAllowedImageFile(logoItem.file, ext)', attemptStart)
+	const hashIndex = source.indexOf('const hash = logoItem.hash || (await hashFileSHA256(logoItem.file))', attemptStart)
+
+	assert.notEqual(attemptStart, -1)
+	assert.ok(attemptStart < extIndex)
+	assert.ok(extIndex < validateIndex)
+	assert.ok(validateIndex < hashIndex)
+	assert.doesNotMatch(source, /getFileExt/)
+})

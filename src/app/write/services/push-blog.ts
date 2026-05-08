@@ -11,7 +11,7 @@ import {
 	isGitHubUpdateRefConflictError
 } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
-import { ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent } from '@/lib/image-content-validation'
+import { assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
 import { parseRequiredBlogStorageDB } from '@/lib/content-db/blog-storage'
 import { parseBlogIndexItemsRaw, prepareBlogStaticArtifacts, serializeCategoriesConfig, type BlogIndexItem } from '@/lib/blog-index'
 import { getAuthToken } from '@/lib/auth'
@@ -112,26 +112,7 @@ export function assertCreateBlogSlugAvailable(params: { slug: string; storageRaw
 	}
 }
 
-function getPublishImageFileExtension(filename: string): string {
-	const dotIndex = filename.lastIndexOf('.')
-	return dotIndex >= 0 ? filename.slice(dotIndex).toLowerCase() : ''
-}
-
-export async function assertAllowedPublishImageFile(file: File, extension: string): Promise<void> {
-	if (!ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
-		throw new Error(`不允许的图片文件类型: ${extension}`)
-	}
-	if (file.size === 0) {
-		throw new Error('图片文件不能为空')
-	}
-	const buffer = new Uint8Array(await file.arrayBuffer())
-	if (buffer.length === 0) {
-		throw new Error('图片文件不能为空')
-	}
-	if (!isAllowedImageContent(extension, buffer)) {
-		throw new Error('图片内容与文件类型不匹配')
-	}
-}
+export const assertAllowedPublishImageFile = assertAllowedImageFile
 
 export function assertPublishableOutput(params: Pick<PushBlogParams, 'form' | 'images'>): void {
 	assertPublishableBlog(params)
@@ -260,7 +241,7 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 		if (allLocalImages.length > 0) {
 			const placeholderReplacements = new Map<string, string>()
 			for (const { img, id } of allLocalImages) {
-				const ext = getPublishImageFileExtension(img.file.name)
+				const ext = getImageFileExtension(img.file.name)
 				await assertAllowedPublishImageFile(img.file, ext)
 				const hash = img.hash || (await hashFileSHA256(img.file))
 				const filename = `${hash}${ext}`

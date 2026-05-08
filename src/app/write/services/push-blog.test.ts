@@ -300,7 +300,7 @@ describe('pushBlog create slug checks', () => {
 
 	it('远端发布应在计算 hash 和创建 blob 前校验本地图片内容', async () => {
 		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
-		const extensionIndex = source.indexOf('const ext = getPublishImageFileExtension(img.file.name)')
+		const extensionIndex = source.indexOf('const ext = getImageFileExtension(img.file.name)')
 		const validationIndex = source.indexOf('await assertAllowedPublishImageFile(img.file, ext)')
 		const hashIndex = source.indexOf('await hashFileSHA256(img.file)')
 		const uploadToastIndex = source.indexOf("toast.info('正在上传图片...')")
@@ -315,7 +315,7 @@ describe('pushBlog create slug checks', () => {
 		assert.ok(validationIndex < hashIndex)
 		assert.ok(validationIndex < uploadToastIndex)
 		assert.ok(validationIndex < firstBlobIndex)
-		assert.match(source, /import \{ ALLOWED_IMAGE_EXTENSIONS, isAllowedImageContent \} from '@\/lib\/image-content-validation'/)
+		assert.match(source, /import \{ assertAllowedImageFile, getImageFileExtension \} from '@\/lib\/image-content-validation'/)
 		assert.doesNotMatch(source, /getFileExt\(img\.file\.name\)/)
 	})
 

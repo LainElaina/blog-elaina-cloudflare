@@ -1,8 +1,64 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
-import { buildUnusedProjectImageDeleteTreeItems, filterExistingProjectImageDeleteTreeItems } from './services/push-projects'
+const srcRootUrl = new URL('../../', import.meta.url)
+const testDirUrl = new URL('./', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined, error: () => undefined }'
+			}
+		}
+
+		if (specifier === '@/config/site-content.json') {
+			return {
+				shortCircuit: true,
+				url: 'data:application/json,{}'
+			}
+		}
+
+		if (specifier.startsWith('@/')) {
+			const resolved = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (resolved) {
+				return { shortCircuit: true, url: resolved }
+			}
+		}
+
+		if (specifier.startsWith('./') || specifier.startsWith('../')) {
+			const resolved = resolveProjectModule(new URL(context.parentURL ?? testDirUrl.href), specifier)
+			if (resolved) {
+				return { shortCircuit: true, url: resolved }
+			}
+		}
+
+		return nextResolve(specifier, context)
+	}
+})
+
+const { buildUnusedProjectImageDeleteTreeItems, filterExistingProjectImageDeleteTreeItems } = await import('./services/push-projects')
 
 test('remote projects save filters delete items to existing baseline image files', () => {
 	const previousProjects = [
@@ -42,12 +98,13 @@ test('remote projects save removes image files no longer referenced by list', as
 	const source = (await fs.readFile(new URL('./services/push-projects.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 	assert.match(source, /readTextFileFromRepo/)
+	assert.match(source, /const previousProjects = parsePreviousProjectList\(previousListJson\)/)
 	assert.match(source, /listRepoFilesRecursive\([^\n]*'public\/images\/project', latestCommitSha\)/)
 	assert.match(source, /function projectImageRepoDeletePath\(publicPath: string\): string \| null/)
 	assert.match(source, /const pathOnly = publicPath\.split/)
 	assert.match(source, /const filename = pathOnly\.slice\(PROJECT_IMAGE_PUBLIC_PREFIX\.length\)/)
 	assert.match(source, /filename\.includes\('\/'\) \|\| filename\.includes\('\\\\'\) \|\| filename\.includes\('\.\.'\)/)
-	assert.match(source, /const previousProjects: Project\[] = JSON\.parse\(previousListJson\)/)
+	assert.match(source, /function parsePreviousProjectList\(previousListJson: string \| null\): Project\[]/)
 	assert.match(source, /filterExistingProjectImageDeleteTreeItems\(/)
 	assert.match(source, /buildUnusedProjectImageDeleteTreeItems\(previousProjects, updatedProjects\)/)
 	assert.match(source, /treeItems\.push\(\.\.\.deleteTreeItems\)/)
@@ -56,15 +113,33 @@ test('remote projects save removes image files no longer referenced by list', as
 	assert.match(source, /throw new Error\('远程项目列表解析失败，请修复 src\/app\/projects\/list\.json 后重试'\)/)
 })
 
-test('remote projects save dedupes image uploads by filename to avoid hash extension collisions', async () => {
+test('remote projects publish validates image content and retries the full attempt on ref conflicts', async () => {
 	const source = (await fs.readFile(new URL('./services/push-projects.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const attemptStart = source.indexOf('async function attemptPushProjects(): Promise<Project[]>')
+	const extIndex = source.indexOf('const ext = getImageFileExtension(imageItem.file.name)', attemptStart)
+	const validateIndex = source.indexOf('await assertAllowedImageFile(imageItem.file, ext)', attemptStart)
+	const hashIndex = source.indexOf('const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))', attemptStart)
+	const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
 
-	assert.match(source, /const uploadedProjectImagePaths = new Map<string, string>\(\)/)
-	assert.match(source, /const publicPath = `\/images\/project\/\$\{filename\}`/)
-	assert.match(source, /const filename = `\$\{hash\}\$\{ext\}`\n\s*const publicPath = `\/images\/project\/\$\{filename\}`\n\s*const uploadKey = filename/)
-	assert.match(source, /if \(!uploadedProjectImagePaths\.has\(uploadKey\)\) \{[\s\S]*?uploadedProjectImagePaths\.set\(uploadKey, publicPath\)[\s\S]*?\}/)
-	assert.match(source, /const uploadedPath = uploadedProjectImagePaths\.get\(uploadKey\)!\n\s*updatedProjects = updatedProjects\.map\(p => \(p\.url === url \? \{ \.\.\.p, image: uploadedPath \} : p\)\)/)
-	assert.doesNotMatch(source, /uploadedProjectImagePaths\.has\(hash\)/)
-	assert.doesNotMatch(source, /uploadedProjectImagePaths\.set\(hash, publicPath\)/)
-	assert.doesNotMatch(source, /uploadedHashes/)
+	assert.notEqual(attemptStart, -1)
+	assert.ok(attemptStart < extIndex)
+	assert.ok(extIndex < validateIndex)
+	assert.ok(validateIndex < hashIndex)
+	assert.notEqual(retryIndex, -1)
+	assert.match(source, /try \{\n\s*return await attemptPushProjects\(\)\n\s*\} catch \(error\) \{[\s\S]*return attemptPushProjects\(\)/)
+	assert.doesNotMatch(source, /getFileExt/)
+})
+
+test('remote projects cleanup errors are not reported as list parse errors', async () => {
+	const source = (await fs.readFile(new URL('./services/push-projects.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
+	const parseStart = source.indexOf('function parsePreviousProjectList')
+	const parseEnd = source.indexOf('export async function pushProjects')
+	const cleanupIndex = source.indexOf('await listRepoFilesRecursive', parseEnd)
+
+	assert.notEqual(parseStart, -1)
+	assert.notEqual(parseEnd, -1)
+	assert.notEqual(cleanupIndex, -1)
+	assert.ok(parseStart < parseEnd)
+	assert.ok(parseEnd < cleanupIndex)
+	assert.doesNotMatch(source.slice(parseStart, parseEnd), /listRepoFilesRecursive/)
 })

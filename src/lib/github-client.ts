@@ -290,7 +290,7 @@ export async function readTextFileFromRepo(token: string, owner: string, repo: s
 
 export async function listRepoFilesRecursive(token: string, owner: string, repo: string, path: string, ref: string): Promise<string[]> {
 	async function fetchPath(targetPath: string): Promise<string[]> {
-		const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeURIComponent(targetPath)}?ref=${encodeURIComponent(ref)}`, {
+		const res = await fetch(`${GH_API}/repos/${owner}/${repo}/contents/${encodeGitHubContentsPath(targetPath)}?ref=${encodeURIComponent(ref)}`, {
 			headers: {
 				Authorization: `Bearer ${token}`,
 				Accept: 'application/vnd.github+json',
