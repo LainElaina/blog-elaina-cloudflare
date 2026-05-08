@@ -277,18 +277,17 @@ export function ColorConfig({ formData, setFormData }: ColorConfigProps) {
 				}
 				toast.success('色彩预设已保存到项目')
 			} else if (isAuth) {
-				const { getAuthToken } = await import('@/lib/auth')
-				const { getRef, createTree, createCommit, updateRef, createBlob } = await import('@/lib/github-client')
-				const { GITHUB_CONFIG } = await import('@/consts')
-				const token = await getAuthToken()
-				const ref = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
-				const content = btoa(unescape(encodeURIComponent(JSON.stringify(customPresets, null, '\t'))))
-				const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, content, 'base64')
-				const tree = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [
-					{ path: 'src/config/color-presets.json', mode: '100644', type: 'blob', sha: blob.sha }
-				], ref.sha)
-				const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '保存色彩预设', tree.sha, [ref.sha])
-				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
+				const { commitRemoteTextFiles } = await import('@/lib/remote-text-commit')
+
+				await commitRemoteTextFiles(
+					[
+						{
+							path: 'src/config/color-presets.json',
+							content: JSON.stringify(customPresets, null, '\t')
+						}
+					],
+					'保存色彩预设'
+				)
 				toast.success('色彩预设已推送到 GitHub')
 			} else {
 				toast.error('线上环境需要先导入密钥')

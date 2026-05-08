@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 import customComponentsDefault from '@/config/custom-components.json'
 import DraggerSVG from '@/svgs/dragger.svg'
 import { hashFileSHA256 } from '@/lib/file-utils'
-import { getFileExt } from '@/lib/utils'
+import { assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
 
 function readCachedList(key: string): unknown[] | null {
 	try {
@@ -159,17 +159,10 @@ export function ComponentStore() {
 			}
 		} else {
 			try {
-				const { fileToBase64NoPrefix } = await import('@/lib/file-utils')
-				const { getAuthToken } = await import('@/lib/auth')
-				const { createBlob, getRef, createTree, createCommit, updateRef } = await import('@/lib/github-client')
-				const { GITHUB_CONFIG } = await import('@/consts')
-				const token = await getAuthToken()
-				const refData = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
-				const contentBase64 = await fileToBase64NoPrefix(pendingImageFile.file)
-				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-				const treeData = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [{ path: `public${imageUrl}`, mode: '100644', type: 'blob', sha: blobData.sha }], refData.sha)
-				const commitData = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `上传自定义组件图片`, treeData.sha, [refData.sha])
-				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
+				const { commitRemoteBinaryFile } = await import('@/lib/remote-text-commit')
+				const ext = getImageFileExtension(pendingImageFile.file.name)
+				await assertAllowedImageFile(pendingImageFile.file, ext)
+				await commitRemoteBinaryFile({ path: `public${imageUrl}`, file: pendingImageFile.file }, '上传自定义组件图片')
 				toast.success('图片上传成功')
 				return true
 			} catch (error) {
@@ -353,17 +346,17 @@ export function ComponentStore() {
 				toast.success('自定义组件已保存到项目')
 				addLog('success', 'component', '自定义组件已保存到本地项目')
 			} else if (isAuth) {
-				const { getAuthToken } = await import('@/lib/auth')
-				const { getRef, createBlob, createTree, createCommit, updateRef, toBase64Utf8 } = await import('@/lib/github-client')
-				const { GITHUB_CONFIG } = await import('@/consts')
-				const token = await getAuthToken()
-				const ref = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
-				const blob = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, toBase64Utf8(componentsJson), 'base64')
-				const tree = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [
-					{ path: 'src/config/custom-components.json', mode: '100644', type: 'blob', sha: blob.sha }
-				], ref.sha)
-				const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '保存自定义组件', tree.sha, [ref.sha])
-				await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
+				const { commitRemoteTextFiles } = await import('@/lib/remote-text-commit')
+
+				await commitRemoteTextFiles(
+					[
+						{
+							path: 'src/config/custom-components.json',
+							content: componentsJson
+						}
+					],
+					'保存自定义组件'
+				)
 				toast.success('自定义组件已推送到 GitHub')
 				addLog('success', 'component', '自定义组件已推送到 GitHub')
 			} else {
@@ -486,7 +479,7 @@ export function ComponentStore() {
 												const file = e.target.files?.[0]
 												if (!file) return
 												const hash = await hashFileSHA256(file)
-												const ext = getFileExt(file.name)
+												const ext = getImageFileExtension(file.name)
 												const targetPath = `/images/custom-components/${hash}${ext}`
 												const previewUrl = URL.createObjectURL(file)
 												setPendingImageFile({ file, previewUrl, hash })

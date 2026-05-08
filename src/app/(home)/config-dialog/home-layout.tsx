@@ -94,26 +94,21 @@ export function HomeLayout({ cardStylesData, setCardStylesData, onClose }: HomeL
 			}
 			addLog('success', 'layout', '重置已保存到本地草稿')
 		} else if (isAuth) {
-			const { getAuthToken } = await import('@/lib/auth')
-			const { getRef, createTree, createCommit, updateRef, createBlob } = await import('@/lib/github-client')
-			const { GITHUB_CONFIG } = await import('@/consts')
+			const { commitRemoteTextFiles } = await import('@/lib/remote-text-commit')
 
-			const token = await getAuthToken()
-			const ref = await getRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`)
-
-			const cardStylesContent = btoa(unescape(encodeURIComponent(JSON.stringify(newCardStyles, null, '\t'))))
-			const componentsContent = btoa(unescape(encodeURIComponent(JSON.stringify(newComponents, null, '\t'))))
-
-			const blob1 = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, cardStylesContent, 'base64')
-			const blob2 = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, componentsContent, 'base64')
-
-			const tree = await createTree(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, [
-				{ path: 'src/config/card-styles.json', mode: '100644', type: 'blob', sha: blob1.sha },
-				{ path: 'src/config/custom-components.json', mode: '100644', type: 'blob', sha: blob2.sha }
-			], ref.sha)
-
-			const commit = await createCommit(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, '重置布局', tree.sha, [ref.sha])
-			await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commit.sha)
+			await commitRemoteTextFiles(
+				[
+					{
+						path: 'src/config/card-styles.json',
+						content: JSON.stringify(newCardStyles, null, '\t')
+					},
+					{
+						path: 'src/config/custom-components.json',
+						content: JSON.stringify(newComponents, null, '\t')
+					}
+				],
+				'重置布局'
+			)
 			addLog('success', 'layout', '重置已推送到 GitHub')
 		} else {
 			toast.error('线上环境需要先导入密钥才能持久化保存')
