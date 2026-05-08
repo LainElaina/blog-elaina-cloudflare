@@ -76,14 +76,8 @@ function parsePreviousShareList(previousListJson: string | null): Share[] {
 	}
 }
 
-function parseJsonWithFallback<T>(content: string | undefined, fallback: T): T {
-	if (!content) return fallback
-
-	try {
-		return JSON.parse(content) as T
-	} catch {
-		return fallback
-	}
+function parseJsonResult<T>(content: string): T {
+	return JSON.parse(content) as T
 }
 
 export function buildRemoteShareArtifactContents(params: {
@@ -201,9 +195,9 @@ export async function pushShares(params: PushSharesParams): Promise<PushSharesRe
 		await updateRef(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, `heads/${GITHUB_CONFIG.BRANCH}`, commitData.sha)
 
 		return {
-			list: parseJsonWithFallback<Share[]>(artifactContents.list, updatedShares),
-			categories: parseJsonWithFallback<ShareCategoriesArtifact>(artifactContents.categories, { categories: [] }),
-			folders: parseJsonWithFallback<ShareFolderNode[]>(artifactContents.folders, [])
+			list: parseJsonResult<Share[]>(artifactContents.list),
+			categories: parseJsonResult<ShareCategoriesArtifact>(artifactContents.categories),
+			folders: parseJsonResult<ShareFolderNode[]>(artifactContents.folders)
 		}
 	}
 

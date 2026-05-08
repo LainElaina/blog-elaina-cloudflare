@@ -3,6 +3,7 @@ import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import { toast } from 'sonner'
 import { fileToBase64NoPrefix } from '@/lib/file-utils'
+import { assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
 import type { SiteContent, CardStyles } from '../stores/config-store'
 import type { FileItem, ArtImageUploads, SocialButtonImageUploads, BackgroundImageUploads } from '../config-dialog/site-settings'
 import {
@@ -16,6 +17,18 @@ import {
 
 type ArtImageConfig = SiteContent['artImages'][number]
 type BackgroundImageConfig = SiteContent['backgroundImages'][number]
+
+async function appendImageFileTreeItem(token: string, treeItems: TreeItem[], path: string, file: File) {
+	await assertAllowedImageFile(file, getImageFileExtension(file.name))
+	const contentBase64 = await fileToBase64NoPrefix(file)
+	const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
+	treeItems.push({
+		path,
+		mode: '100644',
+		type: 'blob',
+		sha: blobData.sha
+	})
+}
 
 export async function pushSiteContent(
 	siteContent: SiteContent,
@@ -45,27 +58,13 @@ export async function pushSiteContent(
 		// Handle favicon upload
 		if (faviconItem?.type === 'file') {
 			toast.info('正在上传 Favicon...')
-			const contentBase64 = await fileToBase64NoPrefix(faviconItem.file)
-			const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-			treeItems.push({
-				path: 'public/favicon.png',
-				mode: '100644',
-				type: 'blob',
-				sha: blobData.sha
-			})
+			await appendImageFileTreeItem(token, treeItems, 'public/favicon.png', faviconItem.file)
 		}
 
 		// Handle avatar upload
 		if (avatarItem?.type === 'file') {
 			toast.info('正在上传 Avatar...')
-			const contentBase64 = await fileToBase64NoPrefix(avatarItem.file)
-			const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-			treeItems.push({
-				path: 'public/images/avatar.png',
-				mode: '100644',
-				type: 'blob',
-				sha: blobData.sha
-			})
+			await appendImageFileTreeItem(token, treeItems, 'public/images/avatar.png', avatarItem.file)
 		}
 
 		// Handle art images upload
@@ -80,14 +79,7 @@ export async function pushSiteContent(
 				if (!path) continue
 
 				toast.info(`正在上传 Art 图片 ${id}...`)
-				const contentBase64 = await fileToBase64NoPrefix(item.file)
-				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: blobData.sha
-				})
+				await appendImageFileTreeItem(token, treeItems, path, item.file)
 			}
 		}
 
@@ -118,14 +110,7 @@ export async function pushSiteContent(
 				if (!path) continue
 
 				toast.info(`正在上传背景图片 ${id}...`)
-				const contentBase64 = await fileToBase64NoPrefix(item.file)
-				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: blobData.sha
-				})
+				await appendImageFileTreeItem(token, treeItems, path, item.file)
 			}
 		}
 
@@ -156,14 +141,7 @@ export async function pushSiteContent(
 				if (!path) continue
 
 				toast.info(`正在上传社交按钮图片 ${buttonId}...`)
-				const contentBase64 = await fileToBase64NoPrefix(item.file)
-				const blobData = await createBlob(token, GITHUB_CONFIG.OWNER, GITHUB_CONFIG.REPO, contentBase64, 'base64')
-				treeItems.push({
-					path,
-					mode: '100644',
-					type: 'blob',
-					sha: blobData.sha
-				})
+				await appendImageFileTreeItem(token, treeItems, path, item.file)
 			}
 		}
 

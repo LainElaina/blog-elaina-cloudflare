@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { registerHooks } from 'node:module'
 
-import { fetchBlogIndex, getLatestBlogItem, normalizeBlogIndexItems } from './use-blog-index.ts'
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === '@/hooks/use-auth') {
+			return {
+				shortCircuit: true,
+				url: 'data:text/javascript,export const useAuthStore = () => ({ isAuth: false })'
+			}
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { fetchBlogIndex, getLatestBlogItem, normalizeBlogIndexItems } = await import('./use-blog-index.ts')
 
 function mockFetchResponse(response: { ok: boolean; status: number; json?: () => Promise<unknown> }) {
 	const originalFetch = globalThis.fetch
@@ -91,6 +104,19 @@ describe('normalizeBlogIndexItems', () => {
 				favorite: undefined
 			}
 		])
+	})
+
+	it('异常 hidden 值不会默认隐藏文章', () => {
+		const items = normalizeBlogIndexItems([
+			{ slug: 'string-zero', title: 'String Zero', date: '2026-01-01T00:00:00.000Z', hidden: '0' },
+			{ slug: 'null-hidden', title: 'Null Hidden', date: '2026-01-02T00:00:00.000Z', hidden: null },
+			{ slug: 'string-true', title: 'String True', date: '2026-01-03T00:00:00.000Z', hidden: 'true' }
+		])
+
+		assert.deepEqual(
+			items.map(item => item.hidden),
+			[false, false, true]
+		)
 	})
 })
 
