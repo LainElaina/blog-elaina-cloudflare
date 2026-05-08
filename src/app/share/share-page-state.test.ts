@@ -563,7 +563,7 @@ describe('share page state', () => {
 	it('page 保存本地产物时继续沿用 pending URL 映射生成 storage payload', async () => {
 		const { pageSource } = await readShareEditingSources()
 
-		assert.match(pageSource, /buildLocalShareSaveFilePayloads\(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls\)/)
+		assert.match(pageSource, /buildLocalShareSaveFilePayloads\(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls, \{[\s\S]*preserveUnlistedPublished: true/)
 	})
 
 	it('page 不再通过名称推断 rename 来源', async () => {

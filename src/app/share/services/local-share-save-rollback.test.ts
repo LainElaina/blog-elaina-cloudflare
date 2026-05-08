@@ -176,6 +176,27 @@ test('local share save rollback restores overwritten logos', async () => {
 	assert.deepEqual(Array.from(new Uint8Array(await file.arrayBuffer())), [1, 2, 3])
 })
 
+test('local share save rollback reports overwritten logo restore failures', async () => {
+	const calls: FetchCall[] = []
+	const oldLogo = new Uint8Array([1, 2, 3]).buffer
+	const uploadedFiles: LocalShareSaveUploadBackup[] = [
+		{ path: 'public/images/share/logo.png', existed: true, content: oldLogo, contentType: 'image/png' }
+	]
+	const fetchLocal = async (input: string, init?: RequestInit) => {
+		calls.push({ input, init })
+		if (input === '/api/upload-image') {
+			return textResponse('restore failed', false, 500)
+		}
+		return textResponse('{"success":true}')
+	}
+
+	await assert.rejects(() => rollbackLocalShareSave([], uploadedFiles, fetchLocal), /回滚失败：public\/images\/share\/logo\.png/)
+
+	assert.equal(calls.length, 1)
+	assert.equal(calls[0].input, '/api/upload-image')
+	assert.equal(calls[0].init?.method, 'POST')
+	assert.equal(calls.some(call => call.input === '/api/delete-image'), false)
+})
 test('local share logo cleanup deletes unused saved logo through delete-image endpoint', async () => {
 	const calls: FetchCall[] = []
 	const fetchLocal = async (input: string, init?: RequestInit) => {

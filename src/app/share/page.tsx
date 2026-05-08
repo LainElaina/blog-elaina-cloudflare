@@ -484,7 +484,9 @@ export default function Page() {
 
 				const existingStorageRaw = await readOptionalLocalShareStorageRaw()
 				const updatedShares = applyShareLogoPathUpdates(currentShares, nextLogoPaths)
-				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls)
+				const payloads = buildLocalShareSaveFilePayloads(updatedShares, existingStorageRaw, renamedUrls, deletedPublishedUrls, {
+					preserveUnlistedPublished: true
+				})
 				for (const payload of payloads) {
 					await saveLocalShareFile(payload, '保存分享产物', writtenFiles)
 				}

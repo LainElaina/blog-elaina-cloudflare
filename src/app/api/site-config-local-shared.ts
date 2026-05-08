@@ -69,6 +69,16 @@ export async function assertSafeSiteConfigProjectPath(baseDir: string, fullPath:
 	if (!isPathInsideDirectory(realProjectDir, realAncestor) || realAncestor !== expectedRealAncestor) {
 		throw new SiteConfigLocalValidationError('站点配置写入路径不合法')
 	}
+
+	const targetStats = await fs.lstat(targetPath).catch(error => {
+		if (isFileNotFoundError(error)) {
+			return null
+		}
+		throw error
+	})
+	if (targetStats !== null && !targetStats.isFile()) {
+		throw new SiteConfigLocalValidationError('站点配置写入路径不合法')
+	}
 }
 
 async function withSiteConfigDraftMutationLock<T>(baseDir: string, callback: () => Promise<T>): Promise<T> {
@@ -619,7 +629,7 @@ function collectSiteConfigDraftLocalAssets(draft: SiteConfigDraftPayload): Local
 	return assets
 }
 
-async function assertSiteConfigDraftLocalAssetsExist(baseDir: string, draft: SiteConfigDraftPayload) {
+export async function assertSiteConfigDraftLocalAssetsExist(baseDir: string, draft: SiteConfigDraftPayload) {
 	for (const asset of collectSiteConfigDraftLocalAssets(draft)) {
 		const repoPath = projectLocalAssetRepoPath(asset.url)
 		if (!repoPath) {

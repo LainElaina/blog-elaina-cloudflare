@@ -52,6 +52,9 @@ export async function handleLayoutUndoPost() {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		return NextResponse.json({ error: 'Failed to undo' }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
+		if (isSiteConfigLocalValidationError(error)) {
+			return NextResponse.json({ error: error.message }, { status: 400 })
+		}
+		return NextResponse.json({ error: 'Failed to undo' }, { status: 500 })
 	}
 }

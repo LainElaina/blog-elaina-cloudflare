@@ -7,7 +7,7 @@
     "svg": "node scripts/gen-svgs-index.js",
     "build": "next build",
     "start": "next start",
-    "build:cf": "opennextjs-cloudflare build",
+    "build:cf": "opennextjs-cloudflare build && node scripts/verify-cloudflare-worker-size.js",
     "verify:cf-worker-size": "node scripts/verify-cloudflare-worker-size.js",
     "preview": "opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare deploy",

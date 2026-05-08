@@ -208,6 +208,90 @@ describe('share storage model', () => {
 		assert.equal(storagePayload.shares.archived.status, 'archived')
 	})
 
+	it('本地保存可保留 stale UI 未携带的 published 记录', () => {
+		const payloads = buildLocalShareSaveFilePayloads(
+			[
+				{
+					name: 'Alpha',
+					logo: '/alpha-next.png',
+					url: 'https://alpha.dev',
+					description: 'alpha next',
+					tags: ['tool'],
+					stars: 5
+				}
+			],
+			JSON.stringify({
+				version: 1,
+				updatedAt: '2026-04-07T00:00:00.000Z',
+				shares: {
+					alpha: {
+						slug: 'alpha',
+						name: 'Alpha',
+						logo: '/alpha.png',
+						url: 'https://alpha.dev',
+						description: 'alpha',
+						tags: ['tool'],
+						stars: 4,
+						status: 'published'
+					},
+					beta: {
+						slug: 'beta',
+						name: 'Beta',
+						logo: '/beta.png',
+						url: 'https://beta.dev',
+						description: 'beta from another tab',
+						tags: ['design'],
+						stars: 4,
+						status: 'published'
+					}
+				}
+			}),
+			new Map(),
+			new Set(),
+			{ preserveUnlistedPublished: true }
+		)
+
+		const listPayload = JSON.parse(payloads.find(payload => payload.path === 'public/share/list.json')!.content)
+		const storagePayload = JSON.parse(payloads.find(payload => payload.path === 'public/share/storage.json')!.content)
+
+		assert.deepEqual(
+			listPayload.map((item: any) => item.url),
+			['https://alpha.dev', 'https://beta.dev']
+		)
+		assert.equal(storagePayload.shares.beta.description, 'beta from another tab')
+	})
+
+	it('本地保存仍会删除 stale UI 显式删除的 published 记录', () => {
+		const payloads = buildLocalShareSaveFilePayloads(
+			[],
+			JSON.stringify({
+				version: 1,
+				updatedAt: '2026-04-07T00:00:00.000Z',
+				shares: {
+					alpha: {
+						slug: 'alpha',
+						name: 'Alpha',
+						logo: '/alpha.png',
+						url: 'https://alpha.dev',
+						description: 'alpha',
+						tags: ['tool'],
+						stars: 4,
+						status: 'published'
+					}
+				}
+			}),
+			new Map(),
+			new Set(['https://alpha.dev']),
+			{ preserveUnlistedPublished: true }
+		)
+
+		const listPayload = JSON.parse(payloads.find(payload => payload.path === 'public/share/list.json')!.content)
+		const storagePayload = JSON.parse(payloads.find(payload => payload.path === 'public/share/storage.json')!.content)
+
+		assert.deepEqual(listPayload, [])
+		assert.equal(storagePayload.shares.alpha, undefined)
+	})
+
 	it('当前 published 与 archived 同 URL 时会保留 archived 并新增 published 记录', () => {
 		const payloads = buildLocalShareSaveFilePayloads(
 			[

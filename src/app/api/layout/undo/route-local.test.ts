@@ -52,7 +52,31 @@ test('layout undo local route rejects symlinked src config directory', async () 
 	}
 })
 
+test('layout undo local route rejects symlinked backup before reading it', async () => {
+	const previousCwd = process.cwd()
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-undo-backup-symlink-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-undo-backup-outside-'))
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.mkdir(path.join(tmpDir, 'data'), { recursive: true })
+		const currentLayout = { musicCard: { width: 120, height: 100, order: 1, offsetX: null, offsetY: null, enabled: true } }
+		const outsideBackup = { musicCard: { width: 240, height: 100, order: 1, offsetX: null, offsetY: null, enabled: true } }
+		await fs.writeFile(path.join(tmpDir, 'src/config/card-styles.json'), JSON.stringify(currentLayout, null, '\t'))
+		await fs.writeFile(path.join(outsideDir, 'layout.bak.json'), JSON.stringify(outsideBackup, null, '\t'))
+		await fs.symlink(path.join(outsideDir, 'layout.bak.json'), path.join(tmpDir, 'data/layout.bak.json'))
+		process.chdir(tmpDir)
 
+		const response = await handleLayoutUndoPost()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '站点配置写入路径不合法' })
+		assert.deepEqual(JSON.parse(await fs.readFile(path.join(tmpDir, 'src/config/card-styles.json'), 'utf-8')), currentLayout)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
 test('layout undo local route rejects invalid backup without replacing current layout', async () => {
 	const previousCwd = process.cwd()
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-undo-invalid-'))

@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isValidLayoutConfig } from '../layout/layout-config-validation.ts'
-import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, assertSiteConfigDraftLocalAssetsExist, isSiteConfigLocalValidationError } from '../site-config-local-shared.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -152,6 +152,10 @@ export async function handleConfigPost(request: NextRequest) {
 		const shapeErrorResponse = assertConfigPayloadShape(configPayload)
 		if (shapeErrorResponse) {
 			return shapeErrorResponse
+		}
+
+		if (configPayload.siteContent !== undefined) {
+			await assertSiteConfigDraftLocalAssetsExist(process.cwd(), { siteContent: configPayload.siteContent })
 		}
 
 		const configDir = path.join(process.cwd(), 'src/config')

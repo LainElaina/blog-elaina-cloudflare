@@ -223,6 +223,29 @@ test('upload image local route rejects disguised image extensions', async () => 
 	assert.deepEqual(await response.json(), { error: '图片内容与文件类型不匹配' })
 })
 
+test('upload image local route rejects unsafe SVG uploads without writing files', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-unsafe-svg-'))
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/share'), { recursive: true })
+		process.chdir(repoDir)
+
+		const formData = new FormData()
+		formData.set('file', new File(['<svg><script>alert(1)</script></svg>'], 'unsafe.svg', { type: 'image/svg+xml' }))
+		formData.set('path', 'public/images/share/unsafe.svg')
+
+		const response = await handleUploadImage({ formData: async () => formData } as any)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '图片内容与文件类型不匹配' })
+		await assert.rejects(() => fs.readFile(join(repoDir, 'public/images/share/unsafe.svg')), /ENOENT/)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+
 test('upload image local route validates allowed image signatures', () => {
 	assert.equal(isAllowedImageContent('.png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), true)
 	assert.equal(isAllowedImageContent('.jpg', Buffer.from([0xff, 0xd8, 0xff, 0x00])), true)

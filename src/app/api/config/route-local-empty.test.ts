@@ -215,7 +215,84 @@ test('local config write rejects symlinked src config directory', async () => {
 		await fs.rm(outsideDir, { recursive: true, force: true })
 	}
 })
+test('local config write rejects missing site content local assets without touching formal config', async () => {
+	await withTemporaryCwd(async tmpDir => {
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		const original = { meta: { title: 'formal' } }
+		await fs.mkdir(path.dirname(formalPath), { recursive: true })
+		await fs.writeFile(formalPath, JSON.stringify(original, null, '\t'))
 
+		const response = await handleConfigPost(
+			new Request('http://localhost/api/config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: { artImages: [{ url: '/images/art/missing.png' }] } })
+			}) as any
+		)
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '草稿引用的本地资源不存在：首页图片 /images/art/missing.png' })
+		assert.deepEqual(JSON.parse(await fs.readFile(formalPath, 'utf-8')), original)
+	})
+})
+
+test('local config write rejects symlinked site content local assets without touching formal config', async () => {
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'config-route-asset-outside-'))
+	try {
+		await withTemporaryCwd(async tmpDir => {
+			const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+			const assetPath = path.join(tmpDir, 'public/images/art/linked.png')
+			const original = { meta: { title: 'formal' } }
+			await fs.mkdir(path.dirname(formalPath), { recursive: true })
+			await fs.mkdir(path.dirname(assetPath), { recursive: true })
+			await fs.writeFile(formalPath, JSON.stringify(original, null, '\t'))
+			await fs.writeFile(path.join(outsideDir, 'outside.png'), 'outside')
+			await fs.symlink(path.join(outsideDir, 'outside.png'), assetPath)
+
+			const response = await handleConfigPost(
+				new Request('http://localhost/api/config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ siteContent: { artImages: [{ url: '/images/art/linked.png' }] } })
+				}) as any
+			)
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(await response.json(), { error: '草稿引用的本地资源不存在：首页图片 /images/art/linked.png' })
+			assert.deepEqual(JSON.parse(await fs.readFile(formalPath, 'utf-8')), original)
+		})
+	} finally {
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
+test('local config write rejects symlinked formal config files before reading or writing through them', async () => {
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'config-route-formal-outside-'))
+	try {
+		await withTemporaryCwd(async tmpDir => {
+			const configDir = path.join(tmpDir, 'src/config')
+			const outsidePath = path.join(outsideDir, 'site-content.json')
+			const outsideOriginal = { meta: { title: 'outside' } }
+			await fs.mkdir(configDir, { recursive: true })
+			await fs.writeFile(outsidePath, JSON.stringify(outsideOriginal, null, '\t'))
+			await fs.symlink(outsidePath, path.join(configDir, 'site-content.json'))
+
+			const response = await handleConfigPost(
+				new Request('http://localhost/api/config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ siteContent: { meta: { title: 'draft' } } })
+				}) as any
+			)
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(await response.json(), { error: '站点配置写入路径不合法' })
+			assert.deepEqual(JSON.parse(await fs.readFile(outsidePath, 'utf-8')), outsideOriginal)
+		})
+	} finally {
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
 
 test('local config write rejects empty config payloads', async () => {
 	const response = await handleConfigPost({
