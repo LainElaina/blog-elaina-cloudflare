@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
 	const { previewRoute } = await import('../route-handlers.ts')
 	const result = await previewRoute({
-		nodeEnv: 'development',
+		nodeEnv: process.env.NODE_ENV,
 		baseDir: process.cwd()
 	})
 

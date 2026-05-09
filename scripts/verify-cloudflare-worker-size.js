@@ -5,6 +5,14 @@ const { gzipSync } = require('node:zlib')
 const DEFAULT_WORKER_PATHS = ['.open-next/worker.js', '.open-next/server-functions/default/handler.mjs']
 const DEFAULT_MAX_GZIP_BYTES = 3 * 1024 * 1024
 const OPERATION = 'verify-cloudflare-worker-size'
+const DEFAULT_FORBIDDEN_MARKERS = [
+  'route-local',
+  'route-handlers',
+  'site-config-local-shared',
+  'local-content-mutation-lock',
+  'blog-migration-route-helper',
+  'share-migration-route-helper'
+]
 
 class VerifyArgumentError extends Error {
   failureCode = 'ARGUMENT_INVALID'
@@ -38,6 +46,17 @@ class WorkerTooLargeError extends Error {
   }
 }
 
+class WorkerForbiddenMarkerError extends Error {
+  failureCode = 'WORKER_FORBIDDEN_MARKER'
+
+  constructor(workerPath, marker) {
+    super(`Cloudflare Worker 产物包含本地专用模块标记 ${marker}：${workerPath}`)
+    this.name = 'WorkerForbiddenMarkerError'
+    this.workerPath = workerPath
+    this.marker = marker
+  }
+}
+
 function parsePositiveInteger(value, flagName) {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -57,6 +76,7 @@ function readFlagValue(argv, index, flagName) {
 function parseArgs(argv) {
   let workerPaths = DEFAULT_WORKER_PATHS
   let maxGzipBytes = DEFAULT_MAX_GZIP_BYTES
+  let forbiddenMarkers = DEFAULT_FORBIDDEN_MARKERS
 
   for (let index = 0; index < argv.length; index += 1) {
     const entry = argv[index]
@@ -85,19 +105,30 @@ function parseArgs(argv) {
       continue
     }
 
+    if (entry === '--no-forbidden-marker-check') {
+      forbiddenMarkers = []
+      continue
+    }
+
     throw new VerifyArgumentError(`未知参数：${entry}`)
   }
 
-  return { workerPaths, maxGzipBytes }
+  return { workerPaths, maxGzipBytes, forbiddenMarkers }
 }
 
-function measureWorkerArtifact(workerPath, maxGzipBytes) {
+function measureWorkerArtifact(workerPath, maxGzipBytes, forbiddenMarkers) {
   const fullPath = resolve(workerPath)
   if (!existsSync(fullPath)) {
     throw new WorkerMissingError(workerPath)
   }
 
   const worker = readFileSync(fullPath)
+  const source = worker.toString('utf8')
+  const forbiddenMarker = forbiddenMarkers.find(marker => source.includes(marker))
+  if (forbiddenMarker) {
+    throw new WorkerForbiddenMarkerError(workerPath, forbiddenMarker)
+  }
+
   const gzipBytes = gzipSync(worker, { level: 9 }).byteLength
   if (gzipBytes > maxGzipBytes) {
     throw new WorkerTooLargeError(workerPath, worker.byteLength, gzipBytes, maxGzipBytes)
@@ -112,7 +143,7 @@ function measureWorkerArtifact(workerPath, maxGzipBytes) {
 }
 
 function verifyCloudflareWorkerSize(args) {
-  const artifacts = args.workerPaths.map(workerPath => measureWorkerArtifact(workerPath, args.maxGzipBytes))
+  const artifacts = args.workerPaths.map(workerPath => measureWorkerArtifact(workerPath, args.maxGzipBytes, args.forbiddenMarkers))
 
   return {
     ok: true,
@@ -143,6 +174,17 @@ function buildFailureSummary(error) {
       code: error.failureCode,
       message: error.message,
       workerPath: error.workerPath
+    }
+  }
+
+  if (error instanceof WorkerForbiddenMarkerError) {
+    return {
+      ok: false,
+      operation: OPERATION,
+      code: error.failureCode,
+      message: error.message,
+      workerPath: error.workerPath,
+      marker: error.marker
     }
   }
 

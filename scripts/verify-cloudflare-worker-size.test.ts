@@ -26,6 +26,7 @@ type VerifyWorkerSizeSummary = {
   operation: string
   code?: string
   message?: string
+  marker?: string
   workerPath?: string
   rawBytes?: number
   gzipBytes?: number
@@ -161,6 +162,43 @@ describe('verify-cloudflare-worker-size script', () => {
       assert.equal(summary.maxGzipBytes, 64)
       assert.equal((summary.gzipBytes ?? 0) > 64, true)
       assert.match(result.stderr.trim(), /超过限制/)
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails when worker artifacts contain local-only module markers', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-marker-fail-'))
+    const workerPath = join(tmpDir, 'worker.js')
+
+    try {
+      await writeFile(workerPath, 'export default { async fetch() { return import("./route-local") } }')
+      const result = runVerifyScript([`--worker=${workerPath}`, '--max-gzip-bytes=1024'])
+      const summary = parseStdoutJson(result)
+
+      assert.equal(result.status, 2)
+      assert.equal(summary.ok, false)
+      assert.equal(summary.code, 'WORKER_FORBIDDEN_MARKER')
+      assert.equal(summary.workerPath, workerPath)
+      assert.equal(summary.marker, 'route-local')
+      assert.match(result.stderr.trim(), /本地专用模块标记/)
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('can run a manual size-only check without forbidden marker scanning', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-marker-skip-'))
+    const workerPath = join(tmpDir, 'worker.js')
+
+    try {
+      await writeFile(workerPath, 'export default { async fetch() { return import("./route-local") } }')
+      const result = runVerifyScript([`--worker=${workerPath}`, '--max-gzip-bytes=1024', '--no-forbidden-marker-check'])
+      const summary = parseStdoutJson(result)
+
+      assert.equal(result.status, 0)
+      assert.equal(summary.ok, true)
+      assert.equal(summary.workerPath, workerPath)
     } finally {
       await rm(tmpDir, { recursive: true, force: true })
     }

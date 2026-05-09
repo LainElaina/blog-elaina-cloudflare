@@ -30,6 +30,13 @@ const localOnlyRouteFiles = [
 	'upload-image/route.ts'
 ] as const
 
+const localOnlyMigrationRouteFiles = [
+	'blog-migration/execute/route.ts',
+	'blog-migration/preview/route.ts',
+	'share-migration/execute/route.ts',
+	'share-migration/preview/route.ts'
+] as const
+
 function assertAppearsBefore(source: string, earlier: string, later: string, routeFile: string) {
 	const earlierIndex = source.indexOf(earlier)
 	const laterIndex = source.indexOf(later)
@@ -103,5 +110,13 @@ test('local-only route wrappers return in production before parsing or importing
 		if (source.includes("await import('../../site-config-local-shared.ts')")) {
 			assertAppearsBefore(source, "if (process.env.NODE_ENV !== 'development')", "await import('../../site-config-local-shared.ts')", routeFile)
 		}
+	}
+})
+
+test('local-only migration routes pass real node env to inner handlers', async () => {
+	for (const routeFile of localOnlyMigrationRouteFiles) {
+		const source = await readFile(new URL(routeFile, import.meta.url), 'utf-8')
+		assert.match(source, /nodeEnv:\s*process\.env\.NODE_ENV/)
+		assert.doesNotMatch(source, /nodeEnv:\s*['"]development['"]/, `${routeFile} 不应向内部迁移 handler 传入硬编码 development`)
 	}
 })
