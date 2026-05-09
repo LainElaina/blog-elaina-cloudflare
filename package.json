@@ -10,7 +10,7 @@
     "build:cf": "opennextjs-cloudflare build && node scripts/verify-cloudflare-worker-size.js",
     "verify:cf-worker-size": "node scripts/verify-cloudflare-worker-size.js",
     "preview": "opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare deploy",
+    "deploy": "corepack pnpm run build:cf && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {

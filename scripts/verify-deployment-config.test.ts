@@ -14,6 +14,14 @@ test('wrangler build command uses packageManager-pinned pnpm through corepack', 
 	assert.doesNotMatch(wranglerConfig, /command = "pnpm run build:cf"/)
 })
 
+test('deploy script runs the verified Cloudflare build before deploying', async () => {
+	const packageJsonSource = await readFile(new URL('../package.json', import.meta.url), 'utf-8')
+	const packageJson = JSON.parse(packageJsonSource) as { scripts?: Record<string, string> }
+
+	assert.equal(packageJson.scripts?.['build:cf'], 'opennextjs-cloudflare build && node scripts/verify-cloudflare-worker-size.js')
+	assert.equal(packageJson.scripts?.deploy, 'corepack pnpm run build:cf && opennextjs-cloudflare deploy')
+})
+
 test('production build checks TypeScript with build tsconfig', async () => {
 	const [nextConfig, buildTsconfig] = await Promise.all([
 		readFile(new URL('../next.config.ts', import.meta.url), 'utf-8'),
