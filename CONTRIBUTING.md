@@ -818,7 +818,7 @@ import DraggerSVG from '@/svgs/dragger.svg'
 
 1. 代码推送到 GitHub（`git push origin main`）
 2. Cloudflare Git 集成自动触发构建
-3. 构建命令：`pnpm run build:cf`（执行 `opennextjs-cloudflare build`）
+3. 构建命令：`corepack pnpm run build:cf`（执行 `opennextjs-cloudflare build` 并校验 Worker gzip 体积）
 4. 部署到 Cloudflare Workers 边缘节点
 
 ### Worker 体积维护规则

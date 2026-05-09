@@ -350,7 +350,7 @@ Markdown 代码高亮只加载常用语言和 `one-light` 主题；新增语言�
 
 线上 `/write` 与网站设置保存仍保留 GitHub App PEM/private key 浏览器端直写 GitHub 的能力：浏览器签发 GitHub App JWT、获取 installation token，并通过 GitHub API commit 到仓库。不要为了“瘦身”把这条链路迁移成重型 Worker 服务端代理，除非以后单独设计鉴权、密钥托管与 Worker 体积方案。
 
-部署配置也要避免重复构建：Cloudflare Dashboard 的 build command、`pnpm run deploy`、`wrangler.toml` 的 `[build] command` 都可能触发 OpenNext 构建。调整部署方式时保持单一可信构建入口，避免一次部署里重复运行 Next/OpenNext 构建。
+部署配置也要避免重复构建：Cloudflare Dashboard 的 build command、`corepack pnpm run deploy`、`wrangler.toml` 的 `[build] command` 都可能触发 OpenNext 构建。调整部署方式时保持单一可信构建入口，避免一次部署里重复运行 Next/OpenNext 构建；在 CI/Cloudflare 环境中优先通过 `corepack pnpm` 使用 `packageManager` 锁定的 pnpm 版本。
 
 ---
 

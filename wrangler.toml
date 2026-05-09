@@ -13,7 +13,7 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 [build]
-command = "pnpm run build:cf"
+command = "corepack pnpm run build:cf"
 
 [observability]
 [observability.logs]

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import blogIndex from '@/../public/blogs/index.json'
+import { isRuntimeBlogSlug } from '@/app/rss.xml/rss-utils'
 import { getBlogHref } from '@/lib/blog-href'
 import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
 
@@ -21,7 +22,7 @@ export function normalizeSitemapBlogPosts(value: unknown): SitemapBlogPost[] {
 		}
 
 		const post = item as Record<string, unknown>
-		if (typeof post.slug !== 'string' || post.slug.length === 0 || post.hidden) {
+		if (typeof post.slug !== 'string' || !isRuntimeBlogSlug(post.slug) || post.hidden) {
 			return []
 		}
 

@@ -1,7 +1,40 @@
 import type { BlogIndexItem } from '../blog/types.ts'
 
-function isRuntimeBlogSlug(value: string): boolean {
-	return value.trim().length > 0 && !value.includes('/') && !value.includes('\\')
+function isSafeUriComponent(value: string): boolean {
+	try {
+		encodeURIComponent(value)
+		return true
+	} catch {
+		return false
+	}
+}
+
+export function isRuntimeBlogSlug(value: string): boolean {
+	return value.trim() === value && value.length > 0 && !value.includes('/') && !value.includes('\\') && isSafeUriComponent(value)
+}
+
+export function sanitizeXmlText(value: string): string {
+	let sanitized = ''
+	for (const char of value) {
+		const code = char.codePointAt(0) ?? 0
+		if (code === 9 || code === 10 || code === 13 || code >= 32 && code <= 0xd7ff || code >= 0xe000 && code <= 0xfffd || code >= 0x10000 && code <= 0x10ffff) {
+			sanitized += char
+		}
+	}
+	return sanitized
+}
+
+export function escapeXml(value: string): string {
+	return sanitizeXmlText(value)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&apos;')
+}
+
+export function wrapCdata(value: string): string {
+	return `<![CDATA[${sanitizeXmlText(value).replaceAll(']]>', ']]]]><![CDATA[>')}]]>`
 }
 
 export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
@@ -31,5 +64,3 @@ export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
 		]
 	})
 }
-
-export const wrapCdata = (value: string): string => `<![CDATA[${value.replaceAll(']]>', ']]]]><![CDATA[>')}]]>`

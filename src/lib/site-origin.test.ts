@@ -171,11 +171,16 @@ describe('site canonical URL generation', () => {
 			null,
 			{ slug: 'valid-post', date: '2026-01-01T00:00:00.000Z' },
 			{ slug: '', date: '2026-01-01T00:00:00.000Z' },
+			{ slug: 'bad/slash', date: '2026-01-01T00:00:00.000Z' },
+			{ slug: 'bad\\slash', date: '2026-01-01T00:00:00.000Z' },
+			{ slug: String.fromCharCode(0xd800), date: '2026-01-01T00:00:00.000Z' },
 			{ title: 'missing slug' },
 			{ slug: 'hidden-post', hidden: true }
 		])
 
 		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/valid-post')), true)
+		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/bad%2Fslash')), false)
+		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/bad%5Cslash')), false)
 		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/hidden-post')), false)
 	})
 })
