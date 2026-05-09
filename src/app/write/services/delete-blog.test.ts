@@ -199,12 +199,14 @@ describe('hasBlogRecordForDelete', () => {
 	})
 })
 
-describe('deleteBlog remote update retry', () => {
-	it('远端删除遇到分支更新冲突时应重新执行完整删除流程', async () => {
+describe('deleteBlog remote stale write protection', () => {
+	it('远端删除遇到分支更新冲突时应阻断旧状态覆盖', async () => {
 		const source = (await fs.readFile(new URL('./delete-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
 		assert.match(source, /async function attemptDeleteBlog\(\)/)
-		assert.match(source, /if \(isGitHubUpdateRefConflictError\(error\)\) \{\n\s*toast\.info\('分支已更新，正在重新删除\.\.\.'\)\n\s*await attemptDeleteBlog\(\)/)
+		assert.match(source, /catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+		assert.doesNotMatch(source, /isGitHubUpdateRefConflictError/)
+		assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*await attemptDeleteBlog\(\)/)
 		assert.match(source, /const refData = await getRef[\s\S]*?const latestCommitSha = refData\.sha[\s\S]*?await updateRef\(token, GITHUB_CONFIG\.OWNER, GITHUB_CONFIG\.REPO, `heads\/\$\{GITHUB_CONFIG\.BRANCH\}`, commitData\.sha\)/)
 	})
 })

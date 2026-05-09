@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
-import { createBlob, createCommit, createTree, getRef, isGitHubUpdateRefConflictError, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
+import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, throwStaleRemoteWriteConflictError, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
 import { buildBatchDeleteArtifactContents } from '../../write/services/delete-blog'
 import { assertSafeBlogSlug } from '../../write/services/blog-slug'
 
@@ -69,12 +69,7 @@ export async function batchDeleteBlogs(slugs: string[]): Promise<void> {
 	try {
 		await attemptBatchDeleteBlogs()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新删除...')
-			await attemptBatchDeleteBlogs()
-		} else {
-			throw error
-		}
+		throwStaleRemoteWriteConflictError(error)
 	}
 
 	toast.success('删除成功！请等待页面部署后刷新')

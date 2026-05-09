@@ -9,7 +9,7 @@ import {
 	listRepoFilesRecursive,
 	readTextFileFromRepo,
 	toBase64Utf8,
-	isGitHubUpdateRefConflictError,
+	throwStaleRemoteWriteConflictError,
 	updateRef
 } from '@/lib/github-client'
 import type { TreeItem } from '@/lib/github-client'
@@ -129,12 +129,7 @@ export async function deleteBlog(slug: string): Promise<void> {
 	try {
 		await attemptDeleteBlog()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新删除...')
-			await attemptDeleteBlog()
-		} else {
-			throw error
-		}
+		throwStaleRemoteWriteConflictError(error)
 	}
 
 	toast.success('删除成功！请等待页面部署后刷新')

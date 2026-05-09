@@ -127,6 +127,99 @@ describe('buildArtifactsForSaveBlogEdits', () => {
 			/slug 只能使用小写字母、数字和单个连字符/
 		)
 	})
+
+	it('保存列表编辑时只覆盖实际修改项并保留远端未改动项', () => {
+		const originalItems = [
+			{ slug: 'changed-post', title: '旧标题', tags: ['a'], date: '2026-05-01T00:00:00.000Z', category: '旧分类' },
+			{ slug: 'untouched-post', title: '旧未改动标题', tags: ['b'], date: '2026-05-02T00:00:00.000Z' }
+		]
+		const nextItems = [
+			{ slug: 'changed-post', title: '新标题', tags: ['a'], date: '2026-05-01T00:00:00.000Z', category: '旧分类' },
+			{ slug: 'untouched-post', title: '旧未改动标题', tags: ['b'], date: '2026-05-02T00:00:00.000Z' }
+		]
+		const artifacts = buildArtifactsForSaveBlogEdits({
+			originalItems,
+			nextItems,
+			categories: [],
+			existingStorageRaw: JSON.stringify({
+				version: 1,
+				updatedAt: '2026-05-04T00:00:00.000Z',
+				blogs: {
+					'changed-post': {
+						slug: 'changed-post',
+						title: '旧标题',
+						tags: ['a'],
+						date: '2026-05-01T00:00:00.000Z',
+						category: '旧分类',
+						status: 'published'
+					},
+					'untouched-post': {
+						slug: 'untouched-post',
+						title: '远端新标题',
+						tags: ['b'],
+						date: '2026-05-02T00:00:00.000Z',
+						summary: '远端新增摘要',
+						status: 'published'
+					}
+				}
+			}),
+			now: new Date('2026-05-05T00:00:00.000Z')
+		})
+
+		assert.equal(artifacts.storage.blogs['changed-post'].title, '新标题')
+		assert.equal(artifacts.storage.blogs['untouched-post'].title, '远端新标题')
+		assert.equal(artifacts.storage.blogs['untouched-post'].summary, '远端新增摘要')
+	})
+
+	it('保存已被远端更新的文章时应阻断覆盖', () => {
+		assert.throws(
+			() =>
+				buildArtifactsForSaveBlogEdits({
+					originalItems: [{ slug: 'post-1', title: '旧标题', tags: [], date: '2026-05-01T00:00:00.000Z' }],
+					nextItems: [{ slug: 'post-1', title: '本地新标题', tags: [], date: '2026-05-01T00:00:00.000Z' }],
+					categories: [],
+					existingStorageRaw: JSON.stringify({
+						version: 1,
+						updatedAt: '2026-05-04T00:00:00.000Z',
+						blogs: {
+							'post-1': {
+								slug: 'post-1',
+								title: '远端新标题',
+								tags: [],
+								date: '2026-05-01T00:00:00.000Z',
+								status: 'published'
+							}
+						}
+					})
+				}),
+			/远端内容已更新/
+		)
+	})
+
+	it('删除已被远端更新的文章时应阻断删除', () => {
+		assert.throws(
+			() =>
+				buildArtifactsForSaveBlogEdits({
+					originalItems: [{ slug: 'post-1', title: '旧标题', tags: [], date: '2026-05-01T00:00:00.000Z' }],
+					nextItems: [],
+					categories: [],
+					existingStorageRaw: JSON.stringify({
+						version: 1,
+						updatedAt: '2026-05-04T00:00:00.000Z',
+						blogs: {
+							'post-1': {
+								slug: 'post-1',
+								title: '远端新标题',
+								tags: [],
+								date: '2026-05-01T00:00:00.000Z',
+								status: 'published'
+							}
+						}
+					})
+				}),
+			/远端内容已更新/
+		)
+	})
 })
 
 describe('saveBlogEdits remote stale write protection', () => {

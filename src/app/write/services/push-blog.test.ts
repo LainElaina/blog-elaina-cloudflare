@@ -319,27 +319,23 @@ describe('pushBlog create slug checks', () => {
 		assert.doesNotMatch(source, /getFileExt\(img\.file\.name\)/)
 	})
 
-	it('远端发布遇到分支并发更新时会重跑完整发布流程一次', async () => {
+	it('远端发布遇到分支并发更新时应阻断旧状态覆盖', async () => {
 		const source = (await fs.readFile(new URL('./push-blog.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 		const attemptStart = source.indexOf('async function attemptPushBlog(): Promise<WriteSafetySnapshot>')
-		const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
 		const refIndex = source.indexOf('const refData = await getRef', attemptStart)
 		const artifactIndex = source.indexOf('const artifactContents = await buildRemoteArtifactContents', attemptStart)
 		const updateRefIndex = source.indexOf('await updateRef', attemptStart)
 
 		assert.notEqual(attemptStart, -1)
-		assert.notEqual(retryIndex, -1)
 		assert.notEqual(refIndex, -1)
 		assert.notEqual(artifactIndex, -1)
 		assert.notEqual(updateRefIndex, -1)
 		assert.ok(attemptStart < refIndex)
 		assert.ok(refIndex < artifactIndex)
 		assert.ok(artifactIndex < updateRefIndex)
-		assert.match(
-			source,
-			/try \{\n\s*return await attemptPushBlog\(\)\n\s*\} catch \(error\) \{[\s\S]*isGitHubUpdateRefConflictError\(error\)[\s\S]*return attemptPushBlog\(\)/
-		)
-		assert.doesNotMatch(source, /isGitHubUpdateRefConflictError\(error\)[\s\S]{0,240}await updateRef/)
+		assert.match(source, /catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+		assert.doesNotMatch(source, /isGitHubUpdateRefConflictError/)
+		assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*return attemptPushBlog\(\)/)
 	})
 
 	it('本地创建模式应在图片上传前检查重复 slug', async () => {

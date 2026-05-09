@@ -8,7 +8,7 @@ import {
 	type TreeItem,
 	readTextFileFromRepo,
 	listRepoFilesRecursive,
-	isGitHubUpdateRefConflictError
+	throwStaleRemoteWriteConflictError
 } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
 import { assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
@@ -373,10 +373,6 @@ export async function pushBlog(params: PushBlogParams): Promise<WriteSafetySnaps
 	try {
 		return await attemptPushBlog()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新发布...')
-			return attemptPushBlog()
-		}
-		throw error
+		throwStaleRemoteWriteConflictError(error)
 	}
 }

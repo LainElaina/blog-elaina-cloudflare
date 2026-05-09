@@ -17,6 +17,34 @@ export type SaveBlogEditsArtifacts = {
 	storage: BlogStorageDB
 }
 
+const STALE_REMOTE_WRITE_ERROR_MESSAGE = '远端内容已更新，请刷新页面后重新保存，避免覆盖他人的更改'
+
+function isSameStringArray(left: string[], right: string[]) {
+	return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function isSameBlogIndexItem(left: BlogIndexItem | undefined, right: BlogIndexItem | undefined) {
+	if (!left || !right) return left === right
+	return (
+		left.slug === right.slug &&
+		left.title === right.title &&
+		left.date === right.date &&
+		isSameStringArray(left.tags, right.tags) &&
+		left.summary === right.summary &&
+		left.cover === right.cover &&
+		left.hidden === right.hidden &&
+		left.category === right.category &&
+		left.folderPath === right.folderPath &&
+		(left.favorite ?? false) === (right.favorite ?? false)
+	)
+}
+
+function assertLatestBlogItemUnchanged(originalItem: BlogIndexItem | undefined, latestItem: BlogIndexItem | undefined) {
+	if (!isSameBlogIndexItem(originalItem, latestItem)) {
+		throw new Error(STALE_REMOTE_WRITE_ERROR_MESSAGE)
+	}
+}
+
 export function buildArtifactsForSaveBlogEdits(params: {
 	originalItems: BlogIndexItem[]
 	nextItems: BlogIndexItem[]
@@ -26,21 +54,36 @@ export function buildArtifactsForSaveBlogEdits(params: {
 }): SaveBlogEditsArtifacts {
 	const { originalItems, nextItems, categories: explicitCategories, existingStorageRaw } = params
 	const now = params.now ?? new Date()
+	const originalBySlug = new Map(originalItems.map(item => [item.slug, item]))
+	const db = parseRequiredBlogStorageDB(existingStorageRaw)
+	const latestBySlug = new Map(exportStaticBlogArtifacts(db).index.map(item => [item.slug, item]))
 	const removedSlugs = originalItems.filter(item => !nextItems.some(next => next.slug === item.slug)).map(item => item.slug)
 	const uniqueRemoved = Array.from(new Set(removedSlugs.filter(Boolean)))
 	for (const slug of uniqueRemoved) {
 		assertSafeBlogSlug(slug)
 	}
-	let db = parseRequiredBlogStorageDB(existingStorageRaw)
+	let nextDb = db
 
-	for (const item of nextItems) {
-		db = upsertBlogRecord(db, item, { now })
+	for (const item of nextItems.filter(item => !isSameBlogIndexItem(originalBySlug.get(item.slug), item))) {
+		assertSafeBlogSlug(item.slug)
+		const originalItem = originalBySlug.get(item.slug)
+		const latestItem = latestBySlug.get(item.slug)
+		if (originalItem) {
+			assertLatestBlogItemUnchanged(originalItem, latestItem)
+		} else if (latestItem) {
+			throw new Error(STALE_REMOTE_WRITE_ERROR_MESSAGE)
+		}
+		nextDb = upsertBlogRecord(nextDb, item, { now })
 	}
 	for (const slug of uniqueRemoved) {
-		db = removeBlogRecord(db, slug, now)
+		const latestItem = latestBySlug.get(slug)
+		if (latestItem) {
+			assertLatestBlogItemUnchanged(originalBySlug.get(slug), latestItem)
+		}
+		nextDb = removeBlogRecord(nextDb, slug, now)
 	}
 
-	const exported = exportStaticBlogArtifacts(db)
+	const exported = exportStaticBlogArtifacts(nextDb)
 	const mergedCategories = mergeCategoriesForSave(explicitCategories, exported.categories)
 
 	return {
