@@ -19,6 +19,11 @@ type RemoteBase64File = {
 	contentBase64: string
 }
 
+export type RemoteFileCommit = {
+	textFiles?: RemoteTextFile[]
+	binaryFiles?: RemoteBinaryFile[]
+}
+
 const ALLOWED_REMOTE_TEXT_FILE_PATHS = new Set([
 	'src/app/about/list.json',
 	'src/app/bloggers/list.json',
@@ -139,13 +144,22 @@ async function commitRemoteBase64Files(files: RemoteBase64File[], message: strin
 	}
 }
 
+export async function commitRemoteFiles(files: RemoteFileCommit, message: string): Promise<void> {
+	const textFiles = files.textFiles ?? []
+	const binaryFiles = files.binaryFiles ?? []
+	const base64Files: RemoteBase64File[] = textFiles.map(file => ({ path: assertAllowedRemoteTextFilePath(file.path), contentBase64: toBase64Utf8(file.content) }))
+
+	for (const file of binaryFiles) {
+		base64Files.push({ path: assertAllowedRemoteBinaryFilePath(file.path), contentBase64: arrayBufferToBase64(await file.file.arrayBuffer()) })
+	}
+
+	await commitRemoteBase64Files(base64Files, message)
+}
+
 export async function commitRemoteTextFiles(files: RemoteTextFile[], message: string): Promise<void> {
-	await commitRemoteBase64Files(
-		files.map(file => ({ path: assertAllowedRemoteTextFilePath(file.path), contentBase64: toBase64Utf8(file.content) })),
-		message
-	)
+	await commitRemoteFiles({ textFiles: files }, message)
 }
 
 export async function commitRemoteBinaryFile(file: RemoteBinaryFile, message: string): Promise<void> {
-	await commitRemoteBase64Files([{ path: assertAllowedRemoteBinaryFilePath(file.path), contentBase64: arrayBufferToBase64(await file.file.arrayBuffer()) }], message)
+	await commitRemoteFiles({ binaryFiles: [file] }, message)
 }

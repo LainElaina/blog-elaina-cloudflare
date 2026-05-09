@@ -103,6 +103,7 @@ export function ComponentStore() {
 	const [newComp, setNewComp] = useState<NewComponentDraft>(emptyNewComponentDraft)
 	const [pendingImageFile, setPendingImageFileState] = useState<PendingImageFile | null>(null)
 	const pendingImageFileRef = useRef<PendingImageFile | null>(null)
+	const pendingRemoteImageFilesRef = useRef(new Map<string, File>())
 
 	const setPendingImageFile = useCallback((next: PendingImageFile | null) => {
 		const previous = pendingImageFileRef.current
@@ -167,11 +168,9 @@ export function ComponentStore() {
 			}
 		} else {
 			try {
-				const { commitRemoteBinaryFile } = await import('@/lib/remote-text-commit')
 				const ext = getImageFileExtension(pendingImageFile.file.name)
 				await assertAllowedImageFile(pendingImageFile.file, ext)
-				await commitRemoteBinaryFile({ path: `public${imageUrl}`, file: pendingImageFile.file }, '上传自定义组件图片')
-				toast.success('图片上传成功')
+				pendingRemoteImageFilesRef.current.set(`public${imageUrl}`, pendingImageFile.file)
 				return true
 			} catch (error) {
 				toast.error('图片上传失败')
@@ -354,17 +353,25 @@ export function ComponentStore() {
 				toast.success('自定义组件已保存到项目')
 				addLog('success', 'component', '自定义组件已保存到本地项目')
 			} else if (isAuth) {
-				const { commitRemoteTextFiles } = await import('@/lib/remote-text-commit')
+				const { commitRemoteFiles } = await import('@/lib/remote-text-commit')
+				const referencedImageUrls = new Set(customComponents.map(component => component.content.imageUrl).filter((imageUrl): imageUrl is string => Boolean(imageUrl)))
+				const binaryFiles = Array.from(pendingRemoteImageFilesRef.current.entries())
+					.filter(([path]) => referencedImageUrls.has(path.replace(/^public/, '')))
+					.map(([path, file]) => ({ path, file }))
 
-				await commitRemoteTextFiles(
-					[
-						{
-							path: 'src/config/custom-components.json',
-							content: componentsJson
-						}
-					],
+				await commitRemoteFiles(
+					{
+						textFiles: [
+							{
+								path: 'src/config/custom-components.json',
+								content: componentsJson
+							}
+						],
+						binaryFiles
+					},
 					'保存自定义组件'
 				)
+				pendingRemoteImageFilesRef.current.clear()
 				toast.success('自定义组件已推送到 GitHub')
 				addLog('success', 'component', '自定义组件已推送到 GitHub')
 			} else {

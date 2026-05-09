@@ -168,17 +168,20 @@ test('home config remote writers use the shared stale-write-safe commit helper',
 	}
 })
 
-test('component store remote writes validate image content and use stale-write-safe text commits', async () => {
+test('component store remote writes validate image content and atomically commit images with config', async () => {
 	const source = await readSource(sourceFiles.componentStore)
 	const validateIndex = source.indexOf('await assertAllowedImageFile(pendingImageFile.file, ext)')
-	const uploadIndex = source.indexOf('await commitRemoteBinaryFile(')
-	const saveComponentsIndex = source.indexOf('await commitRemoteTextFiles(')
+	const pendingImageIndex = source.indexOf('pendingRemoteImageFilesRef.current.set(`public${imageUrl}`, pendingImageFile.file)')
+	const saveComponentsIndex = source.indexOf('await commitRemoteFiles(')
 
 	assert.match(source, /import \{ assertAllowedImageFile, getImageFileExtension \} from '@\/lib\/image-content-validation'/)
 	assert.notEqual(validateIndex, -1)
-	assert.notEqual(uploadIndex, -1)
-	assert.ok(validateIndex < uploadIndex)
+	assert.notEqual(pendingImageIndex, -1)
+	assert.ok(validateIndex < pendingImageIndex)
 	assert.notEqual(saveComponentsIndex, -1)
+	assert.match(source, /textFiles: \[[\s\S]*path: 'src\/config\/custom-components\.json'[\s\S]*binaryFiles/)
+	assert.doesNotMatch(source, /commitRemoteBinaryFile/)
+	assert.doesNotMatch(source, /commitRemoteTextFiles/)
 	assert.doesNotMatch(source, /fileToBase64NoPrefix/)
 	assert.doesNotMatch(source, /updateRef/)
 })
