@@ -1,5 +1,8 @@
-import { assertSafeBlogSlug } from '../write/services/blog-slug.ts'
 import type { BlogIndexItem } from '../blog/types.ts'
+
+function isRuntimeBlogSlug(value: string): boolean {
+	return value.trim().length > 0 && !value.includes('/') && !value.includes('\\')
+}
 
 export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
 	if (!Array.isArray(input)) {
@@ -12,12 +15,7 @@ export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
 		}
 
 		const blog = item as Record<string, unknown>
-		if (typeof blog.slug !== 'string') {
-			return []
-		}
-		try {
-			assertSafeBlogSlug(blog.slug)
-		} catch {
+		if (typeof blog.slug !== 'string' || !isRuntimeBlogSlug(blog.slug)) {
 			return []
 		}
 

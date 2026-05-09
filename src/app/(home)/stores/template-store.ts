@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CardStyles } from './config-store'
+import type { CardStyles } from './config-store'
 
 export interface Template {
 	id: string

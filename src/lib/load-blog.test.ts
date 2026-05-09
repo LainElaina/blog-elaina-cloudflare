@@ -205,6 +205,51 @@ describe('loadBlog', () => {
 		)
 	})
 
+	it('falls back to directory config when storage semantics reject a legacy slug', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {
+								'Blog-CF1': {
+									slug: 'Blog-CF1',
+									title: 'Legacy Cloudflare',
+									tags: ['cloudflare'],
+									date: '2026-03-27T09:00:00.000Z',
+									status: 'published'
+								}
+							}
+						}),
+						{ status: 200 }
+					)
+				],
+				[
+					'/blogs/Blog-CF1/config.json',
+					new Response('{"title":"Directory Fallback","tags":["legacy"],"date":"2026-03-28"}', { status: 200 })
+				],
+				['/blogs/Blog-CF1/index.md', new Response('# legacy', { status: 200 })]
+			]),
+			async calls => {
+				const loaded = await loadBlog('Blog-CF1')
+
+				assert.equal(loaded.config.title, 'Directory Fallback')
+				assert.equal(loaded.markdown, '# legacy')
+				assert.deepEqual(
+					calls.map(call => ({ input: call.input, cache: call.init?.cache })),
+					[
+						{ input: '/blogs/storage.json', cache: 'no-store' },
+						{ input: '/blogs/Blog-CF1/config.json', cache: 'no-store' },
+						{ input: '/blogs/Blog-CF1/index.md', cache: 'no-store' }
+					]
+				)
+			}
+		)
+	})
+
 	it('sanitizes fallback blog config fields before returning them', async () => {
 		await withMockFetch(
 			new Map<string, Response>([

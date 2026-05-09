@@ -1,5 +1,6 @@
-import { MetadataRoute } from 'next'
+import type { MetadataRoute } from 'next'
 import blogIndex from '@/../public/blogs/index.json'
+import { getBlogHref } from '@/lib/blog-href'
 import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
 
 type SitemapBlogPost = {
@@ -41,7 +42,7 @@ export function buildSitemapEntries(value: unknown, baseUrl = getSiteOrigin()): 
 		const resolvedLastModified = lastModified && !Number.isNaN(lastModified.getTime()) ? lastModified : undefined
 
 		return {
-			url: toAbsoluteSiteUrl(`/blog/${post.slug}`),
+			url: toAbsoluteSiteUrl(getBlogHref(post.slug), baseUrl),
 			...(resolvedLastModified ? { lastModified: resolvedLastModified } : {}),
 			changeFrequency: 'weekly',
 			priority: 0.8
@@ -50,7 +51,7 @@ export function buildSitemapEntries(value: unknown, baseUrl = getSiteOrigin()): 
 
 	const staticEntries: MetadataRoute.Sitemap = [
 		{
-			url: baseUrl,
+			url: toAbsoluteSiteUrl('', baseUrl),
 			lastModified: new Date(),
 			changeFrequency: 'daily',
 			priority: 1

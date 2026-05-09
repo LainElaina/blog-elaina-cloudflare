@@ -16,7 +16,7 @@ import {
 	writeWriteDraft,
 	type PersistedWriteDraft,
 	type WriteDraftStorageLike
-} from './draft-storage'
+} from './draft-storage.ts'
 
 type DraftablePublishForm = PublishForm & {
 	folderPath?: string

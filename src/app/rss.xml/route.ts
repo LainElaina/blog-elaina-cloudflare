@@ -1,6 +1,7 @@
 import siteContent from '@/config/site-content.json'
 import blogIndex from '@/../public/blogs/index.json'
 import type { BlogIndexItem } from '@/app/blog/types'
+import { getBlogHref } from '@/lib/blog-href'
 import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
 import { normalizeBlogIndexForRss, wrapCdata } from './rss-utils'
 
@@ -14,7 +15,7 @@ const escapeXml = (value: string): string =>
 	value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 
 const serializeItem = (item: BlogIndexItem): string => {
-	const link = toAbsoluteSiteUrl(`/blog/${item.slug}`)
+	const link = toAbsoluteSiteUrl(getBlogHref(item.slug))
 	const escapedLink = escapeXml(link)
 	const title = escapeXml(item.title || item.slug)
 	const description = wrapCdata(item.summary || '')

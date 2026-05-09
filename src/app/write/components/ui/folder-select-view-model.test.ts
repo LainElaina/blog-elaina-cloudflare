@@ -1,7 +1,36 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
 import { describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 
-import { buildFolderSelectViewModel } from './folder-select-view-model'
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { buildFolderSelectViewModel } = await import('./folder-select-view-model.ts')
 
 describe('folder-select view model', () => {
 	it('没有目录时显示空提示与新建按钮文案', () => {

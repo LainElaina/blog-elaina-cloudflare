@@ -11,7 +11,7 @@ test('new project dialog forwards selected local image into publish queue', asyn
 	const pageSource = await readSource('./projects/page.tsx')
 
 	assert.match(dialogSource, /const \[pendingImageItem, setPendingImageItem\] = useState<ImageItem \| undefined>\(\)/)
-	assert.match(dialogSource, /setPendingImageItem\(image\)\n\s*setFormData\(\{ \.\.\.formData, image: imageUrl \}\)/)
+	assert.match(dialogSource, /setPendingImageItem\(current => \{\n\s*revokeFilePreviewUrls\(current \? \[current\] : \[\]\)\n\s*return image\n\s*\}\)\n\s*setFormData\(\{ \.\.\.formData, image: imageUrl \}\)/)
 	assert.match(dialogSource, /onSave\(formData, pendingImageItem\)/)
 	assert.match(pageSource, /const handleSaveProject = \(updatedProject: Project, imageItem\?: ImageItem\) => \{/)
 	assert.match(pageSource, /newMap\.set\(updatedProject\.url, imageItem\)/)
@@ -22,7 +22,7 @@ test('new blogger dialog forwards selected local avatar into publish queue', asy
 	const pageSource = await readSource('./bloggers/page.tsx')
 
 	assert.match(dialogSource, /const \[pendingAvatarItem, setPendingAvatarItem\] = useState<AvatarItem \| undefined>\(\)/)
-	assert.match(dialogSource, /setPendingAvatarItem\(avatar\)\n\s*setFormData\(\{ \.\.\.formData, avatar: avatarUrl \}\)/)
+	assert.match(dialogSource, /setPendingAvatarItem\(current => \{\n\s*revokeFilePreviewUrls\(current \? \[current\] : \[\]\)\n\s*return avatar\n\s*\}\)\n\s*setFormData\(\{ \.\.\.formData, avatar: avatarUrl \}\)/)
 	assert.match(dialogSource, /onSave\(formData, pendingAvatarItem\)/)
 	assert.match(pageSource, /const handleSaveBlogger = \(updatedBlogger: Blogger, avatarItem\?: AvatarItem\) => \{/)
 	assert.match(pageSource, /newMap\.set\(updatedBlogger\.url, avatarItem\)/)

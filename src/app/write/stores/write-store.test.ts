@@ -1,7 +1,45 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { registerHooks } from 'node:module'
 import { afterEach, beforeEach, describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 
-import { useWriteStore } from './write-store'
+const srcRootUrl = new URL('../../../', import.meta.url)
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return { shortCircuit: true, url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined, error: () => undefined }' }
+		}
+		if (specifier.startsWith('@/')) {
+			const url = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (url) return { shortCircuit: true, url }
+		}
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { useWriteStore } = await import('./write-store.ts')
 
 describe('useWriteStore.loadBlogForEdit', () => {
 	const originalFetch = globalThis.fetch

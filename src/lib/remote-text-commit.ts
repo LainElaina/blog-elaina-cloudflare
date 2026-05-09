@@ -1,6 +1,8 @@
 import { GITHUB_CONFIG } from '@/consts'
+import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import { getAuthToken } from '@/lib/auth'
 import { createBlob, createCommit, createTree, getRef, isGitHubUpdateRefConflictError, toBase64Utf8, updateRef, type TreeItem } from '@/lib/github-client'
+import { ALLOWED_IMAGE_EXTENSIONS, getImageFileExtension } from '@/lib/image-content-validation'
 
 export type RemoteTextFile = {
 	path: string
@@ -15,6 +17,91 @@ export type RemoteBinaryFile = {
 type RemoteBase64File = {
 	path: string
 	contentBase64: string
+}
+
+const ALLOWED_REMOTE_TEXT_FILE_PATHS = new Set([
+	'src/app/about/list.json',
+	'src/app/bloggers/list.json',
+	'src/app/pictures/list.json',
+	'src/app/projects/list.json',
+	'src/app/snippets/list.json',
+	'src/config/card-styles.json',
+	'src/config/color-presets.json',
+	'src/config/custom-components.json',
+	'public/blogs/index.json',
+	'public/blogs/categories.json',
+	'public/blogs/folders.json',
+	'public/blogs/storage.json',
+	'public/share/list.json',
+	'public/share/categories.json',
+	'public/share/folders.json',
+	'public/share/storage.json'
+])
+
+const ALLOWED_EXACT_REMOTE_IMAGE_PATHS = new Set(['public/favicon.png', 'public/images/avatar.png'])
+const ALLOWED_DIRECT_REMOTE_IMAGE_DIRECTORIES = [
+	'public/images/art',
+	'public/images/background',
+	'public/images/blogger',
+	'public/images/custom-components',
+	'public/images/pictures',
+	'public/images/project',
+	'public/images/share',
+	'public/images/social-buttons'
+]
+
+function normalizeRemoteRepositoryPath(path: string, errorMessage: string): string {
+	if (typeof path !== 'string' || !path || path !== path.trim() || path.startsWith('/') || path.includes('\\')) {
+		throw new Error(errorMessage)
+	}
+
+	const segments = path.split('/')
+	if (segments.some(segment => !segment || segment === '.' || segment.includes('..'))) {
+		throw new Error(errorMessage)
+	}
+
+	return segments.join('/')
+}
+
+function isAllowedDirectRemoteImagePath(path: string): boolean {
+	return ALLOWED_DIRECT_REMOTE_IMAGE_DIRECTORIES.some(directory => {
+		const prefix = `${directory}/`
+		if (!path.startsWith(prefix)) return false
+		return !path.slice(prefix.length).includes('/')
+	})
+}
+
+function isAllowedRemoteBlogImagePath(path: string): boolean {
+	const segments = path.split('/')
+	if (segments.length !== 4 || segments[0] !== 'public' || segments[1] !== 'blogs') {
+		return false
+	}
+
+	try {
+		assertSafeBlogSlug(segments[2])
+		return true
+	} catch {
+		return false
+	}
+}
+
+export function assertAllowedRemoteTextFilePath(path: string): string {
+	const normalizedPath = normalizeRemoteRepositoryPath(path, '不允许远端写入路径')
+	if (!ALLOWED_REMOTE_TEXT_FILE_PATHS.has(normalizedPath)) {
+		throw new Error('不允许远端写入路径')
+	}
+	return normalizedPath
+}
+
+export function assertAllowedRemoteBinaryFilePath(path: string): string {
+	const normalizedPath = normalizeRemoteRepositoryPath(path, '不允许远端图片路径')
+	if (!ALLOWED_IMAGE_EXTENSIONS.has(getImageFileExtension(normalizedPath))) {
+		throw new Error('不允许远端图片路径')
+	}
+	if (ALLOWED_EXACT_REMOTE_IMAGE_PATHS.has(normalizedPath) || isAllowedDirectRemoteImagePath(normalizedPath) || isAllowedRemoteBlogImagePath(normalizedPath)) {
+		return normalizedPath
+	}
+	throw new Error('不允许远端图片路径')
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -58,11 +145,11 @@ async function commitRemoteBase64Files(files: RemoteBase64File[], message: strin
 
 export async function commitRemoteTextFiles(files: RemoteTextFile[], message: string): Promise<void> {
 	await commitRemoteBase64Files(
-		files.map(file => ({ path: file.path, contentBase64: toBase64Utf8(file.content) })),
+		files.map(file => ({ path: assertAllowedRemoteTextFilePath(file.path), contentBase64: toBase64Utf8(file.content) })),
 		message
 	)
 }
 
 export async function commitRemoteBinaryFile(file: RemoteBinaryFile, message: string): Promise<void> {
-	await commitRemoteBase64Files([{ path: file.path, contentBase64: arrayBufferToBase64(await file.file.arrayBuffer()) }], message)
+	await commitRemoteBase64Files([{ path: assertAllowedRemoteBinaryFilePath(file.path), contentBase64: arrayBufferToBase64(await file.file.arrayBuffer()) }], message)
 }

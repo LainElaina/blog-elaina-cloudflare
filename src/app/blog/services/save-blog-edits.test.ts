@@ -1,9 +1,73 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
+import { registerHooks } from 'node:module'
 import { describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 
-import { buildArtifactsForSaveBlogEdits } from './save-blog-edits.ts'
-import { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave } from './save-blog-edits-utils.ts'
+const srcRootUrl = new URL('../../../', import.meta.url)
+const constsModuleUrl = `data:text/javascript,${encodeURIComponent(`export const GITHUB_CONFIG = { OWNER: 'owner', REPO: 'repo', BRANCH: 'main' }`)}`
+const authModuleUrl = `data:text/javascript,${encodeURIComponent(`export async function getAuthToken() { throw new Error('unexpected auth call') }`)}`
+const githubClientModuleUrl = `data:text/javascript,${encodeURIComponent(`
+export async function createBlob() { throw new Error('unexpected github call') }
+export async function createCommit() { throw new Error('unexpected github call') }
+export async function createTree() { throw new Error('unexpected github call') }
+export async function getRef() { throw new Error('unexpected github call') }
+export function isGitHubUpdateRefConflictError() { return false }
+export async function listRepoFilesRecursive() { throw new Error('unexpected github call') }
+export async function putFile() { throw new Error('unexpected github call') }
+export async function readTextFileFromRepo() { throw new Error('unexpected github call') }
+export function toBase64Utf8(input) { return Buffer.from(input, 'utf8').toString('base64') }
+export async function updateRef() { throw new Error('unexpected github call') }
+`)}`
+
+function resolveProjectModule(baseUrl: URL, specifier: string) {
+	const directUrl = new URL(specifier, baseUrl)
+	if (existsSync(fileURLToPath(directUrl))) {
+		return directUrl.href
+	}
+
+	for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.json']) {
+		const url = new URL(`${specifier}${extension}`, baseUrl)
+		if (existsSync(fileURLToPath(url))) {
+			return url.href
+		}
+	}
+
+	return null
+}
+
+registerHooks({
+	resolve(specifier, context, nextResolve) {
+		if (specifier === 'sonner') {
+			return { shortCircuit: true, url: 'data:text/javascript,export const toast = { info: () => undefined, success: () => undefined }' }
+		}
+		if (specifier === '@/consts') {
+			return { shortCircuit: true, url: constsModuleUrl }
+		}
+		if (specifier === '@/lib/auth') {
+			return { shortCircuit: true, url: authModuleUrl }
+		}
+		if (specifier === '@/lib/github-client') {
+			return { shortCircuit: true, url: githubClientModuleUrl }
+		}
+		if (specifier === '@/config/site-content.json') {
+			return { shortCircuit: true, url: 'data:text/javascript,export default {}' }
+		}
+		if (specifier.startsWith('@/')) {
+			const url = resolveProjectModule(srcRootUrl, specifier.slice(2))
+			if (url) return { shortCircuit: true, url }
+		}
+		if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL) {
+			const url = resolveProjectModule(new URL(context.parentURL), specifier)
+			if (url) return { shortCircuit: true, url }
+		}
+		return nextResolve(specifier, context)
+	}
+})
+
+const { buildArtifactsForSaveBlogEdits } = await import('./save-blog-edits.ts')
+const { buildLocalSaveFilePayloadsFromContents, mergeCategoriesForSave } = await import('./save-blog-edits-utils.ts')
 
 describe('mergeCategoriesForSave', () => {
 	it('优先保留显式传入分类顺序，并保留未分配分类', () => {

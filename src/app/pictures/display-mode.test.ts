@@ -9,7 +9,7 @@ import {
 	resolvePicturesEffectiveDisplayMode,
 	writePicturesDisplayModeToSessionStorage,
 	normalizePicturesDisplayMode
-} from './display-mode'
+} from './display-mode.ts'
 
 describe('pictures display mode state machine', () => {
 	it('default preferredDisplayMode normalizes to random', () => {

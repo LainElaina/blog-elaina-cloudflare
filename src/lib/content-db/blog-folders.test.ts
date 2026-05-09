@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildBlogFolderTree, dedupeAndSortFolderPaths } from '@/lib/content-db/blog-folders'
+import { buildBlogFolderTree, dedupeAndSortFolderPaths } from './blog-folders.ts'
 
 describe('blog folder helpers', () => {
 	it('从 folderPath 列表构建稳定树（去重并排序）', () => {

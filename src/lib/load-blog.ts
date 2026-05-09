@@ -1,5 +1,5 @@
 import type { BlogConfig } from '@/app/blog/types'
-import { parseRequiredBlogStorageDB } from '@/lib/content-db/blog-storage'
+import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
 
 export type { BlogConfig } from '@/app/blog/types'
 
@@ -14,6 +14,14 @@ export type LoadedBlog = {
 
 function isPlainBlogConfig(value: unknown): value is BlogConfig {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function assertBlogStorageJsonSyntax(raw: string): void {
+	try {
+		JSON.parse(raw)
+	} catch {
+		throw new Error('博客存储格式错误')
+	}
 }
 
 function toBlogConfigFromStorageRecord(record: Record<string, unknown> | undefined): BlogConfig {
@@ -69,12 +77,9 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 	const storageRes = await fetch('/blogs/storage.json', LOAD_BLOG_FETCH_OPTIONS)
 	const storageRaw = await readOptionalLoadBlogText(storageRes, '读取博客存储')
 	if (storageRaw !== null) {
-		try {
-			const storage = parseRequiredBlogStorageDB(storageRaw)
-			config = toBlogConfigFromStorageRecord(storage.blogs[slug] as Record<string, unknown> | undefined)
-		} catch {
-			throw new Error('博客存储格式错误')
-		}
+		assertBlogStorageJsonSyntax(storageRaw)
+		const storage = parseBlogStorageDB(storageRaw)
+		config = toBlogConfigFromStorageRecord(storage.blogs[slug] as Record<string, unknown> | undefined)
 	}
 
 	if (Object.keys(config).length === 0) {
