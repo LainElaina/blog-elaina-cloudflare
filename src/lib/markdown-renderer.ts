@@ -116,6 +116,22 @@ function escapeHtml(value: string): string {
 	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
+const RAW_HTML_TAG_PATTERN = /<\/?([a-zA-Z][\w:-]*)(?:\s[^>]*)?>/g
+const ALLOWED_RAW_HTML_TAGS = new Set(['u'])
+
+function sanitizeRawHtmlFragment(value: string): string {
+	return value.replace(RAW_HTML_TAG_PATTERN, (tag, tagName) => {
+		if (ALLOWED_RAW_HTML_TAGS.has(String(tagName).toLowerCase()) && /^<\/?u\s*>$/i.test(tag)) {
+			return tag.startsWith('</') ? '</u>' : '<u>'
+		}
+		return escapeHtml(tag)
+	})
+}
+
+function getHeadingIdText(value: string): string {
+	return value.replace(RAW_HTML_TAG_PATTERN, ' ')
+}
+
 let katexModule: typeof import('katex') | null = null
 let katexLoadAttempted = false
 
@@ -143,10 +159,11 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 
 	const headingIds = createHeadingIdBuilder()
 	renderer.heading = (token: Tokens.Heading) => {
-		const id = headingIds(token.text || '')
-		return `<h${token.depth} id="${id}">${token.text}</h${token.depth}>`
+		const id = headingIds(getHeadingIdText(token.text || ''))
+		return `<h${token.depth} id="${id}">${markdownRenderer.Parser.parseInline(token.tokens, { renderer })}</h${token.depth}>`
 	}
 
+	renderer.html = (token: Tokens.HTML | Tokens.Tag) => sanitizeRawHtmlFragment(token.text)
 	renderer.code = (token: Tokens.Code) => {
 		const codeData = codeBlockMap.get(token.text)
 		if (codeData) {
@@ -254,7 +271,7 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 		for (const token of tokenList) {
 			if (token.type === 'heading' && token.depth <= 3) {
 				const text = token.text
-				const id = tocHeadingIds(text)
+				const id = tocHeadingIds(getHeadingIdText(text))
 				toc.push({ id, text, level: token.depth })
 			}
 			if ('tokens' in token && token.tokens) {

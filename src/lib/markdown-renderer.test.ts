@@ -47,3 +47,21 @@ test('markdown renderer does not mutate the global marked singleton', async () =
 
 	assert.equal(marked.parse('$x$'), '<p>$x$</p>\n')
 })
+
+test('markdown renderer keeps only safe raw html tags used by existing content', async () => {
+	const result = await renderMarkdown('保留 <u>重点</u>，转义 <script>alert(1)</script> 和 <u onclick="alert(1)">坏属性</u>。')
+
+	assert.match(result.html, /<u>重点<\/u>/)
+	assert.doesNotMatch(result.html, /<script>/)
+	assert.doesNotMatch(result.html, /<u onclick=/)
+	assert.match(result.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
+	assert.match(result.html, /&lt;u onclick=&quot;alert\(1\)&quot;&gt;坏属性<\/u>/)
+})
+
+test('markdown renderer sanitizes raw html inside headings while preserving markdown formatting', async () => {
+	const result = await renderMarkdown('# **标题** <script>alert(1)</script> <u>重点</u>')
+
+	assert.match(result.html, /<h1 id="标题-alert1-重点"><strong>标题<\/strong> &lt;script&gt;alert\(1\)&lt;\/script&gt; <u>重点<\/u><\/h1>/)
+	assert.doesNotMatch(result.html, /<script>/)
+	assert.deepEqual(result.toc, [{ id: '标题-alert1-重点', text: '**标题** <script>alert(1)</script> <u>重点</u>', level: 1 }])
+})
