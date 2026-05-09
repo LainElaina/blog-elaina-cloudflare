@@ -11,13 +11,6 @@ const MAX_DELETE_IMAGE_REQUEST_BODY_SIZE = 1024 * 1024
 
 export { isAllowedLocalUploadImagePath as isAllowedDeleteImagePath } from '../local-upload-image-path.ts'
 
-function getContentLength(request: NextRequest) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
 function isFileNotFoundError(error: unknown) {
 	return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
 }
@@ -47,11 +40,6 @@ async function assertSafeDeleteImageDirectory(fullPath: string) {
 
 export async function handleDeleteImage(request: NextRequest) {
 	try {
-		const contentLength = getContentLength(request)
-		if (contentLength !== null && contentLength > MAX_DELETE_IMAGE_REQUEST_BODY_SIZE) {
-			return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
-		}
-
 		let body: unknown
 		try {
 			body = await readLimitedJsonRequest(request, MAX_DELETE_IMAGE_REQUEST_BODY_SIZE)

@@ -14,17 +14,14 @@ registerHooks({
 	}
 })
 
-const { handleLayoutPost } = await import('./route-local.ts')
+const { handleLayoutGet, handleLayoutPost } = await import('./route-local.ts')
 
-test('layout local route saves layout and backup atomically', async () => {
+test('layout local route uses shared atomic site config writes', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
-	assert.match(source, /function buildAtomicLayoutTempPath\(fullPath: string\)/)
-	assert.match(source, /function writeFileAtomically\(fullPath: string, content: string\)/)
-	assert.match(source, /fs\.writeFileSync\(tempPath, content, 'utf-8'\)\n\t\tfs\.renameSync\(tempPath, fullPath\)/)
-	assert.match(source, /fs\.rmSync\(tempPath, \{ force: true \}\)/)
-	assert.match(source, /writeFileAtomically\(backupPath, current\)/)
-	assert.match(source, /writeFileAtomically\(layoutPath, JSON\.stringify\(layout, null, '\\t'\)\)/)
+	assert.match(source, /writeSiteConfigFileAtomically\(backupPath, current\)/)
+	assert.match(source, /writeSiteConfigFileAtomically\(layoutPath, JSON\.stringify\(layout, null, '\\t'\)\)/)
+	assert.doesNotMatch(source, /function writeFileAtomically/)
 	assert.doesNotMatch(source, /fs\.writeFileSync\(backupPath, current\)/)
 	assert.doesNotMatch(source, /fs\.writeFileSync\(layoutPath, JSON\.stringify\(layout, null, '\\t'\)\)/)
 })
@@ -193,12 +190,34 @@ test('layout local route rejects symlinked layout file before backing it up', as
 		await fs.rm(outsideDir, { recursive: true, force: true })
 	}
 })
+
+test('layout local route rejects symlinked layout file before reading it', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-file-symlink-'))
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-file-outside-'))
+	const previousCwd = process.cwd()
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.writeFile(path.join(outsideDir, 'card-styles.json'), JSON.stringify({ musicCard: { width: 100, height: 100, order: 1, offsetX: null, offsetY: null, enabled: true } }, null, '\t'))
+		await fs.symlink(path.join(outsideDir, 'card-styles.json'), path.join(tmpDir, 'src/config/card-styles.json'))
+		process.chdir(tmpDir)
+
+		const response = await handleLayoutGet()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: 'Failed to read layout' })
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
 test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
 	const validationIndex = source.indexOf('if (!isValidLayoutConfig(layout))')
 	const backupIndex = source.indexOf('if (fs.existsSync(layoutPath))')
-	const writeIndex = source.indexOf("writeFileAtomically(layoutPath, JSON.stringify(layout, null, '\\t'))")
+	const writeIndex = source.indexOf("writeSiteConfigFileAtomically(layoutPath, JSON.stringify(layout, null, '\\t'))")
 
 	assert.match(source, /import \{ isValidLayoutConfig \} from '\.\/layout-config-validation\.ts'/)
 	assert.match(source, /export \{ isValidLayoutConfig \} from '\.\/layout-config-validation\.ts'/)

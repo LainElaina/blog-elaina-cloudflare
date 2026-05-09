@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
 import { isValidLayoutConfig } from '../layout/layout-config-validation.ts'
-import { assertSafeSiteConfigProjectPath, assertSiteConfigDraftLocalAssetsExist, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock } from '../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, assertSiteConfigDraftLocalAssetsExist, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock, writeSiteConfigFileAtomically } from '../site-config-local-shared.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
@@ -13,21 +13,6 @@ function resolveLayoutBackupPath() {
 	return path.join(process.cwd(), 'data/layout.bak.json')
 }
 const CONFIG_WRITE_KEYS = new Set(['siteContent', 'cardStyles', 'customComponents', 'colorPresets'])
-
-function buildAtomicConfigTempPath(fullPath: string) {
-	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-async function writeFileAtomically(fullPath: string, content: string) {
-	const tempPath = buildAtomicConfigTempPath(fullPath)
-	try {
-		await fs.writeFile(tempPath, content)
-		await fs.rename(tempPath, fullPath)
-	} catch (error) {
-		await fs.rm(tempPath, { force: true }).catch(() => undefined)
-		throw error
-	}
-}
 
 type ConfigWrite = {
 	fileName: string
@@ -62,7 +47,7 @@ async function readConfigBackup(filePath: string): Promise<ConfigBackup> {
 async function rollbackConfigWrites(backups: ConfigBackup[]) {
 	for (const backup of backups.reverse()) {
 		if (backup.existed) {
-			await writeFileAtomically(backup.filePath, backup.content).catch(() => undefined)
+			await writeSiteConfigFileAtomically(backup.filePath, backup.content).catch(() => undefined)
 		} else {
 			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
 		}
@@ -126,7 +111,7 @@ async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigB
 	const layoutBackupPath = resolveLayoutBackupPath()
 	await assertSafeSiteConfigProjectPath(process.cwd(), layoutBackupPath)
 	await fs.mkdir(path.dirname(layoutBackupPath), { recursive: true })
-	await writeFileAtomically(layoutBackupPath, cardStylesBackup.content)
+	await writeSiteConfigFileAtomically(layoutBackupPath, cardStylesBackup.content)
 }
 
 export async function handleConfigPost(request: NextRequest) {
@@ -171,7 +156,7 @@ export async function handleConfigPost(request: NextRequest) {
 					const filePath = path.join(configDir, write.fileName)
 					await assertSafeSiteConfigProjectPath(process.cwd(), filePath)
 					backups.push(await readConfigBackup(filePath))
-					await writeFileAtomically(filePath, write.content)
+					await writeSiteConfigFileAtomically(filePath, write.content)
 				}
 				await writeLayoutBackupIfNeeded(writes, backups)
 			} catch (error) {

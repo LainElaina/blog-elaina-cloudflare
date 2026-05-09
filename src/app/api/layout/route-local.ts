@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
 import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../limited-json-request.ts'
-import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock } from '../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock, writeSiteConfigFileAtomically } from '../site-config-local-shared.ts'
 import { isValidLayoutConfig } from './layout-config-validation.ts'
 
 export { isValidLayoutConfig } from './layout-config-validation.ts'
@@ -17,27 +17,14 @@ function getBackupPath() {
 	return path.join(process.cwd(), 'data/layout.bak.json')
 }
 
-function buildAtomicLayoutTempPath(fullPath: string) {
-	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-function writeFileAtomically(fullPath: string, content: string) {
-	const tempPath = buildAtomicLayoutTempPath(fullPath)
-	try {
-		fs.writeFileSync(tempPath, content, 'utf-8')
-		fs.renameSync(tempPath, fullPath)
-	} catch (error) {
-		fs.rmSync(tempPath, { force: true })
-		throw error
-	}
-}
-
 export async function handleLayoutGet() {
 	try {
-		const data = fs.readFileSync(getLayoutPath(), 'utf-8')
+		const layoutPath = getLayoutPath()
+		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
+		const data = fs.readFileSync(layoutPath, 'utf-8')
 		return NextResponse.json(JSON.parse(data))
 	} catch (error) {
-		return NextResponse.json({ error: 'Failed to read layout' }, { status: 500 })
+		return NextResponse.json({ error: 'Failed to read layout' }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
 	}
 }
 
@@ -67,10 +54,10 @@ export async function handleLayoutPost(request: Request) {
 					fs.mkdirSync(dataDir, { recursive: true })
 				}
 				const current = fs.readFileSync(layoutPath, 'utf-8')
-				writeFileAtomically(backupPath, current)
+				await writeSiteConfigFileAtomically(backupPath, current)
 			}
 
-			writeFileAtomically(layoutPath, JSON.stringify(layout, null, '\t'))
+			await writeSiteConfigFileAtomically(layoutPath, JSON.stringify(layout, null, '\t'))
 		})
 
 		return NextResponse.json({ success: true })

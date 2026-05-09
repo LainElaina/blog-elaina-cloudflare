@@ -8,13 +8,6 @@ import { getSaveFileLocalContentMutationScope, isAllowedSaveFilePath } from '../
 
 const MAX_DELETE_FILE_REQUEST_BODY_SIZE = 1024 * 1024
 
-function getContentLength(request: NextRequest) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
 function isFileNotFoundError(error: unknown) {
 	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
@@ -44,11 +37,6 @@ async function assertSafeDeleteFileDirectory(fullPath: string) {
 
 export async function handleDeleteFile(request: NextRequest) {
 	try {
-		const contentLength = getContentLength(request)
-		if (contentLength !== null && contentLength > MAX_DELETE_FILE_REQUEST_BODY_SIZE) {
-			return NextResponse.json({ error: '请求体超过 1MB 限制' }, { status: 413 })
-		}
-
 		let body: unknown
 		try {
 			body = await readLimitedJsonRequest(request, MAX_DELETE_FILE_REQUEST_BODY_SIZE)

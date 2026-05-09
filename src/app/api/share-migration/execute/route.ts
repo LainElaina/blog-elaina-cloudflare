@@ -6,13 +6,6 @@ import { buildShareMigrationFailureResponse } from '../share-migration-api-contr
 
 const MAX_SHARE_MIGRATION_EXECUTE_REQUEST_BODY_SIZE = 1024 * 1024
 
-function getContentLength(request: Request) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
 function buildRequestBodyTooLargeResponse() {
 	return buildShareMigrationFailureResponse({
 		operation: 'execute',
@@ -25,11 +18,6 @@ export async function POST(request: Request) {
 	const rejected = rejectNonLocalDevelopmentRequest(request)
 	if (rejected) {
 		return rejected
-	}
-
-	const contentLength = getContentLength(request)
-	if (contentLength !== null && contentLength > MAX_SHARE_MIGRATION_EXECUTE_REQUEST_BODY_SIZE) {
-		return NextResponse.json(buildRequestBodyTooLargeResponse(), { status: 413 })
 	}
 
 	let rawBody: unknown

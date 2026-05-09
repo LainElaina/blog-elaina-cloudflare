@@ -11,13 +11,6 @@ import { getSaveFileLocalContentMutationScope, isAllowedSaveFilePath } from './l
 const MAX_FILE_CONTENT_SIZE = 10 * 1024 * 1024
 const MAX_REQUEST_BODY_SIZE = MAX_FILE_CONTENT_SIZE + 1024 * 1024
 
-function getContentLength(request: NextRequest) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
 function buildAtomicSaveTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -307,11 +300,6 @@ function isUnsafeParentDirectoryError(error: unknown) {
 
 export async function handleSaveFile(request: NextRequest) {
 	try {
-		const contentLength = getContentLength(request)
-		if (contentLength !== null && contentLength > MAX_REQUEST_BODY_SIZE) {
-			return NextResponse.json({ error: '文件内容超过 10MB 限制' }, { status: 413 })
-		}
-
 		let body: unknown
 		try {
 			body = await readLimitedJsonRequest(request, MAX_REQUEST_BODY_SIZE)

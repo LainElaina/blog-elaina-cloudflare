@@ -88,7 +88,7 @@ function buildAtomicSiteConfigTempPath(fullPath: string) {
 	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-async function writeSiteConfigFileAtomically(fullPath: string, content: string) {
+export async function writeSiteConfigFileAtomically(fullPath: string, content: string) {
 	const tempPath = buildAtomicSiteConfigTempPath(fullPath)
 	try {
 		await fs.writeFile(tempPath, content)

@@ -4,22 +4,10 @@ import { rejectNonLocalDevelopmentRequest } from '../../local-development-reques
 
 const MAX_BLOG_MIGRATION_EXECUTE_REQUEST_BODY_SIZE = 1024 * 1024
 
-function getContentLength(request: Request) {
-	const value = request.headers?.get('content-length')
-	if (!value) return null
-	const length = Number(value)
-	return Number.isFinite(length) && length >= 0 ? length : null
-}
-
 export async function POST(request: Request) {
 	const rejected = rejectNonLocalDevelopmentRequest(request)
 	if (rejected) {
 		return rejected
-	}
-
-	const contentLength = getContentLength(request)
-	if (contentLength !== null && contentLength > MAX_BLOG_MIGRATION_EXECUTE_REQUEST_BODY_SIZE) {
-		return NextResponse.json({ message: '请求体超过 1MB 限制' }, { status: 413 })
 	}
 
 	let rawBody: unknown

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
-import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock } from '../../site-config-local-shared.ts'
+import { assertSafeSiteConfigProjectPath, isSiteConfigLocalValidationError, withSiteConfigLocalMutationLock, writeSiteConfigFileAtomically } from '../../site-config-local-shared.ts'
 import { isValidLayoutConfig } from '../layout-config-validation.ts'
 
 function getLayoutPath() {
@@ -12,24 +12,9 @@ function getBackupPath() {
 	return path.join(process.cwd(), 'data/layout.bak.json')
 }
 
-function buildAtomicLayoutUndoTempPath(fullPath: string) {
-	return `${fullPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
 class LayoutBackupMissingError extends Error {}
 
 class LayoutBackupInvalidError extends Error {}
-
-function writeFileAtomically(fullPath: string, content: string) {
-	const tempPath = buildAtomicLayoutUndoTempPath(fullPath)
-	try {
-		fs.writeFileSync(tempPath, content, 'utf-8')
-		fs.renameSync(tempPath, fullPath)
-	} catch (error) {
-		fs.rmSync(tempPath, { force: true })
-		throw error
-	}
-}
 
 export async function handleLayoutUndoPost() {
 	try {
@@ -53,7 +38,7 @@ export async function handleLayoutUndoPost() {
 				throw new LayoutBackupInvalidError()
 			}
 
-			writeFileAtomically(layoutPath, backup)
+			await writeSiteConfigFileAtomically(layoutPath, backup)
 		})
 
 		return NextResponse.json({ success: true })
