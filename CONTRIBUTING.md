@@ -105,6 +105,7 @@
 - 边界约束：工具链只处理 share 四份正式产物，不修改 logo 图片；`/share` 运行时仍继续读取 `public/share/*`，首页 share consumers 继续只读 `public/share/list.json`，本阶段不是 DB-first runtime 改造
 - `/share` 面板 dirty-state caveat：面板只在 development 的 `/share` 右上角显示；preview 在编辑态或脏状态下仍可用，但会提示“当前结果不包含未保存编辑”；只要 `pageState.isEditMode`、`logoItems.size`、`renamedUrls.size`、`draftOnlyUrls.size`、`deletedPublishedUrls.size`、`editingAnchorUrls.length` 任一存在，execute 就必须禁用
 - `verify` 责任：`scripts/verify-share-runtime-artifacts.ts` 只做严格读取与 drift 校验，不写文件；exit code 约定为无 drift 返回 `0`、发现 drift 返回 `1`、输入或运行时错误返回 `2`
+- 部署边界：`corepack pnpm run build:cf` 会在 OpenNext 构建前运行 `verify:runtime-artifacts`，同时检查博客与 share 正式产物 drift；发现不一致时必须先重建产物再部署
 
 ### share 开发工具测试命令
 ```bash
@@ -166,10 +167,9 @@ node --require ./test-alias-register.cjs --import jiti/register ./scripts/verify
 ### `content.db` 冲突处理 SOP
 1. 不要手工合并数据库二进制内容。
 2. 先备份当前数据库，例如 `data/backups/content.<timestamp>.db`。
-3. 优先通过迁移/重建流程恢复：
-   - `node scripts/migrate-legacy-to-db.ts --dry-run`
-   - `node scripts/migrate-legacy-to-db.ts --confirm-overwrite`
-   - `node scripts/verify-db-migration.ts`
+3. 优先通过预检查与重建流程恢复：
+   - `node scripts/migrate-legacy-to-db.ts --dry-run` 只输出迁移预览，不写入数据库或正式产物。
+   - 需要写回时使用 development 环境中的博客账本工具执行同步 / 重建，再运行 `node scripts/verify-db-migration.ts` 校验。
 4. 基于恢复后的数据库重新生成 `public/blogs/*.json`、`public/share/*.json` 正式产物。
 5. 若仍无法恢复，再转人工介入，不要继续自动覆盖。
 
@@ -818,7 +818,7 @@ import DraggerSVG from '@/svgs/dragger.svg'
 
 1. 代码推送到 GitHub（`git push origin main`）
 2. Cloudflare Git 集成自动触发构建
-3. 构建命令：`corepack pnpm run build:cf`（执行 `opennextjs-cloudflare build` 并校验 Worker gzip 体积）
+3. 构建命令：`corepack pnpm run build:cf`（先校验博客/share 正式产物一致性，再执行 `opennextjs-cloudflare build` 并校验 Worker gzip 体积）
 4. 部署到 Cloudflare Workers 边缘节点
 
 ### Worker 体积维护规则

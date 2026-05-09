@@ -4,34 +4,45 @@ import { join, resolve } from 'node:path'
 import { syncBlogRuntimeArtifactsToLedger } from '../src/lib/content-db/migration-contracts.ts'
 
 type Args = {
-	dryRun: boolean
-	confirmOverwrite: boolean
-	dbPath?: string
 	baseDir?: string
 }
 
-function parseArgs(argv: string[]): Args {
-	const args: Args = {
-		dryRun: false,
-		confirmOverwrite: false
+class MigrationCliError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'MigrationCliError'
 	}
+}
 
-	for (const entry of argv) {
+function parseArgs(argv: string[]): Args {
+	const args: Args = {}
+
+	for (let index = 0; index < argv.length; index += 1) {
+		const entry = argv[index]
 		if (entry === '--dry-run') {
-			args.dryRun = true
 			continue
 		}
-		if (entry === '--confirm-overwrite') {
-			args.confirmOverwrite = true
-			continue
-		}
-		if (entry.startsWith('--db-path=')) {
-			args.dbPath = entry.slice('--db-path='.length)
+		if (entry === '--base-dir') {
+			const value = argv[index + 1]
+			if (!value || value.startsWith('--')) {
+				throw new MigrationCliError('--base-dir 需要提供路径值')
+			}
+			args.baseDir = value
+			index += 1
 			continue
 		}
 		if (entry.startsWith('--base-dir=')) {
-			args.baseDir = entry.slice('--base-dir='.length)
+			const value = entry.slice('--base-dir='.length)
+			if (!value) {
+				throw new MigrationCliError('--base-dir 需要提供路径值')
+			}
+			args.baseDir = value
+			continue
 		}
+		if (entry === '--confirm-overwrite' || entry.startsWith('--db-path=')) {
+			throw new MigrationCliError('migrate-legacy-to-db 仅输出预览，不会写入数据库；请改用重建工具或移除写入参数')
+		}
+		throw new MigrationCliError(`未知参数：${entry}`)
 	}
 
 	return args
@@ -61,8 +72,7 @@ async function main(): Promise<void> {
 	console.log(
 		JSON.stringify(
 			{
-				dryRun: args.dryRun,
-				confirmOverwrite: args.confirmOverwrite,
+				mode: 'preview',
 				ledger: {
 					storageRaw: result.storageRaw
 				},
@@ -78,7 +88,7 @@ async function main(): Promise<void> {
 	)
 }
 
-main().catch((error) => {
+main().catch(error => {
 	console.error(error instanceof Error ? error.message : String(error))
 	process.exitCode = 1
 })

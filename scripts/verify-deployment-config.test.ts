@@ -14,11 +14,19 @@ test('wrangler build command uses packageManager-pinned pnpm through corepack', 
 	assert.doesNotMatch(wranglerConfig, /command = "pnpm run build:cf"/)
 })
 
-test('deploy script runs the verified Cloudflare build before deploying', async () => {
+test('deploy script runs runtime artifact checks and the verified Cloudflare build before deploying', async () => {
 	const packageJsonSource = await readFile(new URL('../package.json', import.meta.url), 'utf-8')
-	const packageJson = JSON.parse(packageJsonSource) as { scripts?: Record<string, string> }
+	const packageJson = JSON.parse(packageJsonSource) as { scripts?: Record<string, string>; devDependencies?: Record<string, string> }
 
-	assert.equal(packageJson.scripts?.['build:cf'], 'opennextjs-cloudflare build && node scripts/verify-cloudflare-worker-size.js')
+	assert.equal(packageJson.devDependencies?.jiti, '2.6.1')
+	assert.equal(
+		packageJson.scripts?.['verify:runtime-artifacts'],
+		'node --import jiti/register ./scripts/verify-db-migration.ts && node --require ./test-alias-register.cjs --import jiti/register ./scripts/verify-share-runtime-artifacts.ts'
+	)
+	assert.equal(
+		packageJson.scripts?.['build:cf'],
+		'corepack pnpm run verify:runtime-artifacts && opennextjs-cloudflare build && node scripts/verify-cloudflare-worker-size.js'
+	)
 	assert.equal(packageJson.scripts?.deploy, 'corepack pnpm run build:cf && opennextjs-cloudflare deploy')
 })
 

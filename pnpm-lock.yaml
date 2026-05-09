@@ -93,6 +93,9 @@ importers:
       code-inspector-plugin:
         specifier: ^1.2.10
         version: 1.2.10
+      jiti:
+        specifier: 2.6.1
+        version: 2.6.1
       next-sitemap:
         specifier: ^4.2.3
         version: 4.2.3(next@15.1.0(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))

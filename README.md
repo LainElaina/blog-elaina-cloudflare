@@ -213,6 +213,7 @@
 - CLI 校验入口：`scripts/verify-share-runtime-artifacts.ts`
   - 用法：在仓库根目录运行 `node --require ./test-alias-register.cjs --import jiti/register ./scripts/verify-share-runtime-artifacts.ts`；如需指定目录，可追加 `--base-dir=<repo-root>`
   - 只校验四份 share 正式产物与账本是否存在 drift，不写文件、不处理 logo 图片
+  - `corepack pnpm run build:cf` 会在 OpenNext 构建前自动执行博客与 share 正式产物 drift 校验，避免部署不一致的 public JSON 产物
 
 ### 🗂️ 博客目录交互补充说明
 - `/blog` 的“目录”是与 日 / 周 / 月 / 年 / 分类 同级的主视图，不再是独立漂浮筛选区。
@@ -272,10 +273,9 @@
 
 1. 不要手工合并数据库二进制内容。
 2. 先备份当前数据库，例如 `data/backups/content.<timestamp>.db`。
-3. 优先使用迁移/导出脚本重新生成数据库与静态产物：
-   - `node scripts/migrate-legacy-to-db.ts --dry-run`
-   - `node scripts/migrate-legacy-to-db.ts --confirm-overwrite`
-   - `node scripts/verify-db-migration.ts`
+3. 优先使用预检查与重建工具恢复数据库与静态产物：
+   - `node scripts/migrate-legacy-to-db.ts --dry-run` 只输出迁移预览，不写入数据库或正式产物。
+   - 需要写回时使用开发环境中的博客账本工具执行同步 / 重建，再运行 `node scripts/verify-db-migration.ts` 校验。
 4. 若仍无法恢复，再转人工介入，不要继续自动覆盖。
 5. 处理完后核对 `public/blogs/*.json`、`public/share/*.json` 与页面展示一致。
 
@@ -340,7 +340,7 @@ pnpm run dev
 
 ### Cloudflare Worker 体积边界
 
-Cloudflare Workers 免费版会校验压缩后的 Worker 脚本体积，当前上限是 3 MiB。OpenNext 构建后，真正受这个限制影响的是 `.open-next/worker.js` 与 server function bundle，而不是单纯的静态资源总量；Cloudflare 已按压缩后体积判断，手动把仓库或 Worker 再 gzip 一次不能绕过这个限制。
+Cloudflare Workers 免费版会校验压缩后的 Worker 脚本体积，当前上限是 3 MiB。OpenNext 构建后，真正受这个限制影响的是 `.open-next/worker.js` 与 server function bundle，而不是单纯的静态资源总量；Cloudflare 已按压缩后体积判断，手动把仓库或 Worker 再 gzip 一次不能绕过这个限制。`corepack pnpm run build:cf` 还会先校验 `public/blogs/*.json` 与 `public/share/*.json` 的正式产物一致性，drift 未修复时不会继续部署。
 
 正常新增博客文章通常主要增加 `public/blogs/<slug>/`、`public/blogs/index.json`、`categories.json`、`folders.json`、`storage.json` 和图片等静态资源体积，不应把文章正文或本地管理工具重依赖打进 Worker。若新增功能需要 API route，请特别注意生产入口的顶层 import：只在本地开发使用的文件系统、迁移脚本、一次性管理工具必须放到 development guard 之后动态加载。
 
