@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { escapeXml, isRuntimeBlogSlug, normalizeBlogIndexForRss, sanitizeXmlText, wrapCdata } from './rss-utils.ts'
+import { escapeXml, isRuntimeBlogSlug, limitRssText, MAX_FEED_ITEMS, MAX_RSS_TEXT_LENGTH, normalizeBlogIndexForRss, normalizeVisibleRssItems, sanitizeXmlText, wrapCdata } from './rss-utils.ts'
 
 test('rss route shares runtime slug filtering rules', () => {
 	const malformedUnicodeSlug = String.fromCharCode(0xd800)
@@ -35,7 +35,7 @@ test('rss route normalizes dirty blog index data without throwing', () => {
 			{ slug: '', title: 'Empty slug' },
 			{ slug: 'Bad-Slug', title: 'Historical case slug' },
 			{ slug: 'bad/slash', title: 'Bad slash slug' },
-				{ slug: String.fromCharCode(0xd800), title: 'Malformed unicode slug' },
+			{ slug: String.fromCharCode(0xd800), title: 'Malformed unicode slug' },
 			{ slug: 'bad&slug', title: 'XML-safe slug' },
 			{ slug: 'x'.repeat(121), title: 'Long legacy slug' },
 			{
@@ -90,4 +90,26 @@ test('rss route normalizes dirty blog index data without throwing', () => {
 			}
 		]
 	)
+})
+
+test('rss route limits text fields and visible feed items', () => {
+	const longText = 'a'.repeat(MAX_RSS_TEXT_LENGTH + 1)
+	const limitedText = `${'a'.repeat(MAX_RSS_TEXT_LENGTH)}…`
+	const posts = Array.from({ length: MAX_FEED_ITEMS + 2 }, (_, index) => ({
+		slug: `post-${index}`,
+		title: longText,
+		summary: longText,
+		tags: [longText],
+		...(index === 1 ? { hidden: true } : {})
+	}))
+
+	const normalized = normalizeBlogIndexForRss(posts)
+	const visibleItems = normalizeVisibleRssItems(posts)
+
+	assert.equal(limitRssText(longText), limitedText)
+	assert.equal(normalized[0]?.title, limitedText)
+	assert.equal(normalized[0]?.summary, limitedText)
+	assert.deepEqual(normalized[0]?.tags, [limitedText])
+	assert.equal(visibleItems.length, MAX_FEED_ITEMS)
+	assert.equal(visibleItems.some(item => item.slug === 'post-1'), false)
 })

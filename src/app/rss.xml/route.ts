@@ -3,13 +3,13 @@ import blogIndex from '@/../public/blogs/index.json'
 import type { BlogIndexItem } from '@/app/blog/types'
 import { getBlogHref } from '@/lib/blog-href'
 import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
-import { escapeXml, normalizeBlogIndexForRss, wrapCdata } from './rss-utils'
+import { escapeXml, normalizeVisibleRssItems, wrapCdata } from './rss-utils'
 
 const SITE_ORIGIN = getSiteOrigin()
 const FEED_PATH = '/rss.xml'
 const FEED_URL = toAbsoluteSiteUrl(FEED_PATH)
 
-const blogs = normalizeBlogIndexForRss(blogIndex)
+const blogs = normalizeVisibleRssItems(blogIndex)
 
 const serializeItem = (item: BlogIndexItem): string => {
 	const link = toAbsoluteSiteUrl(getBlogHref(item.slug))
@@ -42,7 +42,6 @@ export function GET(): Response {
 	const description = siteContent.meta?.description || 'Latest updates from 2025 Blog'
 
 	const items = blogs
-		.filter(item => item?.slug && !item.hidden)
 		.map(serializeItem)
 		.join('')
 

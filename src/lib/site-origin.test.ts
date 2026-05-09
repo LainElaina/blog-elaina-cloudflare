@@ -64,6 +64,7 @@ const blogIndex = (await import('@/../public/blogs/index.json')).default as Arra
 const { siteMetadata } = await import('@/app/site-metadata')
 const { GET: getRss } = await import('@/app/rss.xml/route')
 const { buildSitemapEntries, default: sitemap } = await import('@/app/sitemap')
+const { MAX_FEED_ITEMS } = await import('@/app/rss.xml/rss-utils')
 const { CANONICAL_SITE_ORIGIN, getSiteOrigin, toAbsoluteSiteUrl } = await import('./site-origin')
 
 describe('site origin helper', () => {
@@ -182,5 +183,18 @@ describe('site canonical URL generation', () => {
 		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/bad%2Fslash')), false)
 		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/bad%5Cslash')), false)
 		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/hidden-post')), false)
+	})
+
+	it('limits sitemap blog entries generated from oversized indexes', () => {
+		const entries = buildSitemapEntries(
+			Array.from({ length: MAX_FEED_ITEMS + 2 }, (_, index) => ({
+				slug: `oversized-post-${index}`,
+				date: '2026-01-01T00:00:00.000Z'
+			}))
+		)
+
+		assert.equal(entries.length, MAX_FEED_ITEMS + 1)
+		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl('/blog/oversized-post-0')), true)
+		assert.equal(entries.some(entry => entry.url === toAbsoluteSiteUrl(`/blog/oversized-post-${MAX_FEED_ITEMS}`)), false)
 	})
 })

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 import blogIndex from '@/../public/blogs/index.json'
-import { isRuntimeBlogSlug } from '@/app/rss.xml/rss-utils'
+import { isRuntimeBlogSlug, MAX_FEED_ITEMS } from '@/app/rss.xml/rss-utils'
 import { getBlogHref } from '@/lib/blog-href'
 import { getSiteOrigin, toAbsoluteSiteUrl } from '@/lib/site-origin'
 
@@ -32,7 +32,7 @@ export function normalizeSitemapBlogPosts(value: unknown): SitemapBlogPost[] {
 				...(typeof post.date === 'string' ? { date: post.date } : {})
 			}
 		]
-	})
+	}).slice(0, MAX_FEED_ITEMS)
 }
 
 export function buildSitemapEntries(value: unknown, baseUrl = getSiteOrigin()): MetadataRoute.Sitemap {

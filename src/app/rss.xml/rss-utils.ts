@@ -1,5 +1,8 @@
 import type { BlogIndexItem } from '../blog/types.ts'
 
+export const MAX_FEED_ITEMS = 100
+export const MAX_RSS_TEXT_LENGTH = 2000
+
 function isSafeUriComponent(value: string): boolean {
 	try {
 		encodeURIComponent(value)
@@ -37,6 +40,11 @@ export function wrapCdata(value: string): string {
 	return `<![CDATA[${sanitizeXmlText(value).replaceAll(']]>', ']]]]><![CDATA[>')}]]>`
 }
 
+export function limitRssText(value: string): string {
+	if (value.length <= MAX_RSS_TEXT_LENGTH) return value
+	return `${value.slice(0, MAX_RSS_TEXT_LENGTH)}…`
+}
+
 export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
 	if (!Array.isArray(input)) {
 		return []
@@ -55,12 +63,18 @@ export function normalizeBlogIndexForRss(input: unknown): BlogIndexItem[] {
 		return [
 			{
 				slug: blog.slug,
-				title: typeof blog.title === 'string' && blog.title.trim() ? blog.title : blog.slug,
-				tags: Array.isArray(blog.tags) ? blog.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+				title: limitRssText(typeof blog.title === 'string' && blog.title.trim() ? blog.title : blog.slug),
+				tags: Array.isArray(blog.tags) ? blog.tags.filter((tag): tag is string => typeof tag === 'string').map(limitRssText) : [],
 				date: typeof blog.date === 'string' ? blog.date : '',
-				...(typeof blog.summary === 'string' ? { summary: blog.summary } : {}),
+				...(typeof blog.summary === 'string' ? { summary: limitRssText(blog.summary) } : {}),
 				...(typeof blog.hidden === 'boolean' ? { hidden: blog.hidden } : {})
 			}
 		]
 	})
+}
+
+export function normalizeVisibleRssItems(input: unknown): BlogIndexItem[] {
+	return normalizeBlogIndexForRss(input)
+		.filter(item => !item.hidden)
+		.slice(0, MAX_FEED_ITEMS)
 }
