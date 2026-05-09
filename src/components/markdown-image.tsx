@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 import Lightbox from '@/components/lightbox'
 
 type MarkdownImageProps = {
@@ -11,6 +12,9 @@ type MarkdownImageProps = {
 
 export function MarkdownImage({ src, alt = '', title = '' }: MarkdownImageProps) {
 	const [display, setDisplay] = useState(false)
+	if (!isSafeMarkdownImageUrl(src)) {
+		return alt || null
+	}
 
 	return (
 		<>

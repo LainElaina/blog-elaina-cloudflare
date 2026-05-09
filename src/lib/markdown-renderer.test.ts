@@ -65,3 +65,15 @@ test('markdown renderer sanitizes raw html inside headings while preserving mark
 	assert.doesNotMatch(result.html, /<script>/)
 	assert.deepEqual(result.toc, [{ id: '标题-alert1-重点', text: '**标题** <script>alert(1)</script> <u>重点</u>', level: 1 }])
 })
+
+test('markdown renderer filters unsafe link and image protocols', async () => {
+	const result = await renderMarkdown('[safe](https://example.com) [bad](javascript:alert(1)) ![ok](/blogs/post/a.png) ![bad image](file:///etc/passwd) ![preview](blob:local-preview)')
+
+	assert.match(result.html, /<a href="https:\/\/example\.com">safe<\/a>/)
+	assert.match(result.html, /safe/)
+	assert.match(result.html, /bad/)
+	assert.doesNotMatch(result.html, /href="javascript:/)
+	assert.match(result.html, /<img src="\/blogs\/post\/a\.png" alt="ok">/)
+	assert.match(result.html, /<img src="blob:local-preview" alt="preview">/)
+	assert.doesNotMatch(result.html, /src="file:/)
+})

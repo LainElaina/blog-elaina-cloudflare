@@ -1,5 +1,6 @@
 import { Marked } from 'marked'
 import type { Tokens } from 'marked'
+import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from './markdown-url-safety.ts'
 
 export type TocItem = { id: string; text: string; level: number }
 
@@ -164,6 +165,21 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 	}
 
 	renderer.html = (token: Tokens.HTML | Tokens.Tag) => sanitizeRawHtmlFragment(token.text)
+	renderer.link = (token: Tokens.Link) => {
+		const text = markdownRenderer.Parser.parseInline(token.tokens, { renderer })
+		if (!isSafeMarkdownLinkUrl(token.href)) {
+			return text
+		}
+		const title = token.title ? ` title="${escapeHtml(token.title)}"` : ''
+		return `<a href="${escapeHtml(token.href)}"${title}>${text}</a>`
+	}
+	renderer.image = (token: Tokens.Image) => {
+		if (!isSafeMarkdownImageUrl(token.href)) {
+			return escapeHtml(token.text || '')
+		}
+		const title = token.title ? ` title="${escapeHtml(token.title)}"` : ''
+		return `<img src="${escapeHtml(token.href)}" alt="${escapeHtml(token.text || '')}"${title}>`
+	}
 	renderer.code = (token: Tokens.Code) => {
 		const codeData = codeBlockMap.get(token.text)
 		if (codeData) {
