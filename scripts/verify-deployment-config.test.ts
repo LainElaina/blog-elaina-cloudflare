@@ -13,3 +13,13 @@ test('wrangler build command uses packageManager-pinned pnpm through corepack', 
 	assert.match(wranglerConfig, /\[build\]\s+command = "corepack pnpm run build:cf"/)
 	assert.doesNotMatch(wranglerConfig, /command = "pnpm run build:cf"/)
 })
+
+test('production build externalizes local-only API modules', async () => {
+	const nextConfig = await readFile(new URL('../next.config.ts', import.meta.url), 'utf-8')
+
+	assert.match(nextConfig, /localOnlyApiModulePattern/)
+	assert.equal(nextConfig.includes('\\.\\/route-local'), true)
+	assert.equal(nextConfig.includes('\\.\\.\\/route-handlers\\.ts'), true)
+	assert.equal(nextConfig.includes('\\.\\.\\/\\.\\.\\/site-config-local-shared\\.ts'), true)
+	assert.match(nextConfig, /new webpack\.IgnorePlugin\(\{ resourceRegExp: localOnlyApiModulePattern \}\)/)
+})

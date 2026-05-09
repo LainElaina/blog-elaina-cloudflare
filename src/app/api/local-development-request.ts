@@ -57,9 +57,13 @@ export function isAllowedLocalDevelopmentRequest(request: Pick<Request, 'headers
 	return isSafeFetchSite(request.headers.get('sec-fetch-site'))
 }
 
+export function rejectUnavailableLocalDevelopmentRequest(): NextResponse {
+	return NextResponse.json({ error: DEVELOPMENT_ONLY_ERROR }, { status: 403 })
+}
+
 export function rejectNonLocalDevelopmentRequest(request: Pick<Request, 'headers' | 'url'>): NextResponse | null {
 	if (process.env.NODE_ENV !== 'development') {
-		return NextResponse.json({ error: DEVELOPMENT_ONLY_ERROR }, { status: 403 })
+		return rejectUnavailableLocalDevelopmentRequest()
 	}
 	if (!isAllowedLocalDevelopmentRequest(request)) {
 		return NextResponse.json({ error: LOOPBACK_ONLY_ERROR }, { status: 403 })

@@ -1,11 +1,15 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getLimitedJsonRequestErrorStatus, isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
-import { rejectNonLocalDevelopmentRequest } from '../../local-development-request.ts'
+import { rejectNonLocalDevelopmentRequest, rejectUnavailableLocalDevelopmentRequest } from '../../local-development-request.ts'
 
 const SITE_CONFIG_REQUEST_MAX_BYTES = 1024 * 1024
 
 export async function POST(request: NextRequest) {
+	if (process.env.NODE_ENV !== 'development') {
+		return rejectUnavailableLocalDevelopmentRequest()
+	}
+
 	const rejected = rejectNonLocalDevelopmentRequest(request)
 	if (rejected) {
 		return rejected

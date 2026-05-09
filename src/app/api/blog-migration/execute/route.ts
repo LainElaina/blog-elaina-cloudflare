@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { isJsonRequestBodyTooLargeError, readLimitedJsonRequest } from '../../limited-json-request.ts'
-import { rejectNonLocalDevelopmentRequest } from '../../local-development-request.ts'
+import { rejectNonLocalDevelopmentRequest, rejectUnavailableLocalDevelopmentRequest } from '../../local-development-request.ts'
 
 const MAX_BLOG_MIGRATION_EXECUTE_REQUEST_BODY_SIZE = 1024 * 1024
 
 export async function POST(request: Request) {
+	if (process.env.NODE_ENV !== 'development') {
+		return rejectUnavailableLocalDevelopmentRequest()
+	}
+
 	const rejected = rejectNonLocalDevelopmentRequest(request)
 	if (rejected) {
 		return rejected

@@ -11,6 +11,8 @@ function formatBuildCompletedAtUtc8(date: Date) {
 	return `${utc8Date.getUTCFullYear()}-${padBuildDatePart(utc8Date.getUTCMonth() + 1)}-${padBuildDatePart(utc8Date.getUTCDate())} ${padBuildDatePart(utc8Date.getUTCHours())}:${padBuildDatePart(utc8Date.getUTCMinutes())}:${padBuildDatePart(utc8Date.getUTCSeconds())} UTC+8`
 }
 
+const localOnlyApiModulePattern = /^(?:\.\/route-local|\.\.\/route-handlers\.ts|\.\.\/\.\.\/site-config-local-shared\.ts)$/
+
 const nextConfig: NextConfig = {
 	env: {
 		NEXT_PUBLIC_BUILD_COMPLETED_AT_UTC8: formatBuildCompletedAtUtc8(new Date())
@@ -23,11 +25,18 @@ const nextConfig: NextConfig = {
 	experimental: {
 		scrollRestoration: false
 	},
-	webpack: config => {
+	webpack: (config, { webpack }) => {
 		config.module.rules.push({
 			test: /\.svg$/i,
 			use: [{ loader: '@svgr/webpack', options: { svgo: false } }]
 		})
+
+		if (process.env.NODE_ENV === 'production') {
+			config.plugins = [
+				...(config.plugins ?? []),
+				new webpack.IgnorePlugin({ resourceRegExp: localOnlyApiModulePattern })
+			]
+		}
 
 		return config
 	},
