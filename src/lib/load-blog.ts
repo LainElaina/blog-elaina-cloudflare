@@ -4,6 +4,12 @@ import { parseBlogStorageDB } from '@/lib/content-db/blog-storage'
 export type { BlogConfig } from '@/app/blog/types'
 
 const LOAD_BLOG_FETCH_OPTIONS: RequestInit = { cache: 'no-store' }
+const LOAD_BLOG_TEXT_LIMITS = {
+	storage: 2 * 1024 * 1024,
+	config: 64 * 1024,
+	markdown: 2 * 1024 * 1024,
+	errorDetail: 8 * 1024
+} as const
 
 export type LoadedBlog = {
 	slug: string
@@ -39,29 +45,79 @@ function toBlogConfigFromStorageRecord(record: Record<string, unknown> | undefin
 	return config
 }
 
+async function readLimitedLoadBlogText(response: Response, actionName: string, limitBytes: number): Promise<string> {
+	const contentLength = response.headers.get('content-length')
+	if (contentLength && Number(contentLength) > limitBytes) {
+		throw new Error(`${actionName}失败：文件过大`)
+	}
+
+	if (!response.body) {
+		const text = await response.text()
+		if (new TextEncoder().encode(text).byteLength > limitBytes) {
+			throw new Error(`${actionName}失败：文件过大`)
+		}
+		return text
+	}
+
+	const reader = response.body.getReader()
+	const chunks: Uint8Array[] = []
+	let total = 0
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+			total += value.byteLength
+			if (total > limitBytes) {
+				await reader.cancel()
+				throw new Error(`${actionName}失败：文件过大`)
+			}
+			chunks.push(value)
+		}
+	} finally {
+		reader.releaseLock()
+	}
+
+	const buffer = new Uint8Array(total)
+	let offset = 0
+	for (const chunk of chunks) {
+		buffer.set(chunk, offset)
+		offset += chunk.byteLength
+	}
+	return new TextDecoder().decode(buffer)
+}
+
+async function readErrorDetail(response: Response): Promise<string> {
+	try {
+		return await readLimitedLoadBlogText(response, '读取错误详情', LOAD_BLOG_TEXT_LIMITS.errorDetail)
+	} catch {
+		return ''
+	}
+}
+
 async function assertLoadBlogOk(response: Response, actionName: string) {
 	if (response.ok) {
 		return
 	}
 
-	const detail = await response.text().catch(() => '')
+	const detail = await readErrorDetail(response)
 	throw new Error(detail ? `${actionName}失败：${detail}` : `${actionName}失败`)
 }
 
-async function readOptionalLoadBlogText(response: Response, actionName: string): Promise<string | null> {
+async function readOptionalLoadBlogText(response: Response, actionName: string, limitBytes: number): Promise<string | null> {
 	if (response.status === 404) {
 		return null
 	}
 	await assertLoadBlogOk(response, actionName)
-	return response.text()
+	return readLimitedLoadBlogText(response, actionName, limitBytes)
 }
 
-async function readRequiredLoadBlogText(response: Response, actionName: string): Promise<string> {
+async function readRequiredLoadBlogText(response: Response, actionName: string, limitBytes: number): Promise<string> {
 	if (response.status === 404) {
 		throw new Error('Blog not found')
 	}
 	await assertLoadBlogOk(response, actionName)
-	return response.text()
+	return readLimitedLoadBlogText(response, actionName, limitBytes)
 }
 
 /**
@@ -75,7 +131,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 
 	let config: BlogConfig = {}
 	const storageRes = await fetch('/blogs/storage.json', LOAD_BLOG_FETCH_OPTIONS)
-	const storageRaw = await readOptionalLoadBlogText(storageRes, '读取博客存储')
+	const storageRaw = await readOptionalLoadBlogText(storageRes, '读取博客存储', LOAD_BLOG_TEXT_LIMITS.storage)
 	if (storageRaw !== null) {
 		assertBlogStorageJsonSyntax(storageRaw)
 		const storage = parseBlogStorageDB(storageRaw)
@@ -84,7 +140,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 
 	if (Object.keys(config).length === 0) {
 		const configRes = await fetch(`/blogs/${encodeURIComponent(slug)}/config.json`, LOAD_BLOG_FETCH_OPTIONS)
-		const configRaw = await readOptionalLoadBlogText(configRes, '读取博客配置')
+		const configRaw = await readOptionalLoadBlogText(configRes, '读取博客配置', LOAD_BLOG_TEXT_LIMITS.config)
 		if (configRaw !== null) {
 			try {
 				const parsedConfig = JSON.parse(configRaw)
@@ -99,7 +155,7 @@ export async function loadBlog(slug: string): Promise<LoadedBlog> {
 	}
 
 	const mdRes = await fetch(`/blogs/${encodeURIComponent(slug)}/index.md`, LOAD_BLOG_FETCH_OPTIONS)
-	const markdown = await readRequiredLoadBlogText(mdRes, '读取博客 Markdown')
+	const markdown = await readRequiredLoadBlogText(mdRes, '读取博客 Markdown', LOAD_BLOG_TEXT_LIMITS.markdown)
 
 	return {
 		slug,

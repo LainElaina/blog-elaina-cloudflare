@@ -340,6 +340,58 @@ describe('loadBlog', () => {
 		}
 	})
 
+	it('rejects oversized static blog responses before parsing content', async () => {
+		await withMockFetch(
+			new Map<string, Response>([
+				['/blogs/storage.json', new Response('', { status: 200, headers: { 'content-length': String(2 * 1024 * 1024 + 1) } })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /读取博客存储失败：文件过大/)
+			}
+		)
+
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {}
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/config.json', new Response('x'.repeat(64 * 1024 + 1), { status: 200 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /读取博客配置失败：文件过大/)
+			}
+		)
+
+		await withMockFetch(
+			new Map<string, Response>([
+				[
+					'/blogs/storage.json',
+					new Response(
+						JSON.stringify({
+							version: 1,
+							updatedAt: '2026-03-27T10:00:00.000Z',
+							blogs: {}
+						}),
+						{ status: 200 }
+					)
+				],
+				['/blogs/post-a/config.json', new Response('{}', { status: 200 })],
+				['/blogs/post-a/index.md', new Response('x'.repeat(2 * 1024 * 1024 + 1), { status: 200 })]
+			]),
+			async () => {
+				await assert.rejects(() => loadBlog('post-a'), /读取博客 Markdown失败：文件过大/)
+			}
+		)
+	})
+
 	it('keeps missing markdown as not found while surfacing read failures', async () => {
 		await withMockFetch(new Map<string, Response>(), async () => {
 			await assert.rejects(() => loadBlog('post-a'), /Blog not found/)
