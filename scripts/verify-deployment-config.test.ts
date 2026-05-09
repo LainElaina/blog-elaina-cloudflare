@@ -14,6 +14,18 @@ test('wrangler build command uses packageManager-pinned pnpm through corepack', 
 	assert.doesNotMatch(wranglerConfig, /command = "pnpm run build:cf"/)
 })
 
+test('production build checks TypeScript with build tsconfig', async () => {
+	const [nextConfig, buildTsconfig] = await Promise.all([
+		readFile(new URL('../next.config.ts', import.meta.url), 'utf-8'),
+		readFile(new URL('../tsconfig.build.json', import.meta.url), 'utf-8')
+	])
+
+	assert.doesNotMatch(nextConfig, /ignoreBuildErrors:\s*true/)
+	assert.match(nextConfig, /tsconfigPath:\s*'tsconfig\.build\.json'/)
+	assert.match(buildTsconfig, /src\/\*\*\/\*.tsx/)
+	assert.match(buildTsconfig, /src\/\*\*\/\*.test\.ts/)
+})
+
 test('production build externalizes local-only API modules', async () => {
 	const nextConfig = await readFile(new URL('../next.config.ts', import.meta.url), 'utf-8')
 

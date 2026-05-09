@@ -23,7 +23,7 @@ function isAllowedBlogDirectoryPath(blogDir: string, fullPath: string) {
 }
 
 function isFileNotFoundError(error: unknown) {
-	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+	return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
 
 function isUnsafeDeleteDirParentError(error: unknown) {

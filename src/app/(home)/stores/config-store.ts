@@ -6,7 +6,16 @@ import { saveLayoutToServer, undoLayout } from '@/lib/layout-persistence'
 import { useLogStore } from './log-store'
 
 export type SiteContent = typeof siteContent
-export type CardStyles = typeof cardStyles
+export type CardStyle = {
+	width: number
+	height: number
+	order: number
+	offsetX: number | null
+	offsetY: number | null
+	enabled: boolean
+	offset?: number
+}
+export type CardStyles = Record<keyof typeof cardStyles, CardStyle>
 
 interface ConfigStore {
 	siteContent: SiteContent

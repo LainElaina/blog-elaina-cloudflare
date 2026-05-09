@@ -320,14 +320,15 @@ export default function Page() {
 				next.set(payload.currentUrl, createDraftStableKey())
 				return next
 			})
-		} else if (isDraftOnlyEdit) {
+		} else if (isDraftOnlyEdit && payload.oldUrl) {
+			const oldUrl = payload.oldUrl
 			setDraftOnlyUrls(prev => {
 				const next = new Set(prev)
-				next.delete(payload.oldUrl)
+				next.delete(oldUrl)
 				next.add(payload.currentUrl)
 				return next
 			})
-			setDraftStableKeys(prev => moveDraftStableKey(new Map(prev), payload.oldUrl, payload.currentUrl))
+			setDraftStableKeys(prev => moveDraftStableKey(new Map(prev), oldUrl, payload.currentUrl))
 		} else {
 			setRenamedUrls(prev =>
 				updatePendingShareUrlMappings(new Map(prev), {

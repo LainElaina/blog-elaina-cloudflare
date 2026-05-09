@@ -95,9 +95,12 @@ export default function MusicCard() {
 		}
 
 		// Default position on home page
+		const cardOffset = styles.offset ?? 0
+		const clockOffset = clockCardStyles.offset ?? 0
+
 		return {
-			x: styles.offsetX !== null ? center.x + styles.offsetX : center.x + CARD_SPACING + hiCardStyles.width / 2 - styles.offset,
-			y: styles.offsetY !== null ? center.y + styles.offsetY : center.y - clockCardStyles.offset + CARD_SPACING + calendarCardStyles.height + CARD_SPACING
+			x: styles.offsetX !== null ? center.x + styles.offsetX : center.x + CARD_SPACING + hiCardStyles.width / 2 - cardOffset,
+			y: styles.offsetY !== null ? center.y + styles.offsetY : center.y - clockOffset + CARD_SPACING + calendarCardStyles.height + CARD_SPACING
 		}
 	}, [showPlaylist, isPlaying, isHomePage, center, styles, hiCardStyles, clockCardStyles, calendarCardStyles, expandedHeight])
 

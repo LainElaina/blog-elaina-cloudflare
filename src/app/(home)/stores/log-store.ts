@@ -30,6 +30,8 @@ export const LOG_CATEGORY_LABELS: Record<LogCategory, string> = {
 	error: '错误捕获'
 }
 
+type LogInputCategory = LogCategory | 'component'
+
 interface LogStore {
 	logs: LogEntry[]
 	enabled: boolean
@@ -37,7 +39,7 @@ interface LogStore {
 	enabledCategories: Set<LogCategory>
 	logCounter: number
 	hasUnreadError: boolean
-	addLog: (level: LogEntry['level'], category: LogCategory, action: string, details?: any) => void
+	addLog: (level: LogEntry['level'], category: LogInputCategory, action: string, details?: any) => void
 	clearLogs: () => void
 	setEnabled: (enabled: boolean) => void
 	setVisible: (visible: boolean) => void
@@ -72,13 +74,13 @@ export const useLogStore = create<LogStore>((set, get) => ({
 	hasUnreadError: false,
 	addLog: (level, category, action, details) => {
 		const { enabled, enabledCategories, logCounter } = get()
-		if (!enabled || !enabledCategories.has(category)) return
+		if (!enabled || !enabledCategories.has(category as LogCategory)) return
 
 		const log: LogEntry = {
 			id: `${Date.now()}-${logCounter}`,
 			timestamp: Date.now(),
 			level,
-			category,
+			category: category as LogCategory,
 			action,
 			details
 		}

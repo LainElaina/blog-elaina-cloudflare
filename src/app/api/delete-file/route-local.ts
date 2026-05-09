@@ -9,7 +9,7 @@ import { getSaveFileLocalContentMutationScope, isAllowedSaveFilePath } from '../
 const MAX_DELETE_FILE_REQUEST_BODY_SIZE = 1024 * 1024
 
 function isFileNotFoundError(error: unknown) {
-	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+	return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
 
 function isUnsafeDeleteFileDirectoryError(error: unknown) {

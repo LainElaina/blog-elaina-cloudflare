@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, Fragment } from 'react'
+import { createElement, Fragment, type ComponentProps } from 'react'
 import { motion } from 'motion/react'
 
 export interface PicturesPagePicture {
@@ -38,6 +38,9 @@ export interface PicturesPageViewProps {
 	renderRandomLayout: (props: PicturesLayoutProps) => React.ReactNode
 	renderMasonryLayout: (props: PicturesLayoutProps) => React.ReactNode
 }
+
+type MotionButtonProps = ComponentProps<typeof motion.button>
+type MotionButtonDataAttributes = Record<`data-${string}`, string>
 
 function getDisplayModeToggleButtonClass(params: {
 	currentMode: PicturesPageDisplayMode
@@ -100,24 +103,26 @@ function createDisplayModeToggleButton(props: PicturesPageViewProps, onClick: ()
 			? '切换到瀑布模式'
 			: '切换到相纸模式'
 
+	const buttonProps: MotionButtonProps & MotionButtonDataAttributes = {
+		whileHover: props.isEditMode ? undefined : { scale: 1.05 },
+		whileTap: props.isEditMode ? undefined : { scale: 0.95 },
+		type: 'button',
+		onClick,
+		disabled: props.isEditMode,
+		title,
+		'aria-label': title,
+		'data-display-mode-toggle': 'pictures-display-mode-toggle',
+		'data-current-display-mode': props.effectiveDisplayMode,
+		'data-target-display-mode': targetDisplayMode,
+		className: getDisplayModeToggleButtonClass({
+			currentMode: props.effectiveDisplayMode,
+			isEditMode: props.isEditMode
+		})
+	}
+
 	return createElement(
 		motion.button,
-		{
-			whileHover: props.isEditMode ? undefined : { scale: 1.05 },
-			whileTap: props.isEditMode ? undefined : { scale: 0.95 },
-			type: 'button',
-			onClick,
-			disabled: props.isEditMode,
-			title,
-			'aria-label': title,
-			'data-display-mode-toggle': 'pictures-display-mode-toggle',
-			'data-current-display-mode': props.effectiveDisplayMode,
-			'data-target-display-mode': targetDisplayMode,
-			className: getDisplayModeToggleButtonClass({
-				currentMode: props.effectiveDisplayMode,
-				isEditMode: props.isEditMode
-			})
-		},
+		buttonProps,
 		createDisplayModeToggleIcon(targetDisplayMode)
 	)
 }

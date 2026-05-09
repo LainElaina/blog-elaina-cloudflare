@@ -31,6 +31,19 @@ function readCachedList(key: string): unknown[] | null {
 }
 
 type PendingImageFile = { file: File; previewUrl: string; hash: string }
+type NewComponentDraft = {
+	name: string
+	type: 'text' | 'image' | 'link' | 'iframe'
+	templateId: string
+	content: { text: string; imageUrl: string; linkUrl: string; iframeUrl: string }
+}
+
+const emptyNewComponentDraft: NewComponentDraft = {
+	name: '',
+	type: 'text',
+	templateId: 'medium-rect',
+	content: { text: '', imageUrl: '', linkUrl: '', iframeUrl: '' }
+}
 
 export function ComponentStore() {
 	const [mounted, setMounted] = useState(false)
@@ -87,12 +100,7 @@ export function ComponentStore() {
 		}
 	}, [setOffset])
 
-	const [newComp, setNewComp] = useState({
-		name: '',
-		type: 'text' as const,
-		templateId: 'medium-rect',
-		content: { text: '', imageUrl: '', linkUrl: '', iframeUrl: '' }
-	})
+	const [newComp, setNewComp] = useState<NewComponentDraft>(emptyNewComponentDraft)
 	const [pendingImageFile, setPendingImageFileState] = useState<PendingImageFile | null>(null)
 	const pendingImageFileRef = useRef<PendingImageFile | null>(null)
 

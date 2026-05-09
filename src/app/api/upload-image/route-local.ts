@@ -86,7 +86,7 @@ async function buildLimitedMultipartRequest(request: NextRequest, maxBytes: numb
 	return new Request(request.url, {
 		method: request.method,
 		headers: request.headers,
-		body: new Blob(chunks)
+		body: new Blob(chunks as BlobPart[])
 	})
 }
 

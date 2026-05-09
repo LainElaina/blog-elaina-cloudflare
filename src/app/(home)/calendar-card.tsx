@@ -22,8 +22,10 @@ export default function CalendarCard() {
 	const hiCardStyles = cardStyles.hiCard
 	const clockCardStyles = cardStyles.clockCard
 
+	const clockOffset = clockCardStyles.offset ?? 0
+
 	const x = styles.offsetX !== null ? center.x + styles.offsetX : center.x + CARD_SPACING + hiCardStyles.width / 2
-	const y = styles.offsetY !== null ? center.y + styles.offsetY : center.y - clockCardStyles.offset + CARD_SPACING
+	const y = styles.offsetY !== null ? center.y + styles.offsetY : center.y - clockOffset + CARD_SPACING
 
 	return (
 		<HomeDraggableLayer cardKey='calendarCard' x={x} y={y} width={styles.width} height={styles.height}>

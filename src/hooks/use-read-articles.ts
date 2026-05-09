@@ -11,7 +11,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export function normalizeReadArticles(value: unknown): ReadArticlesHash {
 	if (!isObject(value)) return {}
 
-	return Object.fromEntries(Object.entries(value).filter(([slug, isRead]) => slug.trim() && isRead === true))
+	return Object.fromEntries(Object.entries(value).filter(([slug, isRead]) => slug.trim() && isRead === true)) as ReadArticlesHash
 }
 
 interface ReadArticlesStore {

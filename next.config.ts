@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
 	reactStrictMode: false,
 	pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
 	typescript: {
-		ignoreBuildErrors: true
+		tsconfigPath: 'tsconfig.build.json'
 	},
 	experimental: {
 		scrollRestoration: false

@@ -390,7 +390,7 @@ export function buildRemovedSiteConfigSocialButtonImagePaths(originalSiteContent
 }
 
 function isFileNotFoundError(error: unknown) {
-	return Boolean(error) && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+	return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
 
 function buildSiteConfigFormalWrites(draft: SiteConfigDraftPayload): SiteConfigFormalWrite[] {

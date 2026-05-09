@@ -38,7 +38,7 @@ export function buildExecuteResponse(
       }
 ) {
   const validation = validateExecuteRequest({ confirmed: params.confirmed })
-  if (!validation.allowed) {
+  if (!validation.allowed || !params.confirmed) {
     return {
       status: 400,
       body: { message: validation.message }
