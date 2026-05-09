@@ -48,6 +48,14 @@ function assertAppearsBefore(source: string, earlier: string, later: string, rou
 
 const { isAllowedLocalDevelopmentRequest, rejectNonLocalDevelopmentRequest } = await import('./local-development-request.ts')
 
+test('development server script binds only to loopback by default', async () => {
+	const packageJson = JSON.parse(await readFile(new URL('../../../package.json', import.meta.url), 'utf-8')) as { scripts?: Record<string, string> }
+	const devScript = packageJson.scripts?.dev ?? ''
+
+	assert.match(devScript, /(?:^|\s)-H\s+127\.0\.0\.1(?:\s|$)/)
+	assert.doesNotMatch(devScript, /(?:^|\s)-H\s+0\.0\.0\.0(?:\s|$)/)
+})
+
 function request(url: string, headers?: Record<string, string>) {
 	return new Request(url, { headers })
 }
