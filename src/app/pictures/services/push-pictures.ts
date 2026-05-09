@@ -7,7 +7,7 @@ import {
 	createBlob,
 	readTextFileFromRepo,
 	listRepoFilesRecursive,
-	isGitHubUpdateRefConflictError,
+	throwStaleRemoteWriteConflictError,
 	type TreeItem
 } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
@@ -183,10 +183,6 @@ export async function pushPictures(params: PushPicturesParams): Promise<Picture[
 	try {
 		return await attemptPushPictures()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新发布...')
-			return attemptPushPictures()
-		}
-		throw error
+		throwStaleRemoteWriteConflictError(error)
 	}
 }

@@ -7,7 +7,7 @@ import {
 	createBlob,
 	readTextFileFromRepo,
 	listRepoFilesRecursive,
-	isGitHubUpdateRefConflictError,
+	throwStaleRemoteWriteConflictError,
 	type TreeItem
 } from '@/lib/github-client'
 import { fileToBase64NoPrefix, hashFileSHA256 } from '@/lib/file-utils'
@@ -175,11 +175,7 @@ export async function pushProjects(params: PushProjectsParams): Promise<Project[
 	try {
 		return await attemptPushProjects()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新发布...')
-			return attemptPushProjects()
-		}
-		throw error
+		throwStaleRemoteWriteConflictError(error)
 	}
 }
 

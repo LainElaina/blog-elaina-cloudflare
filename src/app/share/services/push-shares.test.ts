@@ -502,26 +502,24 @@ describe('buildRemoteShareArtifactContents', () => {
 		assert.match(source, /buildRemoteShareArtifactContents\(\{[\s\S]*deletedPublishedUrls[\s\S]*\}\)/)
 	})
 
-	it('pushShares 遇到分支并发更新时会重跑完整发布流程一次', async () => {
+	it('pushShares 遇到分支并发更新时会阻断旧状态覆盖', async () => {
 		const source = await fs.readFile(new URL('./push-shares.ts', import.meta.url), 'utf-8')
 		const attemptStart = source.indexOf('async function attemptPushShares(): Promise<PushSharesResult>')
-		const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
+		const staleWriteIndex = source.indexOf('throwStaleRemoteWriteConflictError(error)')
 		const refIndex = source.indexOf('const refData = await getRef', attemptStart)
 		const artifactIndex = source.indexOf('const artifactContents = buildRemoteShareArtifactContents', attemptStart)
 		const updateRefIndex = source.indexOf('await updateRef', attemptStart)
 
 		assert.notEqual(attemptStart, -1)
-		assert.notEqual(retryIndex, -1)
+		assert.notEqual(staleWriteIndex, -1)
 		assert.notEqual(refIndex, -1)
 		assert.notEqual(artifactIndex, -1)
 		assert.notEqual(updateRefIndex, -1)
 		assert.ok(attemptStart < refIndex)
 		assert.ok(refIndex < artifactIndex)
 		assert.ok(artifactIndex < updateRefIndex)
-		assert.match(
-			source,
-			/try \{\n\s*return await attemptPushShares\(\)\n\s*\} catch \(error\) \{[\s\S]*isGitHubUpdateRefConflictError\(error\)[\s\S]*return attemptPushShares\(\)/
-		)
+		assert.match(source, /try \{\n\s*return await attemptPushShares\(\)\n\s*\} catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+		assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*return attemptPushShares\(\)/)
 		assert.doesNotMatch(source, /isGitHubUpdateRefConflictError\(error\)[\s\S]{0,240}await updateRef/)
 	})
 

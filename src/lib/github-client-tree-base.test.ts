@@ -23,6 +23,8 @@ const {
 	GH_API,
 	GitHubUpdateRefError,
 	isGitHubUpdateRefConflictError,
+	STALE_REMOTE_WRITE_ERROR_MESSAGE,
+	throwStaleRemoteWriteConflictError,
 	listRepoFilesRecursive,
 	putFile,
 	readTextFileFromRepo,
@@ -121,6 +123,17 @@ test('updateRef exposes non-fast-forward 422 errors for publish retries', async 
 		/if \(res\.status === 422\) \{\n\s*const error = new GitHubUpdateRefError\(res\.status, await readGitHubErrorMessage\(res\)\)\n\s*if \(!isGitHubUpdateRefConflictError\(error\)\) \{\n\s*handle422Error\(\)\n\s*\}\n\s*throw error\n\s*\}/
 	)
 	assert.doesNotMatch(source, /if \(res\.status === 422\) \{\n\s*handle422Error\(\)/)
+})
+
+test('stale remote write helper converts ref conflicts to user-safe refresh errors', () => {
+	const conflictError = new GitHubUpdateRefError(422, 'Reference update failed')
+	const otherError = new Error('boom')
+
+	assert.throws(() => throwStaleRemoteWriteConflictError(conflictError), new RegExp(STALE_REMOTE_WRITE_ERROR_MESSAGE))
+	assert.throws(
+		() => throwStaleRemoteWriteConflictError(otherError),
+		error => error === otherError
+	)
 })
 
 test('readTextFileFromRepo treats only 404 as missing', async () => {

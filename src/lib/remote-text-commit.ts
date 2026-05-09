@@ -1,7 +1,7 @@
 import { GITHUB_CONFIG } from '@/consts'
 import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import { getAuthToken } from '@/lib/auth'
-import { createBlob, createCommit, createTree, getRef, isGitHubUpdateRefConflictError, toBase64Utf8, updateRef, type TreeItem } from '@/lib/github-client'
+import { createBlob, createCommit, createTree, getRef, throwStaleRemoteWriteConflictError, toBase64Utf8, updateRef, type TreeItem } from '@/lib/github-client'
 import { ALLOWED_IMAGE_EXTENSIONS, getImageFileExtension } from '@/lib/image-content-validation'
 
 export type RemoteTextFile = {
@@ -135,11 +135,7 @@ async function commitRemoteBase64Files(files: RemoteBase64File[], message: strin
 	try {
 		await attemptCommit()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			await attemptCommit()
-			return
-		}
-		throw error
+		throwStaleRemoteWriteConflictError(error)
 	}
 }
 

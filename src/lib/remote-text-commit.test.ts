@@ -14,6 +14,7 @@ export async function createCommit() { throw new Error('unexpected github call')
 export async function createTree() { throw new Error('unexpected github call') }
 export async function getRef() { throw new Error('unexpected github call') }
 export function isGitHubUpdateRefConflictError() { return false }
+export function throwStaleRemoteWriteConflictError(error) { throw error }
 export function toBase64Utf8(input) { return Buffer.from(input, 'utf8').toString('base64') }
 export async function updateRef() { throw new Error('unexpected github call') }
 `)}`
@@ -132,7 +133,7 @@ describe('remote commit path allowlist', () => {
 	})
 })
 
-test('remote text commit helper retries the full commit on ref conflicts', async () => {
+test('remote text commit helper blocks stale full-file writes on ref conflicts', async () => {
 	const source = await readSource('./remote-text-commit.ts')
 
 	assert.match(source, /export async function commitRemoteTextFiles\(files: RemoteTextFile\[], message: string\): Promise<void>/)
@@ -141,10 +142,11 @@ test('remote text commit helper retries the full commit on ref conflicts', async
 	assert.match(source, /const tree = await createTree\([\s\S]*treeItems, ref\.sha\)/)
 	assert.match(source, /const commit = await createCommit\([\s\S]*message, tree\.sha, \[ref\.sha\]\)/)
 	assert.match(source, /await updateRef\([\s\S]*commit\.sha\)/)
-	assert.match(source, /if \(isGitHubUpdateRefConflictError\(error\)\) \{\n\s*await attemptCommit\(\)/)
+	assert.match(source, /catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+	assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*await attemptCommit\(\)/)
 })
 
-test('simple remote text writers use the shared retrying commit helper', async () => {
+test('simple remote text writers use the shared stale-write-safe commit helper', async () => {
 	for (const relativePath of [sourceFiles.about, sourceFiles.snippets]) {
 		const source = await readSource(relativePath)
 
@@ -155,7 +157,7 @@ test('simple remote text writers use the shared retrying commit helper', async (
 	}
 })
 
-test('home config remote writers use the shared retrying commit helper', async () => {
+test('home config remote writers use the shared stale-write-safe commit helper', async () => {
 	for (const relativePath of [sourceFiles.layoutSave, sourceFiles.homeLayout, sourceFiles.colorConfig]) {
 		const source = await readSource(relativePath)
 
@@ -165,7 +167,7 @@ test('home config remote writers use the shared retrying commit helper', async (
 	}
 })
 
-test('component store remote writes validate image content and use retrying text commits', async () => {
+test('component store remote writes validate image content and use stale-write-safe text commits', async () => {
 	const source = await readSource(sourceFiles.componentStore)
 	const validateIndex = source.indexOf('await assertAllowedImageFile(pendingImageFile.file, ext)')
 	const uploadIndex = source.indexOf('await commitRemoteBinaryFile(')

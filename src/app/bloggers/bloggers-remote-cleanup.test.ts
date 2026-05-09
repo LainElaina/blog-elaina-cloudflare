@@ -114,20 +114,21 @@ test('remote bloggers save removes avatar files no longer referenced by list', a
 	assert.doesNotMatch(source, /正在检查需要删除的文件/)
 })
 
-test('remote bloggers publish validates avatar content and retries the full attempt on ref conflicts', async () => {
+test('remote bloggers publish validates avatar content and blocks stale full-list writes on ref conflicts', async () => {
 	const source = (await fs.readFile(new URL('./services/push-bloggers.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 	const attemptStart = source.indexOf('async function attemptPushBloggers(): Promise<Blogger[]>')
 	const extIndex = source.indexOf('const ext = getImageFileExtension(avatarItem.file.name)', attemptStart)
 	const validateIndex = source.indexOf('await assertAllowedImageFile(avatarItem.file, ext)', attemptStart)
 	const hashIndex = source.indexOf('const hash = avatarItem.hash || (await hashFileSHA256(avatarItem.file))', attemptStart)
-	const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
+	const staleWriteIndex = source.indexOf('throwStaleRemoteWriteConflictError(error)')
 
 	assert.notEqual(attemptStart, -1)
 	assert.ok(attemptStart < extIndex)
 	assert.ok(extIndex < validateIndex)
 	assert.ok(validateIndex < hashIndex)
-	assert.notEqual(retryIndex, -1)
-	assert.match(source, /try \{\n\s*return await attemptPushBloggers\(\)\n\s*\} catch \(error\) \{[\s\S]*return attemptPushBloggers\(\)/)
+	assert.notEqual(staleWriteIndex, -1)
+	assert.match(source, /try \{\n\s*return await attemptPushBloggers\(\)\n\s*\} catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+	assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*return attemptPushBloggers\(\)/)
 	assert.doesNotMatch(source, /getFileExt/)
 })
 

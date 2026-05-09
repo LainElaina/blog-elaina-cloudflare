@@ -113,20 +113,21 @@ test('remote projects save removes image files no longer referenced by list', as
 	assert.match(source, /throw new Error\('远程项目列表解析失败，请修复 src\/app\/projects\/list\.json 后重试'\)/)
 })
 
-test('remote projects publish validates image content and retries the full attempt on ref conflicts', async () => {
+test('remote projects publish validates image content and blocks stale full-list writes on ref conflicts', async () => {
 	const source = (await fs.readFile(new URL('./services/push-projects.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 	const attemptStart = source.indexOf('async function attemptPushProjects(): Promise<Project[]>')
 	const extIndex = source.indexOf('const ext = getImageFileExtension(imageItem.file.name)', attemptStart)
 	const validateIndex = source.indexOf('await assertAllowedImageFile(imageItem.file, ext)', attemptStart)
 	const hashIndex = source.indexOf('const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))', attemptStart)
-	const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
+	const staleWriteIndex = source.indexOf('throwStaleRemoteWriteConflictError(error)')
 
 	assert.notEqual(attemptStart, -1)
 	assert.ok(attemptStart < extIndex)
 	assert.ok(extIndex < validateIndex)
 	assert.ok(validateIndex < hashIndex)
-	assert.notEqual(retryIndex, -1)
-	assert.match(source, /try \{\n\s*return await attemptPushProjects\(\)\n\s*\} catch \(error\) \{[\s\S]*return attemptPushProjects\(\)/)
+	assert.notEqual(staleWriteIndex, -1)
+	assert.match(source, /try \{\n\s*return await attemptPushProjects\(\)\n\s*\} catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+	assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*return attemptPushProjects\(\)/)
 	assert.doesNotMatch(source, /getFileExt/)
 })
 

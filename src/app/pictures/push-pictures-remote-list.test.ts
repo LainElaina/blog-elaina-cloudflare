@@ -134,20 +134,21 @@ test('remote pictures save dedupes image uploads by filename to avoid hash exten
 	assert.doesNotMatch(source, /uploadedHashes/)
 })
 
-test('remote pictures publish validates image content and retries the full attempt on ref conflicts', async () => {
+test('remote pictures publish validates image content and blocks stale full-list writes on ref conflicts', async () => {
 	const source = (await fs.readFile(new URL('./services/push-pictures.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 	const attemptStart = source.indexOf('async function attemptPushPictures(): Promise<Picture[]>')
 	const extIndex = source.indexOf('const ext = getImageFileExtension(imageItem.file.name)', attemptStart)
 	const validateIndex = source.indexOf('await assertAllowedImageFile(imageItem.file, ext)', attemptStart)
 	const hashIndex = source.indexOf('const hash = imageItem.hash || (await hashFileSHA256(imageItem.file))', attemptStart)
-	const retryIndex = source.indexOf('if (isGitHubUpdateRefConflictError(error))')
+	const staleWriteIndex = source.indexOf('throwStaleRemoteWriteConflictError(error)')
 
 	assert.notEqual(attemptStart, -1)
 	assert.ok(attemptStart < extIndex)
 	assert.ok(extIndex < validateIndex)
 	assert.ok(validateIndex < hashIndex)
-	assert.notEqual(retryIndex, -1)
-	assert.match(source, /try \{\n\s*return await attemptPushPictures\(\)\n\s*\} catch \(error\) \{[\s\S]*return attemptPushPictures\(\)/)
+	assert.notEqual(staleWriteIndex, -1)
+	assert.match(source, /try \{\n\s*return await attemptPushPictures\(\)\n\s*\} catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+	assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*return attemptPushPictures\(\)/)
 	assert.doesNotMatch(source, /getFileExt/)
 })
 

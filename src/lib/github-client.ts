@@ -240,6 +240,15 @@ export function isGitHubUpdateRefConflictError(error: unknown) {
 	return error instanceof GitHubUpdateRefError && error.status === 422 && isNonFastForwardUpdateRefMessage(error.responseMessage)
 }
 
+export const STALE_REMOTE_WRITE_ERROR_MESSAGE = '远端内容已更新，请刷新页面后重新保存，避免覆盖他人的更改'
+
+export function throwStaleRemoteWriteConflictError(error: unknown): never {
+	if (isGitHubUpdateRefConflictError(error)) {
+		throw new Error(STALE_REMOTE_WRITE_ERROR_MESSAGE)
+	}
+	throw error
+}
+
 export async function updateRef(token: string, owner: string, repo: string, ref: string, sha: string, force = false): Promise<void> {
 	const res = await fetch(`${GH_API}/repos/${owner}/${repo}/git/refs/${encodeURIComponent(ref)}`, {
 		method: 'PATCH',

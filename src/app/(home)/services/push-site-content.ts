@@ -1,4 +1,4 @@
-import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, listRepoFilesRecursive, isGitHubUpdateRefConflictError, type TreeItem } from '@/lib/github-client'
+import { toBase64Utf8, getRef, createTree, createCommit, updateRef, createBlob, listRepoFilesRecursive, throwStaleRemoteWriteConflictError, type TreeItem } from '@/lib/github-client'
 import { getAuthToken } from '@/lib/auth'
 import { GITHUB_CONFIG } from '@/consts'
 import { toast } from 'sonner'
@@ -194,11 +194,6 @@ export async function pushSiteContent(
 	try {
 		await attemptPushSiteContent()
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新发布...')
-			await attemptPushSiteContent()
-			return
-		}
-		throw error
+		throwStaleRemoteWriteConflictError(error)
 	}
 }

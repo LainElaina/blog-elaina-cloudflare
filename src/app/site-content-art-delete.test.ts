@@ -71,26 +71,24 @@ test('site config social button image deletion uses previous and current formal 
 	assert.match(localSource, /await cleanupLocalSiteAssets\(deleteTasks\)/)
 })
 
-test('site config remote publish retries once after branch head changes', async () => {
+test('site config remote publish blocks stale full-config writes after branch head changes', async () => {
 	const remoteSource = await readSource('./(home)/services/push-site-content.ts')
 	const attemptStart = remoteSource.indexOf('async function attemptPushSiteContent(): Promise<void>')
-	const retryIndex = remoteSource.indexOf('if (isGitHubUpdateRefConflictError(error))')
+	const staleWriteIndex = remoteSource.indexOf('throwStaleRemoteWriteConflictError(error)')
 	const refIndex = remoteSource.indexOf('const refData = await getRef', attemptStart)
 	const treeIndex = remoteSource.indexOf('const treeData = await createTree', attemptStart)
 	const updateRefIndex = remoteSource.indexOf('await updateRef', attemptStart)
 
-	assert.match(remoteSource, /isGitHubUpdateRefConflictError/)
+	assert.match(remoteSource, /throwStaleRemoteWriteConflictError/)
 	assert.notEqual(attemptStart, -1)
-	assert.notEqual(retryIndex, -1)
+	assert.notEqual(staleWriteIndex, -1)
 	assert.notEqual(refIndex, -1)
 	assert.notEqual(treeIndex, -1)
 	assert.notEqual(updateRefIndex, -1)
 	assert.ok(attemptStart < refIndex)
 	assert.ok(refIndex < treeIndex)
 	assert.ok(treeIndex < updateRefIndex)
-	assert.match(
-		remoteSource,
-		/try \{\n\s*await attemptPushSiteContent\(\)\n\s*\} catch \(error\) \{[\s\S]*isGitHubUpdateRefConflictError\(error\)[\s\S]*await attemptPushSiteContent\(\)/
-	)
+	assert.match(remoteSource, /try \{\n\s*await attemptPushSiteContent\(\)\n\s*\} catch \(error\) \{\n\s*throwStaleRemoteWriteConflictError\(error\)/)
+	assert.doesNotMatch(remoteSource, /catch \(error\) \{[\s\S]*await attemptPushSiteContent\(\)/)
 	assert.doesNotMatch(remoteSource, /isGitHubUpdateRefConflictError\(error\)[\s\S]{0,240}await updateRef/)
 })

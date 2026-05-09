@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import { GITHUB_CONFIG } from '@/consts'
 import { getAuthToken } from '@/lib/auth'
-import { createBlob, createCommit, createTree, getRef, isGitHubUpdateRefConflictError, listRepoFilesRecursive, readTextFileFromRepo, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
+import { createBlob, createCommit, createTree, getRef, listRepoFilesRecursive, readTextFileFromRepo, throwStaleRemoteWriteConflictError, toBase64Utf8, type TreeItem, updateRef } from '@/lib/github-client'
 import type { BlogIndexItem } from '@/lib/blog-index'
 import { serializeCategoriesConfig } from '@/lib/blog-index'
 import { exportStaticBlogArtifacts, parseRequiredBlogStorageDB, removeBlogRecord, upsertBlogRecord, type BlogStorageDB } from '@/lib/content-db/blog-storage'
@@ -167,12 +167,6 @@ export async function saveBlogEdits(originalItems: BlogIndexItem[], nextItems: B
 		toast.success('保存成功！请等待页面部署后刷新')
 		return artifacts
 	} catch (error) {
-		if (isGitHubUpdateRefConflictError(error)) {
-			toast.info('分支已更新，正在重新保存...')
-			const artifacts = await attemptSaveBlogEdits()
-			toast.success('保存成功！请等待页面部署后刷新')
-			return artifacts
-		}
-		throw error
+		throwStaleRemoteWriteConflictError(error)
 	}
 }
