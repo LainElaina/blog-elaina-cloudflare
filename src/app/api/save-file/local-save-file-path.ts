@@ -17,12 +17,16 @@ const SHARE_CONTENT_SAVE_FILE_PATHS = [
 	'public/share/storage.json'
 ]
 
-const ALLOWED_SAVE_FILE_PATHS = [
+const CONTENT_SAVE_FILE_PATHS = [
 	'src/app/about/list.json',
 	'src/app/bloggers/list.json',
 	'src/app/pictures/list.json',
 	'src/app/projects/list.json',
-	'src/app/snippets/list.json',
+	'src/app/snippets/list.json'
+]
+
+const ALLOWED_SAVE_FILE_PATHS = [
+	...CONTENT_SAVE_FILE_PATHS,
 	...BLOG_CONTENT_SAVE_FILE_PATHS,
 	...SHARE_CONTENT_SAVE_FILE_PATHS
 ]
@@ -55,6 +59,9 @@ export function getSaveFileLocalContentMutationScope(projectDir: string, fullPat
 	}
 	if (SHARE_CONTENT_SAVE_FILE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath)) {
 		return 'share'
+	}
+	if (CONTENT_SAVE_FILE_PATHS.some(allowedPath => resolve(projectDir, allowedPath) === fullPath)) {
+		return 'content'
 	}
 	return null
 }

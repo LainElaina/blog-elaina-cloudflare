@@ -1,4 +1,4 @@
-import { marked } from 'marked'
+import { Marked } from 'marked'
 import type { Tokens } from 'marked'
 
 export type TocItem = { id: string; text: string; level: number }
@@ -138,7 +138,8 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 	const codeBlockMap = new Map<string, { html: string; original: string }>()
 	const [shiki, katex] = await Promise.all([loadShikiHighlighter(), loadKatex()])
 
-	const renderer = new marked.Renderer()
+	const markdownRenderer = new Marked()
+	const renderer = new markdownRenderer.Renderer()
 
 	const headingIds = createHeadingIdBuilder()
 	renderer.heading = (token: Tokens.Heading) => {
@@ -166,7 +167,7 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 		let tokens = token.tokens
 
 		if (token.task) tokens = tokens.slice(1)
-		inner = marked.parser(tokens) as string
+		inner = markdownRenderer.parser(tokens) as string
 
 		if (token.task) {
 			const checkbox = token.checked ? '<input type="checkbox" checked disabled />' : '<input type="checkbox" disabled />'
@@ -193,7 +194,7 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 		}
 	}
 
-	marked.use({
+	markdownRenderer.use({
 		renderer,
 		extensions: [
 			{
@@ -245,7 +246,7 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 		]
 	})
 
-	const tokens = marked.lexer(markdown)
+	const tokens = markdownRenderer.lexer(markdown)
 
 	const tocHeadingIds = createHeadingIdBuilder()
 	const toc: TocItem[] = []
@@ -263,32 +264,49 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 	}
 	extractHeadings(tokens)
 
-	for (const token of tokens) {
-		if (token.type === 'code') {
-			const codeToken = token as Tokens.Code
-			const originalCode = codeToken.text
-			const key = `__SHIKI_CODE_${codeBlockMap.size}__`
-			const shikiLang = normalizeShikiLanguage(codeToken.lang)
+	async function prepareCodeToken(codeToken: Tokens.Code) {
+		const originalCode = codeToken.text
+		const key = `__SHIKI_CODE_${codeBlockMap.size}__`
+		const shikiLang = normalizeShikiLanguage(codeToken.lang)
 
-			if (shiki && shikiLang) {
-				try {
-					const html = await shiki.codeToHtml(originalCode, {
-						lang: shikiLang,
-						theme: SHIKI_THEME
-					})
-					codeBlockMap.set(key, { html, original: originalCode })
-					codeToken.text = key
-				} catch {
-					codeBlockMap.set(key, { html: '', original: originalCode })
-					codeToken.text = key
-				}
-			} else {
+		if (shiki && shikiLang) {
+			try {
+				const html = await shiki.codeToHtml(originalCode, {
+					lang: shikiLang,
+					theme: SHIKI_THEME
+				})
+				codeBlockMap.set(key, { html, original: originalCode })
+				codeToken.text = key
+				return
+			} catch {
 				codeBlockMap.set(key, { html: '', original: originalCode })
 				codeToken.text = key
+				return
+			}
+		}
+
+		codeBlockMap.set(key, { html: '', original: originalCode })
+		codeToken.text = key
+	}
+
+	async function prepareCodeTokens(tokenList: typeof tokens) {
+		for (const token of tokenList) {
+			if (token.type === 'code') {
+				await prepareCodeToken(token as Tokens.Code)
+			}
+			const childTokens = (token as { tokens?: typeof tokens }).tokens
+			if (Array.isArray(childTokens)) {
+				await prepareCodeTokens(childTokens)
+			}
+			const childItems = (token as { items?: typeof tokens }).items
+			if (Array.isArray(childItems)) {
+				await prepareCodeTokens(childItems)
 			}
 		}
 	}
-	const html = (marked.parser(tokens) as string) || ''
+
+	await prepareCodeTokens(tokens)
+	const html = (markdownRenderer.parser(tokens) as string) || ''
 
 	return { html, toc }
 }

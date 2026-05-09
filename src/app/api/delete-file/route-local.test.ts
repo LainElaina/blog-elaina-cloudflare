@@ -131,6 +131,45 @@ test('delete file local route waits for the share content mutation lock before u
 	}
 })
 
+test('delete file local route waits for the content mutation lock before unlinking content lists', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-file-content-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'src/app/projects/list.json'
+
+	try {
+		await fs.mkdir(path.join(repoDir, 'src/app/projects'), { recursive: true })
+		await fs.writeFile(path.join(repoDir, filePath), '[]', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'content', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleDeleteFile({
+			json: async () => ({ path: filePath })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await fs.readFile(path.join(repoDir, filePath), 'utf-8'), '[]')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		await assert.rejects(() => fs.readFile(path.join(repoDir, filePath), 'utf-8'), /ENOENT/)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
 test('delete file local route returns 413 for oversized request before JSON parsing', async () => {
 	let jsonCalled = false
 	const response = await handleDeleteFile({

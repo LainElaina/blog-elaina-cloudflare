@@ -194,6 +194,46 @@ test('delete image route waits for the share content mutation lock before unlink
 	}
 })
 
+test('delete image route waits for the content mutation lock before unlinking content images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-content-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/images/project/project.png'
+	const fullPath = join(repoDir, filePath)
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/project'), { recursive: true })
+		await fs.writeFile(fullPath, 'image', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'content', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleDeleteImage({
+			json: async () => ({ path: filePath })
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
 test('delete image route waits for the blog content mutation lock before unlinking blog images', async () => {
 	const previousCwd = process.cwd()
 	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-blog-lock-'))

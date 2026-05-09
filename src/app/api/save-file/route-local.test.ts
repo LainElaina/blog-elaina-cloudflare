@@ -35,13 +35,21 @@ test('save-file local route allows only known content files and blog artifacts',
 	assert.equal(isAllowedSaveFilePath(projectDir, resolve(projectDir, 'public/blogs/post-a/config.json')), true)
 })
 
-test('save-file local route maps share and blog artifacts to local content mutation scopes', () => {
+test('save-file local route maps share, blog, and content artifacts to local content mutation scopes', () => {
 	const projectDir = resolve('/repo/blog')
 
 	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'public/share/storage.json')), 'share')
 	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'public/blogs/storage.json')), 'blog')
 	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'public/blogs/post-a/index.md')), 'blog')
-	assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, 'src/app/about/list.json')), null)
+	for (const path of [
+		'src/app/about/list.json',
+		'src/app/bloggers/list.json',
+		'src/app/pictures/list.json',
+		'src/app/projects/list.json',
+		'src/app/snippets/list.json'
+	]) {
+		assert.equal(getSaveFileLocalContentMutationScope(projectDir, resolve(projectDir, path)), 'content', path)
+	}
 })
 
 test('save-file local route rejects blog artifact directory root as a file path', () => {
@@ -114,6 +122,65 @@ test('save-file local route waits for the share content mutation lock before wri
 		assert.equal(response.status, 200)
 		assert.deepEqual(await response.json(), { success: true })
 		assert.deepEqual(JSON.parse(await readFile(join(repoDir, filePath), 'utf-8')), { categories: ['新分类'] })
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('save-file local route waits for the content mutation lock before writing content lists', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-content-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'src/app/projects/list.json'
+	try {
+		await mkdir(join(repoDir, 'src/app/projects'), { recursive: true })
+		await writeFile(join(repoDir, filePath), '[]', 'utf-8')
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'content', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const responsePromise = handleSaveFile({
+			json: async () => ({
+				path: filePath,
+				content: JSON.stringify([
+					{
+						name: '项目',
+						year: 2026,
+						description: '描述',
+						image: '/images/project/project.png',
+						url: 'https://example.com',
+						tags: []
+					}
+				])
+			})
+		} as any)
+		await Promise.resolve()
+
+		assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), '[]')
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true })
+		assert.deepEqual(JSON.parse(await readFile(join(repoDir, filePath), 'utf-8')), [
+			{
+				name: '项目',
+				year: 2026,
+				description: '描述',
+				image: '/images/project/project.png',
+				url: 'https://example.com',
+				tags: []
+			}
+		])
 	} finally {
 		releaseLock.resolve()
 		process.chdir(previousCwd)

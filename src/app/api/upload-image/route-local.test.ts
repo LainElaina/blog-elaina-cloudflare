@@ -297,6 +297,46 @@ test('upload image local route waits for the share content mutation lock before 
 	}
 })
 
+test('upload image local route waits for the content mutation lock before writing content images', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-content-lock-'))
+	const releaseLock = deferred()
+	const lockEntered = deferred()
+	const filePath = 'public/images/project/project.png'
+	const fullPath = join(repoDir, filePath)
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/project'), { recursive: true })
+		process.chdir(repoDir)
+
+		const lock = withLocalContentMutationLock(repoDir, 'content', async () => {
+			lockEntered.resolve()
+			await releaseLock.promise
+		})
+		await lockEntered.promise
+
+		const formData = new FormData()
+		formData.set('file', new File([pngBytes], 'project.png', { type: 'image/png' }))
+		formData.set('path', filePath)
+		const responsePromise = handleUploadImage({ formData: async () => formData } as any)
+		await Promise.resolve()
+
+		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
+
+		releaseLock.resolve()
+		const response = await responsePromise
+		await lock
+
+		assert.equal(response.status, 200)
+		assert.deepEqual(await response.json(), { success: true, path: filePath })
+		assert.deepEqual(await fs.readFile(fullPath), pngBytes)
+	} finally {
+		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
 test('upload image local route waits for the blog content mutation lock before writing blog images', async () => {
 	const previousCwd = process.cwd()
 	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-blog-lock-'))

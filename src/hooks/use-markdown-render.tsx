@@ -3,6 +3,7 @@ import parse, { type HTMLReactParserOptions, Element, type DOMNode } from 'html-
 import type { TocItem } from '@/lib/markdown-renderer'
 import { MarkdownImage } from '@/components/markdown-image'
 import { CodeBlock } from '@/components/code-block'
+import { extractMarkdownCodeBlocks } from './markdown-code-block-extraction'
 
 type MarkdownRenderResult = {
 	content: ReactElement | null
@@ -24,33 +25,14 @@ export function useMarkdownRender(markdown: string): MarkdownRenderResult {
 				const { renderMarkdown } = await import('@/lib/markdown-renderer')
 				const { html, toc } = await renderMarkdown(markdown)
 				if (!cancelled) {
-					// Extract pre elements and replace with placeholders before parsing
-					const codeBlocks: Array<{ placeholder: string; code: string; preHtml: string }> = []
-					let processedHtml = html.replace(/<pre\s+data-code="([^"]*)"([^>]*)>([\s\S]*?)<\/pre>/g, (match, codeAttr, attrs, content) => {
-						const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`
-						// Decode HTML entities in code attribute
-						const code = codeAttr
-							.replace(/&quot;/g, '"')
-							.replace(/&#39;/g, "'")
-							.replace(/&lt;/g, '<')
-							.replace(/&gt;/g, '>')
-							.replace(/&amp;/g, '&')
-						codeBlocks.push({
-							placeholder,
-							code,
-							preHtml: `${content}`
-						})
-						return placeholder
-					})
+					const { processedHtml, codeBlocks } = extractMarkdownCodeBlocks(html)
 
-					// Parse HTML and replace img elements and code block placeholders
 					const options: HTMLReactParserOptions = {
 						replace(domNode: DOMNode) {
 							if (domNode instanceof Element && domNode.name === 'img') {
 								const { src, alt, title } = domNode.attribs
 								return <MarkdownImage src={src} alt={alt} title={title} />
 							}
-							// Handle code block placeholders in text nodes
 							if (domNode.type === 'text' && domNode.data && domNode.data.includes('__CODE_BLOCK_')) {
 								const text = domNode.data
 								const result = text.split(/(__CODE_BLOCK_\d+__)/).filter(Boolean)

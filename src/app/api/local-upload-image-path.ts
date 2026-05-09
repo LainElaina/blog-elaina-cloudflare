@@ -9,13 +9,16 @@ const SITE_CONFIG_UPLOAD_IMAGE_DIRECTORIES = [
 	'public/images/background',
 	'public/images/social-buttons'
 ]
-const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = SITE_CONFIG_EXACT_UPLOAD_IMAGE_PATHS
-const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
-	...SITE_CONFIG_UPLOAD_IMAGE_DIRECTORIES,
+const CONTENT_UPLOAD_IMAGE_DIRECTORIES = [
 	'public/images/blogger',
 	'public/images/custom-components',
 	'public/images/pictures',
-	'public/images/project',
+	'public/images/project'
+]
+const ALLOWED_EXACT_UPLOAD_IMAGE_PATHS = SITE_CONFIG_EXACT_UPLOAD_IMAGE_PATHS
+const ALLOWED_DIRECT_UPLOAD_IMAGE_DIRECTORIES = [
+	...SITE_CONFIG_UPLOAD_IMAGE_DIRECTORIES,
+	...CONTENT_UPLOAD_IMAGE_DIRECTORIES,
 	'public/images/share'
 ]
 
@@ -75,6 +78,9 @@ export function getLocalUploadImageMutationScope(projectDir: string, fullPath: s
 	}
 	if (isSiteConfigImagePath(projectDir, fullPath)) {
 		return 'site-config'
+	}
+	if (CONTENT_UPLOAD_IMAGE_DIRECTORIES.some(allowedDir => isDirectChildFilePath(resolve(projectDir, allowedDir), fullPath))) {
+		return 'content'
 	}
 	return null
 }
