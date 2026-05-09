@@ -2,7 +2,7 @@ import { GITHUB_CONFIG } from '@/consts'
 import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import { getAuthToken } from '@/lib/auth'
 import { createBlob, createCommit, createTree, getRef, throwStaleRemoteWriteConflictError, toBase64Utf8, updateRef, type TreeItem } from '@/lib/github-client'
-import { ALLOWED_IMAGE_EXTENSIONS, getImageFileExtension } from '@/lib/image-content-validation'
+import { ALLOWED_UPLOAD_IMAGE_EXTENSIONS, getImageFileExtension } from '@/lib/image-content-validation'
 
 export type RemoteTextFile = {
 	path: string
@@ -95,7 +95,7 @@ export function assertAllowedRemoteTextFilePath(path: string): string {
 
 export function assertAllowedRemoteBinaryFilePath(path: string): string {
 	const normalizedPath = normalizeRemoteRepositoryPath(path, '不允许远端图片路径')
-	if (!ALLOWED_IMAGE_EXTENSIONS.has(getImageFileExtension(normalizedPath))) {
+	if (!ALLOWED_UPLOAD_IMAGE_EXTENSIONS.has(getImageFileExtension(normalizedPath))) {
 		throw new Error('不允许远端图片路径')
 	}
 	if (ALLOWED_EXACT_REMOTE_IMAGE_PATHS.has(normalizedPath) || isAllowedDirectRemoteImagePath(normalizedPath) || isAllowedRemoteBlogImagePath(normalizedPath)) {

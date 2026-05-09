@@ -1,4 +1,6 @@
-export const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.avif'])
+export const ALLOWED_UPLOAD_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.avif'])
+// SVG 保留为可管理扩展名，方便删除历史文件；新上传统一走 ALLOWED_UPLOAD_IMAGE_EXTENSIONS。
+export const ALLOWED_IMAGE_EXTENSIONS = new Set([...ALLOWED_UPLOAD_IMAGE_EXTENSIONS, '.svg'])
 export const MAX_IMAGE_FILE_BYTES = 10 * 1024 * 1024
 
 function startsWithBytes(buffer: Uint8Array, bytes: number[]) {
@@ -7,10 +9,6 @@ function startsWithBytes(buffer: Uint8Array, bytes: number[]) {
 
 function asciiSlice(buffer: Uint8Array, start: number, end: number) {
 	return String.fromCharCode(...buffer.slice(start, end))
-}
-
-function utf8Text(buffer: Uint8Array) {
-	return new TextDecoder().decode(buffer)
 }
 
 function hasAvifSignature(buffer: Uint8Array) {
@@ -22,15 +20,6 @@ function hasAvifSignature(buffer: Uint8Array) {
 	}
 
 	return brands.some(brand => brand === 'avif' || brand === 'avis')
-}
-
-function hasUnsafeSvgContent(content: string) {
-	return /<\s*script(?:\s|>|\/)/i.test(content) || /\son[a-z]+\s*=/i.test(content) || /\b(?:href|xlink:href)\s*=\s*(['\"]?)\s*(?:javascript|data:text\/html)\s*:/i.test(content)
-}
-
-function hasSvgSignature(buffer: Uint8Array) {
-	const content = utf8Text(buffer).replace(/^﻿/, '').trimStart()
-	return /^(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg(?:\s|>)/i.test(content) && !hasUnsafeSvgContent(content)
 }
 
 function readUint16LE(buffer: Uint8Array, offset: number) {
@@ -49,7 +38,7 @@ export function isAllowedImageContent(extension: string, buffer: Uint8Array) {
 		case '.webp':
 			return buffer.length >= 12 && asciiSlice(buffer, 0, 4) === 'RIFF' && asciiSlice(buffer, 8, 12) === 'WEBP'
 		case '.svg':
-			return hasSvgSignature(buffer)
+			return false
 		case '.ico':
 			return buffer.length >= 6 && startsWithBytes(buffer, [0x00, 0x00, 0x01, 0x00]) && readUint16LE(buffer, 4) > 0
 		case '.avif':
@@ -65,7 +54,7 @@ export function getImageFileExtension(filename: string): string {
 }
 
 export async function assertAllowedImageFile(file: File, extension: string = getImageFileExtension(file.name)): Promise<void> {
-	if (!ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
+	if (!ALLOWED_UPLOAD_IMAGE_EXTENSIONS.has(extension)) {
 		throw new Error(`不允许的图片文件类型: ${extension}`)
 	}
 	if (file.size === 0) {

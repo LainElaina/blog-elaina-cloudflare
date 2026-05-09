@@ -108,7 +108,7 @@ describe('remote commit path allowlist', () => {
 			'public/images/avatar.png',
 			'public/images/custom-components/a.png',
 			'public/images/share/a.webp',
-			'public/images/social-buttons/a.svg',
+			'public/images/social-buttons/a.ico',
 			'public/blogs/post-a/a.avif'
 		]) {
 			assert.equal(assertAllowedRemoteBinaryFilePath(path), path)
@@ -122,6 +122,7 @@ describe('remote commit path allowlist', () => {
 			'public/images/share/../avatar.png',
 			'public/images/share/a/b.png',
 			'public/images/share/a.txt',
+			'public/images/share/a.svg',
 			'public/images/share/a.png/extra',
 			'public\\images\\share\\a.png',
 			'public/blogs/Blog-CF1/a.png',

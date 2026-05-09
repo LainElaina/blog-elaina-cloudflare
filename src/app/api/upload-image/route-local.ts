@@ -2,7 +2,7 @@ import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_FILE_BYTES, isAllowedImageContent } from '../../../lib/image-content-validation.ts'
+import { ALLOWED_UPLOAD_IMAGE_EXTENSIONS, MAX_IMAGE_FILE_BYTES, isAllowedImageContent } from '../../../lib/image-content-validation.ts'
 import { withLocalContentMutationLock } from '../local-content-mutation-lock.ts'
 import { getLocalUploadImageMutationScope, isAllowedLocalUploadImagePath } from '../local-upload-image-path.ts'
 import { isPathInsideDirectory } from '../local-path.ts'
@@ -139,7 +139,7 @@ export async function handleUploadImage(request: NextRequest) {
 		}
 
 		const ext = extname(path).toLowerCase()
-		if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+		if (!ALLOWED_UPLOAD_IMAGE_EXTENSIONS.has(ext)) {
 			return NextResponse.json({ error: `不允许的文件类型: ${ext}` }, { status: 400 })
 		}
 

@@ -236,27 +236,28 @@ test('upload image local route rejects disguised image extensions', async () => 
 	assert.deepEqual(await response.json(), { error: '图片内容与文件类型不匹配' })
 })
 
-test('upload image local route rejects unsafe SVG uploads without writing files', async () => {
+test('upload image local route rejects SVG uploads without writing files', async () => {
 	const previousCwd = process.cwd()
-	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-unsafe-svg-'))
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-svg-'))
 	try {
 		await fs.mkdir(join(repoDir, 'public/images/share'), { recursive: true })
 		process.chdir(repoDir)
 
 		const formData = new FormData()
-		formData.set('file', new File(['<svg><script>alert(1)</script></svg>'], 'unsafe.svg', { type: 'image/svg+xml' }))
-		formData.set('path', 'public/images/share/unsafe.svg')
+		formData.set('file', new File(['<svg viewBox="0 0 1 1"></svg>'], 'icon.svg', { type: 'image/svg+xml' }))
+		formData.set('path', 'public/images/share/icon.svg')
 
 		const response = await handleUploadImage({ formData: async () => formData } as any)
 
 		assert.equal(response.status, 400)
-		assert.deepEqual(await response.json(), { error: '图片内容与文件类型不匹配' })
-		await assert.rejects(() => fs.readFile(join(repoDir, 'public/images/share/unsafe.svg')), /ENOENT/)
+		assert.deepEqual(await response.json(), { error: '不允许的文件类型: .svg' })
+		await assert.rejects(() => fs.readFile(join(repoDir, 'public/images/share/icon.svg')), /ENOENT/)
 	} finally {
 		process.chdir(previousCwd)
 		await fs.rm(repoDir, { recursive: true, force: true })
 	}
 })
+
 test('upload image local route waits for the share content mutation lock before writing share images', async () => {
 	const previousCwd = process.cwd()
 	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-share-lock-'))
@@ -422,10 +423,8 @@ test('upload image local route validates allowed image signatures', () => {
 	assert.equal(isAllowedImageContent('.jpg', Buffer.from([0xff, 0xd8, 0xff, 0x00])), true)
 	assert.equal(isAllowedImageContent('.gif', Buffer.from('GIF89a', 'ascii')), true)
 	assert.equal(isAllowedImageContent('.webp', Buffer.from('RIFF0000WEBP', 'ascii')), true)
-	assert.equal(isAllowedImageContent('.svg', Buffer.from('<?xml version="1.0"?><svg viewBox="0 0 1 1"></svg>')), true)
-	assert.equal(isAllowedImageContent('.svg', Buffer.from('<svg onload="alert(1)"></svg>')), false)
+	assert.equal(isAllowedImageContent('.svg', Buffer.from('<?xml version="1.0"?><svg viewBox="0 0 1 1"></svg>')), false)
 	assert.equal(isAllowedImageContent('.svg', Buffer.from('<svg><script>alert(1)</script></svg>')), false)
-	assert.equal(isAllowedImageContent('.svg', Buffer.from('<svg><a href="javascript:alert(1)">x</a></svg>')), false)
 	assert.equal(isAllowedImageContent('.ico', Buffer.from([0x00, 0x00, 0x01, 0x00, 0x01, 0x00])), true)
 	assert.equal(isAllowedImageContent('.avif', Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00])), true)
 	assert.equal(isAllowedImageContent('.png', Buffer.from('not image')), false)
