@@ -22,6 +22,17 @@ test('deploy script runs the verified Cloudflare build before deploying', async 
 	assert.equal(packageJson.scripts?.deploy, 'corepack pnpm run build:cf && opennextjs-cloudflare deploy')
 })
 
+test('production observability avoids full request logging by default', async () => {
+	const wranglerConfig = await readFile(new URL('../wrangler.toml', import.meta.url), 'utf-8')
+
+	assert.match(wranglerConfig, /head_sampling_rate = 0\.05/)
+	assert.match(wranglerConfig, /invocation_logs = false/)
+	assert.match(wranglerConfig, /persist = false/)
+	assert.doesNotMatch(wranglerConfig, /head_sampling_rate = 1\b/)
+	assert.doesNotMatch(wranglerConfig, /invocation_logs = true/)
+	assert.doesNotMatch(wranglerConfig, /persist = true/)
+})
+
 test('production build checks TypeScript with build tsconfig', async () => {
 	const [nextConfig, buildTsconfig] = await Promise.all([
 		readFile(new URL('../next.config.ts', import.meta.url), 'utf-8'),
