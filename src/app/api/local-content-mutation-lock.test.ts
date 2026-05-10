@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { withLocalContentMutationLock } from './local-content-mutation-lock.ts'
 
@@ -11,6 +12,16 @@ function deferred() {
 		resolve = next
 	})
 	return { promise, resolve }
+}
+
+function waitForRetry() {
+	return new Promise<void>(resolve => setTimeout(resolve, 50))
+}
+
+function getFileLockDir(baseDir: string, scope: 'blog' | 'share' | 'site-config' | 'content') {
+	const lockKey = `${resolve(baseDir)}:${scope}`
+	const lockId = createHash('sha256').update(lockKey).digest('hex')
+	return join(tmpdir(), 'blog-elaina-content-locks', lockId)
 }
 
 test('local content mutation lock serializes callbacks for the same project and scope', async () => {
@@ -72,6 +83,51 @@ test('local content mutation lock keeps blog and share scopes independent', asyn
 		assert.deepEqual(events, ['share:start', 'blog:start', 'share:end'])
 	} finally {
 		releaseShare.resolve()
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('local content mutation lock waits for an existing file lock before entering callback', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-file-'))
+	const lockDir = getFileLockDir(tmpDir, 'share')
+	const events: string[] = []
+
+	try {
+		await mkdir(lockDir, { recursive: true })
+		await writeFile(join(lockDir, 'owner.json'), JSON.stringify({ pid: process.pid, createdAt: Date.now() }))
+		const lockPromise = withLocalContentMutationLock(tmpDir, 'share', async () => {
+			events.push('entered')
+		})
+
+		await waitForRetry()
+		assert.deepEqual(events, [])
+
+		await rm(lockDir, { recursive: true, force: true })
+		await lockPromise
+
+		assert.deepEqual(events, ['entered'])
+	} finally {
+		await rm(lockDir, { recursive: true, force: true })
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('local content mutation lock removes stale file locks from dead processes', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-stale-'))
+	const lockDir = getFileLockDir(tmpDir, 'share')
+	const events: string[] = []
+
+	try {
+		await mkdir(lockDir, { recursive: true })
+		await writeFile(join(lockDir, 'owner.json'), JSON.stringify({ pid: -1, createdAt: Date.now() }))
+
+		await withLocalContentMutationLock(tmpDir, 'share', async () => {
+			events.push('entered')
+		})
+
+		assert.deepEqual(events, ['entered'])
+	} finally {
+		await rm(lockDir, { recursive: true, force: true })
 		await rm(tmpDir, { recursive: true, force: true })
 	}
 })
