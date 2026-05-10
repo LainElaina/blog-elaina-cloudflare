@@ -4,6 +4,7 @@ import { useConfigStore } from './stores/config-store'
 import { CARD_SPACING } from '@/consts'
 import { useRouter } from 'next/navigation'
 import { HomeDraggableLayer } from './home-draggable-layer'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 export default function ArtCard() {
 	const center = useCenterStore()
@@ -18,7 +19,8 @@ export default function ArtCard() {
 	const artImages = siteContent.artImages ?? []
 	const currentId = siteContent.currentArtImageId
 	const currentArt = (currentId ? artImages.find(item => item.id === currentId) : undefined) ?? artImages[0]
-	const artUrl = currentArt?.url || '/images/art/cat.png'
+	const selectedArtUrl = currentArt?.url || '/images/art/cat.png'
+	const artUrl = isSafeMarkdownImageUrl(selectedArtUrl) ? selectedArtUrl : '/images/art/cat.png'
 
 	return (
 		<HomeDraggableLayer cardKey='artCard' x={x} y={y} width={styles.width} height={styles.height}>

@@ -15,6 +15,7 @@ import MusicCard from '@/components/music-card'
 import { LogWindow } from '@/app/(home)/log-window'
 import { LogButton } from '@/components/log-button'
 import { GlobalErrorHandler } from '@/components/global-error-handler'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 type DraftReminderItem = {
 	key: string
@@ -50,6 +51,8 @@ export default function Layout({ children }: PropsWithChildren) {
 	const currentBackgroundImage =
 		currentBackgroundImageId && currentBackgroundImageId.trim() ? backgroundImages.find(item => item.id === currentBackgroundImageId) : null
 
+	const currentBackgroundImageUrl = currentBackgroundImage && isSafeMarkdownImageUrl(currentBackgroundImage.url) ? currentBackgroundImage.url : null
+
 	return (
 		<>
 			<Toaster
@@ -68,11 +71,11 @@ export default function Layout({ children }: PropsWithChildren) {
 					} as React.CSSProperties
 				}
 			/>
-			{currentBackgroundImage && (
+			{currentBackgroundImageUrl && (
 				<div
 					className='fixed inset-0 z-0 overflow-hidden'
 					style={{
-						backgroundImage: `url(${currentBackgroundImage.url})`,
+						backgroundImage: `url(${JSON.stringify(currentBackgroundImageUrl)})`,
 						backgroundSize: 'cover',
 						backgroundPosition: 'center',
 						backgroundRepeat: 'no-repeat'

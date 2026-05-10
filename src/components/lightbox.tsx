@@ -4,6 +4,7 @@ import { useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { XIcon } from 'lucide-react'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 interface LightboxProps {
 	src: string | null
@@ -19,8 +20,10 @@ export default function Lightbox({ src, alt = '', onClose }: LightboxProps) {
 		[onClose]
 	)
 
+	const imageUrl = src && isSafeMarkdownImageUrl(src) ? src : null
+
 	useEffect(() => {
-		if (src) {
+		if (imageUrl) {
 			document.addEventListener('keydown', handleKeyDown)
 			document.body.style.overflow = 'hidden'
 			return () => {
@@ -28,13 +31,13 @@ export default function Lightbox({ src, alt = '', onClose }: LightboxProps) {
 				document.body.style.overflow = ''
 			}
 		}
-	}, [src, handleKeyDown])
+	}, [imageUrl, handleKeyDown])
 
 	if (typeof window === 'undefined') return null
 
 	return createPortal(
 		<AnimatePresence>
-			{src && (
+			{imageUrl && (
 				<motion.div
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
@@ -62,7 +65,7 @@ export default function Lightbox({ src, alt = '', onClose }: LightboxProps) {
 						animate={{ scale: 1, opacity: 1 }}
 						exit={{ scale: 0.9, opacity: 0 }}
 						transition={{ duration: 0.2 }}
-						src={src}
+						src={imageUrl}
 						alt={alt}
 						className='max-h-[90vh] max-w-full object-contain'
 						style={{ borderRadius: 'var(--card-inner-radius)' }}

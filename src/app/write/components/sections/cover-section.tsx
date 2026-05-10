@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { motion } from 'motion/react'
 import { toast } from 'sonner'
 import { useWriteStore } from '../../stores/write-store'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 type CoverSectionProps = {
 	delay?: number
@@ -13,7 +14,7 @@ export function CoverSection({ delay = 0 }: CoverSectionProps) {
 	const { images, setCover, cover, addFiles } = useWriteStore()
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
-	const coverPreviewUrl = cover ? (cover.type === 'url' ? cover.url : cover.previewUrl) : null
+	const coverPreviewUrl = cover ? (cover.type === 'url' && isSafeMarkdownImageUrl(cover.url) ? cover.url : cover.type === 'file' ? cover.previewUrl : null) : null
 
 	const handleCoverDrop = async (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault()

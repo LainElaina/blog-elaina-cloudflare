@@ -5,6 +5,7 @@ import { motion } from 'motion/react'
 import { useWriteStore } from '../../stores/write-store'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 type ImagesSectionProps = {
 	delay?: number
@@ -80,7 +81,7 @@ export function ImagesSection({ delay = 0 }: ImagesSectionProps) {
 					<span className='text-2xl leading-none text-neutral-400'>+</span>
 				</div>
 
-				{images.map(item => {
+				{images.filter(item => item.type !== 'url' || isSafeMarkdownImageUrl(item.url)).map(item => {
 					const isUrl = item.type === 'url'
 					const src = isUrl ? item.url : item.previewUrl
 					const markdown = isUrl ? `![](${item.url})` : `![](local-image:${item.id})`

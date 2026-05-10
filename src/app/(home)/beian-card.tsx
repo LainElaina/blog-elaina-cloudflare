@@ -4,6 +4,7 @@ import { useConfigStore } from './stores/config-store'
 import { CARD_SPACING } from '@/consts'
 import Link from 'next/link'
 import { HomeDraggableLayer } from './home-draggable-layer'
+import { isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 
 export default function BeianCard() {
 	const center = useCenterStore()
@@ -21,11 +22,13 @@ export default function BeianCard() {
 		return null
 	}
 
+	const beianLink = isSafeMarkdownLinkUrl(beian.link) ? beian.link : null
+
 	return (
 		<HomeDraggableLayer cardKey='beianCard' x={x} y={y} width={styles.width} height={styles.height}>
 			<Card order={styles.order} width={styles.width} height={styles.height} x={x} y={y} className='flex items-center justify-center max-sm:static'>
-				{beian.link ? (
-					<Link href={beian.link} target='_blank' rel='noopener noreferrer' className='text-secondary text-xs transition-opacity hover:opacity-80'>
+				{beianLink ? (
+					<Link href={beianLink} target='_blank' rel='noopener noreferrer' className='text-secondary text-xs transition-opacity hover:opacity-80'>
 						{beian.text}
 					</Link>
 				) : (

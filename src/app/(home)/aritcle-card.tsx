@@ -7,6 +7,7 @@ import dayjs from 'dayjs'
 import Link from 'next/link'
 import { HomeDraggableLayer } from './home-draggable-layer'
 import { getBlogHref } from '@/lib/blog-href'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 export default function ArticleCard() {
 	const center = useCenterStore()
@@ -18,6 +19,7 @@ export default function ArticleCard() {
 
 	const x = styles.offsetX !== null ? center.x + styles.offsetX : center.x + hiCardStyles.width / 2 - socialButtonsStyles.width - CARD_SPACING - styles.width
 	const y = styles.offsetY !== null ? center.y + styles.offsetY : center.y + hiCardStyles.height / 2 + CARD_SPACING
+	const coverUrl = blog?.cover && isSafeMarkdownImageUrl(blog.cover) ? blog.cover : null
 
 	return (
 		<HomeDraggableLayer cardKey='articleCard' x={x} y={y} width={styles.width} height={styles.height}>
@@ -41,8 +43,8 @@ export default function ArticleCard() {
 					</div>
 				) : blog ? (
 					<Link href={getBlogHref(blog.slug)} className='flex transition-opacity hover:opacity-80'>
-						{blog.cover ? (
-							<img src={blog.cover} alt='cover' className='mr-3 h-12 w-12 shrink-0 rounded-xl border object-cover' />
+						{coverUrl ? (
+							<img src={coverUrl} alt='cover' className='mr-3 h-12 w-12 shrink-0 rounded-xl border object-cover' />
 						) : (
 							<div className='text-secondary mr-3 grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/60'>+</div>
 						)}

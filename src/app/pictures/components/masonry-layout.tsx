@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { motion } from 'motion/react'
 import type { Picture } from '../page'
 import Lightbox from '@/components/lightbox'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 interface MasonryLayoutProps {
 	pictures: Picture[]
@@ -23,7 +24,7 @@ type UrlItem = {
 const buildUrlList = (pictures: Picture[]): UrlItem[] => {
 	const result: UrlItem[] = []
 	for (const picture of pictures) {
-		if (picture.image) {
+		if (picture.image && isSafeMarkdownImageUrl(picture.image)) {
 			result.push({
 				url: picture.image,
 				description: picture.description,
@@ -34,13 +35,19 @@ const buildUrlList = (pictures: Picture[]): UrlItem[] => {
 		}
 		if (picture.images && picture.images.length > 0) {
 			result.push(
-				...picture.images.map((url, imageIndex) => ({
-					url,
-					description: picture.description,
-					uploadedAt: picture.uploadedAt,
-					pictureId: picture.id,
-					imageIndex: imageIndex
-				}))
+				...picture.images.flatMap((url, imageIndex) =>
+					isSafeMarkdownImageUrl(url)
+						? [
+								{
+									url,
+									description: picture.description,
+									uploadedAt: picture.uploadedAt,
+									pictureId: picture.id,
+									imageIndex
+								}
+							]
+						: []
+				)
 			)
 		}
 	}

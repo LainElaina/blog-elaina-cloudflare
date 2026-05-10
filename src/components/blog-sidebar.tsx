@@ -6,6 +6,7 @@ import LikeButton from '@/components/like-button'
 import { BlogToc } from '@/components/blog-toc'
 import { ScrollTopButton } from '@/components/scroll-top-button'
 import { useConfigStore } from '@/app/(home)/stores/config-store'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 type TocItem = {
 	id: string
@@ -23,17 +24,18 @@ type BlogSidebarProps = {
 export function BlogSidebar({ cover, summary, toc, slug }: BlogSidebarProps) {
 	const { siteContent } = useConfigStore()
 	const summaryInContent = siteContent.summaryInContent ?? false
+	const coverUrl = isSafeMarkdownImageUrl(cover) ? cover : null
 
 	return (
 		<div className='sticky flex w-[200px] shrink-0 flex-col items-start gap-4 self-start max-sm:hidden' style={{ top: 24 }}>
-			{cover && (
+			{coverUrl && (
 				<motion.div
 					initial={{ opacity: 0, scale: 0.8 }}
 					animate={{ opacity: 1, scale: 1 }}
 					transition={{ delay: INIT_DELAY + ANIMATION_DELAY * 1 }}
 					className='bg-card w-full border p-3'
 					style={{ borderRadius: 'var(--card-inner-radius)' }}>
-					<img src={cover} alt='cover' className='h-auto w-full border object-cover' style={{ borderRadius: 'var(--card-inner-radius)' }} />
+					<img src={coverUrl} alt='cover' className='h-auto w-full border object-cover' style={{ borderRadius: 'var(--card-inner-radius)' }} />
 				</motion.div>
 			)}
 

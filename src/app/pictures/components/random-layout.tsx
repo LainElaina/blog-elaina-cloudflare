@@ -8,6 +8,7 @@ import siteContent from '@/config/site-content.json'
 import { cn } from '@/lib/utils'
 import { useSize } from '@/hooks/use-size'
 import { normalizeSavedPictureOffset } from './random-layout-offset'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 interface RandomLayoutProps {
 	pictures: Picture[]
@@ -134,6 +135,7 @@ const FloatingImage = ({
 }: FloatingImageProps) => {
 	const { centerX, centerY } = useCenterStore()
 	const { maxSM, init } = useSize()
+	const imageUrl = isSafeMarkdownImageUrl(url) ? url : null
 	const bodyRef = useRef(document.body)
 	const mouseDownTimeRef = useRef<number | null>(null)
 	const [zIndex, setZIndex] = useState(index)
@@ -190,7 +192,7 @@ const FloatingImage = ({
 	const [isZoomed, setIsZoomed] = useState(false)
 	const dragStartOffsetRef = useRef({ x: 0, y: 0 })
 
-	if (!position || !show) return null
+	if (!position || !show || !imageUrl) return null
 
 	return (
 		<>
@@ -291,7 +293,7 @@ const FloatingImage = ({
 					!isEditMode && !isZoomed && 'hover:scale-105'
 				)}>
 				<motion.img
-					src={url}
+					src={imageUrl}
 					onLoad={event => {
 						const img = event.currentTarget
 						setOriginalSize({ width: img.naturalWidth, height: img.naturalHeight })
