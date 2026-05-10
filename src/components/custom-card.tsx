@@ -9,6 +9,7 @@ import { useCenterStore } from '@/hooks/use-center'
 import { useConfigStore } from '../app/(home)/stores/config-store'
 import { COMPONENT_REGISTRY } from '@/config/component-registry'
 import { ANIMATION_DELAY } from '@/consts'
+import { isSafeEmbedUrl, isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 
 interface CustomCardProps {
 	component: CustomComponent
@@ -41,9 +42,10 @@ export function CustomCard({ component, index }: CustomCardProps) {
 
 	if (!show) return null
 
-	// 图片类型：学习首图卡片，用 p-2 + 内圆角
-	const isImage = type === 'image' && content.imageUrl
-	const cardPadding = isImage ? 'p-2' : 'p-6'
+	const imageUrl = type === 'image' && isSafeMarkdownImageUrl(content.imageUrl) ? content.imageUrl : null
+	const linkUrl = type === 'link' && isSafeMarkdownLinkUrl(content.linkUrl) ? content.linkUrl : null
+	const iframeUrl = type === 'iframe' && isSafeEmbedUrl(content.iframeUrl) ? content.iframeUrl : null
+	const cardPadding = imageUrl ? 'p-2' : 'p-6'
 
 	return (
 		<HomeDraggableLayer cardKey={component.id} x={x} y={y} width={style.width} height={style.height}>
@@ -55,23 +57,23 @@ export function CustomCard({ component, index }: CustomCardProps) {
 				whileTap={{ scale: 0.95 }}>
 				{type === 'text' && <div className='text-sm'>{content.text}</div>}
 
-				{isImage && (
+				{imageUrl && (
 					<img
-						src={content.imageUrl}
+						src={imageUrl}
 						alt={component.name}
 						className='h-full w-full object-cover'
 						style={{ borderRadius: 'var(--card-inner-radius)' }}
 					/>
 				)}
 
-				{type === 'link' && content.linkUrl && (
-					<a href={content.linkUrl} target='_blank' rel='noopener noreferrer' className='text-brand hover:underline'>
-						{content.text || content.linkUrl}
+				{linkUrl && (
+					<a href={linkUrl} target='_blank' rel='noopener noreferrer' className='text-brand hover:underline'>
+						{content.text || linkUrl}
 					</a>
 				)}
 
-				{type === 'iframe' && content.iframeUrl && (
-					<iframe src={content.iframeUrl} className='w-full h-full border-0 rounded' />
+				{iframeUrl && (
+					<iframe src={iframeUrl} sandbox='allow-scripts allow-same-origin allow-popups allow-forms' className='w-full h-full border-0 rounded' />
 				)}
 			</motion.div>
 		</HomeDraggableLayer>

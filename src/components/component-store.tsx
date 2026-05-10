@@ -340,12 +340,13 @@ export function ComponentStore() {
 	const handleSaveComponents = async () => {
 		setIsSaving(true)
 		try {
-			const componentsJson = JSON.stringify(customComponents, null, '\t')
+			const safeCustomComponents = normalizeCustomComponents(customComponents)
+			const componentsJson = JSON.stringify(safeCustomComponents, null, '\t')
 			if (process.env.NODE_ENV === 'development') {
 				const response = await fetch('/api/config', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ customComponents })
+					body: JSON.stringify({ customComponents: safeCustomComponents })
 				})
 				if (!response.ok) {
 					throw new Error('保存自定义组件失败')
@@ -354,7 +355,7 @@ export function ComponentStore() {
 				addLog('success', 'component', '自定义组件已保存到本地项目')
 			} else if (isAuth) {
 				const { commitRemoteFiles } = await import('@/lib/remote-text-commit')
-				const referencedImageUrls = new Set(customComponents.map(component => component.content.imageUrl).filter((imageUrl): imageUrl is string => Boolean(imageUrl)))
+				const referencedImageUrls = new Set(safeCustomComponents.map(component => component.content.imageUrl).filter((imageUrl): imageUrl is string => Boolean(imageUrl)))
 				const binaryFiles = Array.from(pendingRemoteImageFilesRef.current.entries())
 					.filter(([path]) => referencedImageUrls.has(path.replace(/^public/, '')))
 					.map(([path, file]) => ({ path, file }))

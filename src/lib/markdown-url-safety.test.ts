@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from './markdown-url-safety.ts'
+import { isSafeEmbedUrl, isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from './markdown-url-safety.ts'
 
 test('markdown url safety allows ordinary link and image URLs', () => {
 	for (const url of ['https://example.com/a', 'http://example.com/a', '/blogs/post/image.png', './relative.md', '../relative.md', '#section', '//cdn.example.com/a.png']) {
@@ -19,5 +19,14 @@ test('markdown url safety rejects active or local protocols and obfuscated white
 	for (const url of ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<svg>', 'file:///etc/passwd', ' local.png', 'local.png ', 'java\nscript:alert(1)']) {
 		assert.equal(isSafeMarkdownLinkUrl(url), false)
 		assert.equal(isSafeMarkdownImageUrl(url), false)
+	}
+})
+
+test('embed url safety only allows remote http embeds', () => {
+	for (const url of ['https://example.com/embed', 'http://example.com/embed', '//player.example.com/embed']) {
+		assert.equal(isSafeEmbedUrl(url), true)
+	}
+	for (const url of ['/local/embed', './local', 'blob:preview', 'javascript:alert(1)', 'data:text/html,<iframe>']) {
+		assert.equal(isSafeEmbedUrl(url), false)
 	}
 })

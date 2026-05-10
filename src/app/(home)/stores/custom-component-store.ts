@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import customComponentsDefault from '@/config/custom-components.json'
+import { isSafeEmbedUrl, isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 
 export interface CustomComponent {
 	id: string
@@ -41,6 +42,12 @@ function isFiniteNumber(value: unknown): value is number {
 	return typeof value === 'number' && Number.isFinite(value)
 }
 
+function isSafeCustomComponentContent(value: Record<string, unknown>) {
+	return (typeof value.imageUrl !== 'string' || isSafeMarkdownImageUrl(value.imageUrl)) &&
+		(typeof value.linkUrl !== 'string' || isSafeMarkdownLinkUrl(value.linkUrl)) &&
+		(typeof value.iframeUrl !== 'string' || isSafeEmbedUrl(value.iframeUrl))
+}
+
 export function isCustomComponentData(value: unknown): value is Omit<CustomComponent, 'id'> {
 	if (!isObject(value) || !isObject(value.style) || !isObject(value.content)) return false
 
@@ -53,7 +60,8 @@ export function isCustomComponentData(value: unknown): value is Omit<CustomCompo
 		isFiniteNumber(value.style.order) &&
 		(isFiniteNumber(value.style.offsetX) || value.style.offsetX === null) &&
 		(isFiniteNumber(value.style.offsetY) || value.style.offsetY === null) &&
-		typeof value.style.enabled === 'boolean'
+		typeof value.style.enabled === 'boolean' &&
+		isSafeCustomComponentContent(value.content)
 }
 
 function isCustomComponent(value: unknown): value is CustomComponent {
