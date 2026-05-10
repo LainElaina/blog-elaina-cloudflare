@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import shareList from '@/../public/share/list.json'
 import Link from 'next/link'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 import { useConfigStore } from './stores/config-store'
 
 dayjs.locale('zh-cn')
@@ -33,6 +34,7 @@ export default function MobileQuickInfo() {
 	const now = dayjs()
 	const hours = time.getHours().toString().padStart(2, '0')
 	const minutes = time.getMinutes().toString().padStart(2, '0')
+	const shareLogoUrl = randomItem && isSafeMarkdownImageUrl(randomItem.logo) ? randomItem.logo : null
 
 	return (
 		<motion.div
@@ -85,7 +87,7 @@ export default function MobileQuickInfo() {
 					}}>
 					<span className='text-secondary text-xs font-medium'>随机推荐</span>
 					<div className='flex items-center gap-2'>
-						<img src={randomItem.logo} alt={randomItem.name} className='size-8 shrink-0 rounded-lg object-contain' />
+						{shareLogoUrl && <img src={shareLogoUrl} alt={randomItem.name} className='size-8 shrink-0 rounded-lg object-contain' />}
 						<span className='text-sm font-medium'>{randomItem.name}</span>
 					</div>
 					<p className='text-secondary line-clamp-2 text-xs'>{randomItem.description}</p>

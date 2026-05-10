@@ -17,6 +17,7 @@ import customComponentsDefault from '@/config/custom-components.json'
 import DraggerSVG from '@/svgs/dragger.svg'
 import { hashFileSHA256 } from '@/lib/file-utils'
 import { assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 
 function readCachedList(key: string): unknown[] | null {
 	try {
@@ -101,6 +102,7 @@ export function ComponentStore() {
 	}, [setOffset])
 
 	const [newComp, setNewComp] = useState<NewComponentDraft>(emptyNewComponentDraft)
+	const safeImagePreviewUrl = isSafeMarkdownImageUrl(newComp.content.imageUrl) ? newComp.content.imageUrl : null
 	const [pendingImageFile, setPendingImageFileState] = useState<PendingImageFile | null>(null)
 	const pendingImageFileRef = useRef<PendingImageFile | null>(null)
 	const pendingRemoteImageFilesRef = useRef(new Map<string, File>())
@@ -516,8 +518,8 @@ export function ComponentStore() {
 									{pendingImageFile && (
 										<img src={pendingImageFile.previewUrl} alt='预览' className='w-full h-20 object-cover rounded border' />
 									)}
-									{!pendingImageFile && newComp.content.imageUrl && (
-										<img src={newComp.content.imageUrl} alt='预览' className='w-full h-20 object-cover rounded border' />
+									{!pendingImageFile && safeImagePreviewUrl && (
+										<img src={safeImagePreviewUrl} alt='预览' className='w-full h-20 object-cover rounded border' />
 									)}
 								</>
 							)}

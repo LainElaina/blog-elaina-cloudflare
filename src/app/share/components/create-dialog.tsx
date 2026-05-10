@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { DialogModal } from '@/components/dialog-modal'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 import { revokeFilePreviewUrls } from '@/lib/upload-preview-url'
 import LogoUploadDialog, { type LogoItem } from './logo-upload-dialog'
 import ShareFolderSelect from './share-folder-select'
@@ -77,6 +78,8 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 		setFormData(current => ({ ...current, tags }))
 	}
 
+	const logoUrl = isSafeMarkdownImageUrl(formData.logo) ? formData.logo : null
+
 	const handleSubmit = () => {
 		if (!formData.name.trim() || !formData.logo.trim() || !formData.url.trim() || !formData.description.trim()) {
 			toast.error('请填写所有必填项')
@@ -115,9 +118,9 @@ export default function CreateDialog({ share, onClose, onSave }: CreateDialogPro
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative cursor-pointer' onClick={() => setShowLogoDialog(true)}>
-						{formData.logo ? (
+						{logoUrl ? (
 							<>
-								<img src={formData.logo} alt={formData.name} className='h-16 w-16 rounded-xl object-cover' />
+								<img src={logoUrl} alt={formData.name} className='h-16 w-16 rounded-xl object-cover' />
 								<div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100'>
 									<span className='text-xs text-white'>更换</span>
 								</div>

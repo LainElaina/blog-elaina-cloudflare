@@ -7,6 +7,7 @@ import { useConfigStore } from './stores/config-store'
 import { CARD_SPACING } from '@/consts'
 import shareList from '@/../public/share/list.json'
 import Link from 'next/link'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 import { HomeDraggableLayer } from './home-draggable-layer'
 
 type ShareItem = {
@@ -35,6 +36,7 @@ export default function ShareCard() {
 		return null
 	}
 
+	const logoUrl = isSafeMarkdownImageUrl(randomItem.logo) ? randomItem.logo : null
 	const x = styles.offsetX !== null ? center.x + styles.offsetX : center.x + hiCardStyles.width / 2 - socialButtonsStyles.width
 	const y = styles.offsetY !== null ? center.y + styles.offsetY : center.y + hiCardStyles.height / 2 + CARD_SPACING + socialButtonsStyles.height + CARD_SPACING
 
@@ -57,7 +59,7 @@ export default function ShareCard() {
 				<Link href='/share' className='mt-2 block space-y-2'>
 					<div className='flex items-center'>
 						<div className='relative mr-3 h-12 w-12 shrink-0 overflow-hidden rounded-xl'>
-							<img src={randomItem.logo} alt={randomItem.name} className='h-full w-full object-contain' />
+							{logoUrl && <img src={logoUrl} alt={randomItem.name} className='h-full w-full object-contain' />}
 						</div>
 						<h3 className='text-sm font-medium'>{randomItem.name}</h3>
 					</div>

@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 import ImageUploadDialog, { type ImageItem } from './image-upload-dialog'
 import type { Project } from './project-card'
 import { DialogModal } from '@/components/dialog-modal'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 import { revokeFilePreviewUrls } from '@/lib/upload-preview-url'
 
 interface CreateDialogProps {
@@ -75,6 +76,8 @@ export default function CreateDialog({ project, onClose, onSave }: CreateDialogP
 		setFormData({ ...formData, tags })
 	}
 
+	const imageUrl = isSafeMarkdownImageUrl(formData.image) ? formData.image : null
+
 	const handleSubmit = () => {
 		if (!formData.name.trim() || !formData.image.trim() || !formData.url.trim() || !formData.description.trim()) {
 			toast.error('请填写所有必填项')
@@ -97,9 +100,9 @@ export default function CreateDialog({ project, onClose, onSave }: CreateDialogP
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative cursor-pointer' onClick={() => setShowImageDialog(true)}>
-						{formData.image ? (
+						{imageUrl ? (
 							<>
-								<img src={formData.image} alt={formData.name} className='h-16 w-16 rounded-xl object-cover' />
+								<img src={imageUrl} alt={formData.name} className='h-16 w-16 rounded-xl object-cover' />
 								<div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100'>
 									<span className='text-xs text-white'>更换</span>
 								</div>
