@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import StarRating from '@/components/star-rating'
 import { useSize } from '@/hooks/use-size'
 import { cn } from '@/lib/utils'
+import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 import EditableStarRating from '@/components/editable-star-rating'
 import LogoUploadDialog, { type LogoItem } from './logo-upload-dialog'
 import ShareFolderSelect from './share-folder-select'
@@ -148,6 +149,8 @@ export function ShareCard({ share, isEditMode = false, onUpdate, onDelete }: Sha
 	}
 
 	const canEdit = isEditMode && isEditing
+	const logoUrl = isSafeMarkdownImageUrl(localShare.logo) ? localShare.logo : null
+	const shareUrl = isSafeMarkdownLinkUrl(localShare.url) ? localShare.url : null
 
 	return (
 		<motion.div
@@ -181,12 +184,14 @@ export function ShareCard({ share, isEditMode = false, onUpdate, onDelete }: Sha
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative'>
-						<img
-							src={localShare.logo}
-							alt={localShare.name}
-							className={cn('h-16 w-16 rounded-xl object-cover', canEdit && 'cursor-pointer')}
-							onClick={() => canEdit && setShowLogoDialog(true)}
-						/>
+						{logoUrl && (
+							<img
+								src={logoUrl}
+								alt={localShare.name}
+								className={cn('h-16 w-16 rounded-xl object-cover', canEdit && 'cursor-pointer')}
+								onClick={() => canEdit && setShowLogoDialog(true)}
+							/>
+						)}
 						{canEdit && (
 							<div className='ev pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100'>
 								<span className='text-xs text-white'>更换</span>
@@ -210,13 +215,15 @@ export function ShareCard({ share, isEditMode = false, onUpdate, onDelete }: Sha
 								{localShare.url}
 							</div>
 						) : (
-							<a
-								href={localShare.url}
-								target='_blank'
-								rel='noopener noreferrer'
-								className='text-secondary hover:text-brand mt-1 block max-w-[200px] truncate text-xs hover:underline'>
-								{localShare.url}
-							</a>
+							shareUrl && (
+								<a
+									href={shareUrl}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='text-secondary hover:text-brand mt-1 block max-w-[200px] truncate text-xs hover:underline'>
+									{localShare.url}
+								</a>
+							)
 						)}
 					</div>
 				</div>

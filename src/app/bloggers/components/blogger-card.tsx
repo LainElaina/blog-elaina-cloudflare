@@ -8,6 +8,7 @@ import EditableStarRating from '@/components/editable-star-rating'
 import { Blogger, type BloggerStatus } from '../grid-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
+import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 import AvatarUploadDialog, { type AvatarItem } from './avatar-upload-dialog'
 
 interface BloggerCardProps {
@@ -74,6 +75,8 @@ export function BloggerCard({ blogger, isEditMode = false, onUpdate, onDelete }:
 	}
 
 	const canEdit = isEditMode && isEditing
+	const avatarUrl = isSafeMarkdownImageUrl(localBlogger.avatar) ? localBlogger.avatar : null
+	const bloggerUrl = isSafeMarkdownLinkUrl(localBlogger.url) ? localBlogger.url : null
 
 	return (
 		<motion.div
@@ -107,12 +110,14 @@ export function BloggerCard({ blogger, isEditMode = false, onUpdate, onDelete }:
 			<div>
 				<div className='mb-4 flex items-center gap-4'>
 					<div className='group relative'>
-						<img
-							src={localBlogger.avatar}
-							alt={localBlogger.name}
-							className={cn('h-16 w-16 rounded-full object-cover', canEdit && 'cursor-pointer')}
-							onClick={() => canEdit && setShowAvatarDialog(true)}
-						/>
+						{avatarUrl && (
+							<img
+								src={avatarUrl}
+								alt={localBlogger.name}
+								className={cn('h-16 w-16 rounded-full object-cover', canEdit && 'cursor-pointer')}
+								onClick={() => canEdit && setShowAvatarDialog(true)}
+							/>
+						)}
 						{canEdit && (
 							<div className='ev pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100'>
 								<span className='text-xs text-white'>更换</span>
@@ -136,13 +141,15 @@ export function BloggerCard({ blogger, isEditMode = false, onUpdate, onDelete }:
 								{localBlogger.url}
 							</div>
 						) : (
-							<a
-								href={localBlogger.url}
-								target='_blank'
-								rel='noopener noreferrer'
-								className='text-secondary hover:text-brand mt-1 block max-w-[200px] truncate text-xs hover:underline'>
-								{localBlogger.url}
-							</a>
+							bloggerUrl && (
+								<a
+									href={bloggerUrl}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='text-secondary hover:text-brand mt-1 block max-w-[200px] truncate text-xs hover:underline'>
+									{localBlogger.url}
+								</a>
+							)
 						)}
 					</div>
 				</div>
