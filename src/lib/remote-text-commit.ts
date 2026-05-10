@@ -2,7 +2,7 @@ import { GITHUB_CONFIG } from '@/consts'
 import { assertSafeBlogSlug } from '@/app/write/services/blog-slug'
 import { getAuthToken } from '@/lib/auth'
 import { createBlob, createCommit, createTree, getRef, throwStaleRemoteWriteConflictError, toBase64Utf8, updateRef, type TreeItem } from '@/lib/github-client'
-import { ALLOWED_UPLOAD_IMAGE_EXTENSIONS, getImageFileExtension } from '@/lib/image-content-validation'
+import { ALLOWED_UPLOAD_IMAGE_EXTENSIONS, assertAllowedImageFile, getImageFileExtension } from '@/lib/image-content-validation'
 
 export type RemoteTextFile = {
 	path: string
@@ -147,10 +147,15 @@ async function commitRemoteBase64Files(files: RemoteBase64File[], message: strin
 export async function commitRemoteFiles(files: RemoteFileCommit, message: string): Promise<void> {
 	const textFiles = files.textFiles ?? []
 	const binaryFiles = files.binaryFiles ?? []
-	const base64Files: RemoteBase64File[] = textFiles.map(file => ({ path: assertAllowedRemoteTextFilePath(file.path), contentBase64: toBase64Utf8(file.content) }))
+	const base64Files: RemoteBase64File[] = textFiles.map(file => ({
+		path: assertAllowedRemoteTextFilePath(file.path),
+		contentBase64: toBase64Utf8(file.content)
+	}))
 
 	for (const file of binaryFiles) {
-		base64Files.push({ path: assertAllowedRemoteBinaryFilePath(file.path), contentBase64: arrayBufferToBase64(await file.file.arrayBuffer()) })
+		const path = assertAllowedRemoteBinaryFilePath(file.path)
+		await assertAllowedImageFile(file.file, getImageFileExtension(path))
+		base64Files.push({ path, contentBase64: arrayBufferToBase64(await file.file.arrayBuffer()) })
 	}
 
 	await commitRemoteBase64Files(base64Files, message)

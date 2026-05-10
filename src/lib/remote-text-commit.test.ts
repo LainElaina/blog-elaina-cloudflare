@@ -67,7 +67,7 @@ const sourceFiles = {
 	componentStore: '../components/component-store.tsx'
 } as const
 
-const { assertAllowedRemoteBinaryFilePath, assertAllowedRemoteTextFilePath } = await import('./remote-text-commit.ts')
+const { assertAllowedRemoteBinaryFilePath, assertAllowedRemoteTextFilePath, commitRemoteFiles } = await import('./remote-text-commit.ts')
 
 async function readSource(relativePath: string) {
 	return (await fs.readFile(new URL(relativePath, import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
@@ -131,6 +131,21 @@ describe('remote commit path allowlist', () => {
 		]) {
 			assert.throws(() => assertAllowedRemoteBinaryFilePath(path), /不允许远端图片路径/)
 		}
+	})
+
+	test('rejects remote binary commits with invalid image content before GitHub writes', async () => {
+		const file = new File([new Uint8Array([0x4e, 0x4f, 0x54, 0x50, 0x4e, 0x47])], 'avatar.png', { type: 'image/png' })
+
+		await assert.rejects(
+			() =>
+				commitRemoteFiles(
+					{
+						binaryFiles: [{ path: 'public/images/custom-components/avatar.png', file }]
+					},
+					'保存图片'
+				),
+			/图片内容与文件类型不匹配/
+		)
 	})
 })
 
