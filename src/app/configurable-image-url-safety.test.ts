@@ -59,7 +59,10 @@ test('home content configuration renders only sanitized media and备案 links', 
 	const blogSidebar = await fs.readFile(new URL('../components/blog-sidebar.tsx', import.meta.url), 'utf-8')
 
 	assert.match(layout, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
-	assert.match(layout, /const currentBackgroundImageUrl = currentBackgroundImage && isSafeMarkdownImageUrl\(currentBackgroundImage\.url\) \? currentBackgroundImage\.url : null/)
+	assert.match(
+		layout,
+		/const currentBackgroundImageUrl = currentBackgroundImage && isSafeMarkdownImageUrl\(currentBackgroundImage\.url\) \? currentBackgroundImage\.url : null/
+	)
 	assert.match(layout, /backgroundImage: `url\(\$\{JSON\.stringify\(currentBackgroundImageUrl\)\}\)`/)
 	assert.doesNotMatch(layout, /backgroundImage: `url\(\$\{currentBackgroundImage\.url\}\)`/)
 
@@ -93,7 +96,10 @@ test('write page image previews render only sanitized URL images', async () => {
 	assert.doesNotMatch(imagesSection, /src=\{item\.url\}/)
 
 	assert.match(coverSection, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
-	assert.match(coverSection, /const coverPreviewUrl = cover \? \(cover\.type === 'url' && isSafeMarkdownImageUrl\(cover\.url\) \? cover\.url : cover\.type === 'file' \? cover\.previewUrl : null\) : null/)
+	assert.match(
+		coverSection,
+		/const coverPreviewUrl = cover \? \(cover\.type === 'url' && isSafeMarkdownImageUrl\(cover\.url\) \? cover\.url : cover\.type === 'file' \? cover\.previewUrl : null\) : null/
+	)
 	assert.match(coverSection, /src=\{coverPreviewUrl\}/)
 	assert.doesNotMatch(coverSection, /src=\{cover\.url\}/)
 })
@@ -125,14 +131,29 @@ test('picture layouts and lightbox render only sanitized image URLs', async () =
 test('site config dialog previews render only sanitized image URLs', async () => {
 	const backgroundImagesSection = await readSource('./(home)/config-dialog/site-settings/background-images-section.tsx')
 	const artImagesSection = await readSource('./(home)/config-dialog/site-settings/art-images-section.tsx')
+	const socialButtonsSection = await readSource('./(home)/config-dialog/site-settings/social-buttons-section.tsx')
 
 	assert.match(backgroundImagesSection, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
-	assert.match(backgroundImagesSection, /const src = uploadItem\?\.type === 'file' \? uploadItem\.previewUrl : isSafeMarkdownImageUrl\(item\.url\) \? item\.url : null/)
+	assert.match(
+		backgroundImagesSection,
+		/const src = uploadItem\?\.type === 'file' \? uploadItem\.previewUrl : isSafeMarkdownImageUrl\(item\.url\) \? item\.url : null/
+	)
 	assert.match(backgroundImagesSection, /\{src && <img src=\{src\} alt='background preview'/)
 	assert.doesNotMatch(backgroundImagesSection, /<img src=\{item\.url\}/)
 
 	assert.match(artImagesSection, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
-	assert.match(artImagesSection, /const src = uploadItem\?\.type === 'file' \? uploadItem\.previewUrl : isSafeMarkdownImageUrl\(item\.url\) \? item\.url : null/)
+	assert.match(
+		artImagesSection,
+		/const src = uploadItem\?\.type === 'file' \? uploadItem\.previewUrl : isSafeMarkdownImageUrl\(item\.url\) \? item\.url : null/
+	)
 	assert.match(artImagesSection, /\{src && <img src=\{src\} alt='art preview'/)
 	assert.doesNotMatch(artImagesSection, /<img src=\{item\.url\}/)
+
+	assert.match(socialButtonsSection, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
+	assert.match(
+		socialButtonsSection,
+		/const socialButtonImageUrl = button\.value\.startsWith\('\/images\/social-buttons\/'\) && isSafeMarkdownImageUrl\(button\.value\) \? button\.value : null/
+	)
+	assert.match(socialButtonsSection, /src=\{socialButtonImageUrl\}/)
+	assert.doesNotMatch(socialButtonsSection, /src=\{button\.value\}/)
 })

@@ -6,6 +6,7 @@ import { useWriteStore } from '../stores/write-store'
 import { usePreviewStore } from '../stores/preview-store'
 import { usePublish } from '../hooks/use-publish'
 import type { WriteSafetySnapshot } from '../write-safety'
+import { getBlogHref } from '@/lib/blog-href'
 
 type WriteActionsProps = {
 	onClearDraft?: () => void
@@ -47,7 +48,7 @@ export function WriteActions({ onClearDraft, onPublishSuccess }: WriteActionsPro
 		}
 		onClearDraft?.()
 		if (mode === 'edit' && originalSlug) {
-			router.push(`/blog/${originalSlug}`)
+			router.push(getBlogHref(originalSlug))
 		} else {
 			router.push('/')
 		}

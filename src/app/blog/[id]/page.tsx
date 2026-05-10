@@ -8,6 +8,7 @@ import { BlogPreview } from '@/components/blog-preview'
 import { loadBlog, type BlogConfig } from '@/lib/load-blog'
 import { useReadArticles } from '@/hooks/use-read-articles'
 import LiquidGrass from '@/components/liquid-grass'
+import { getWriteHref } from '@/lib/blog-href'
 
 export default function Page() {
 	const params = useParams() as { id?: string | string[] }
@@ -49,7 +50,7 @@ export default function Page() {
 	const tags = blog?.config.tags || []
 
 	const handleEdit = () => {
-		router.push(`/write/${slug}`)
+		router.push(getWriteHref(slug))
 	}
 
 	if (!slug) {
