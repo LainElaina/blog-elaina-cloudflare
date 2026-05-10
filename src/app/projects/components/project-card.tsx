@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useSize } from '@/hooks/use-size'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 import ImageUploadDialog, { type ImageItem } from './image-upload-dialog'
+import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 
 export interface Project {
 	name: string
@@ -90,6 +91,10 @@ export function ProjectCard({ project, isEditMode = false, onUpdate, onDelete }:
 	}
 
 	const canEdit = isEditMode && isEditing
+	const imageUrl = isSafeMarkdownImageUrl(localProject.image) ? localProject.image : null
+	const websiteUrl = isSafeMarkdownLinkUrl(localProject.url) ? localProject.url : null
+	const githubUrl = isSafeMarkdownLinkUrl(localProject.github) ? localProject.github : null
+	const npmUrl = isSafeMarkdownLinkUrl(localProject.npm) ? localProject.npm : null
 
 	return (
 		<motion.div
@@ -122,12 +127,14 @@ export function ProjectCard({ project, isEditMode = false, onUpdate, onDelete }:
 
 			<div className='flex items-start gap-4'>
 				<div className='group relative'>
-					<img
-						src={localProject.image}
-						alt={localProject.name}
-						className={cn('h-16 w-16 shrink-0 rounded-xl object-cover', canEdit && 'cursor-pointer')}
-						onClick={() => canEdit && setShowImageDialog(true)}
-					/>
+					{imageUrl && (
+						<img
+							src={imageUrl}
+							alt={localProject.name}
+							className={cn('h-16 w-16 shrink-0 rounded-xl object-cover', canEdit && 'cursor-pointer')}
+							onClick={() => canEdit && setShowImageDialog(true)}
+						/>
+					)}
 					{canEdit && (
 						<div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100'>
 							<span className='text-xs text-white'>更换</span>
@@ -209,25 +216,27 @@ export function ProjectCard({ project, isEditMode = false, onUpdate, onDelete }:
 					</>
 				) : (
 					<>
-						<Link
-							href={localProject.url}
-							target='_blank'
-							rel='noopener noreferrer'
-							className='bg-card hover:bg-bg rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors'>
-							Website
-						</Link>
-						{localProject.github && (
+						{websiteUrl && (
 							<Link
-								href={localProject.github}
+								href={websiteUrl}
+								target='_blank'
+								rel='noopener noreferrer'
+								className='bg-card hover:bg-bg rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors'>
+								Website
+							</Link>
+						)}
+						{githubUrl && (
+							<Link
+								href={githubUrl}
 								target='_blank'
 								rel='noopener noreferrer'
 								className='bg-card hover:bg-bg rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors'>
 								GitHub
 							</Link>
 						)}
-						{localProject.npm && (
+						{npmUrl && (
 							<Link
-								href={localProject.npm}
+								href={npmUrl}
 								target='_blank'
 								rel='noopener noreferrer'
 								className='bg-card hover:bg-bg rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors'>
