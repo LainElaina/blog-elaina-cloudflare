@@ -23,6 +23,7 @@ import { useSize } from '@/hooks/use-size'
 import { HomeDraggableLayer } from './home-draggable-layer'
 import { useLayoutEditStore } from './stores/layout-edit-store'
 import { createPortal } from 'react-dom'
+import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '@/lib/markdown-url-safety'
 
 type SocialButtonType =
 	| 'github'
@@ -142,13 +143,17 @@ export default function SocialButtons() {
 		const Icon = iconMap[button.type]
 		const hasLabel = Boolean(button.label)
 		const iconSize = hasLabel ? 'size-6' : 'size-8'
+		const linkUrl = isSafeMarkdownLinkUrl(button.value) ? button.value : null
+		const imageUrl = isSafeMarkdownImageUrl(button.value) ? button.value : null
 
 		if (button.type === 'github') {
+			if (!linkUrl) return null
 			return (
 				<motion.a
 					key={button.id}
-					href={button.value}
+					href={linkUrl}
 					target='_blank'
+					rel='noopener noreferrer'
 					{...commonProps}
 					className={`font-averia flex items-center gap-2 rounded-xl border bg-[#070707] text-xl text-white ${!hasLabel ? 'p-1.5' : 'px-3 py-1.5'}`}
 					style={{ boxShadow: ' inset 0 0 12px rgba(255, 255, 255, 0.4)' }}>
@@ -165,10 +170,10 @@ export default function SocialButtons() {
 				qq: 'QQ号已复制到剪贴板'
 			}
 
-			const isImagePath = button.value.startsWith('/images/social-buttons/')
+			const qrImageUrl = imageUrl?.startsWith('/images/social-buttons/') ? imageUrl : null
 			const isOpen = openDropdowns[button.id] || false
 
-			if (isImagePath && (button.type === 'wechat' || button.type === 'qq')) {
+			if (qrImageUrl && (button.type === 'wechat' || button.type === 'qq')) {
 				return (
 					<div key={button.id} className='relative'>
 						<motion.button
@@ -208,7 +213,7 @@ export default function SocialButtons() {
 													left: buttonRefs.current[button.id] ? `${buttonRefs.current[button.id]!.getBoundingClientRect().left}px` : '0px',
 													boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
 												}}>
-												<img src={button.value} alt='QR Code' className='h-48 w-48 rounded-lg object-cover' />
+												<img src={qrImageUrl} alt='QR Code' className='h-48 w-48 rounded-lg object-cover' />
 											</motion.div>
 										</>
 									)}
@@ -235,23 +240,27 @@ export default function SocialButtons() {
 		}
 
 		if (button.type === 'link') {
+			if (!linkUrl) return null
 			return (
 				<motion.a
 					key={button.id}
-					href={button.value}
+					href={linkUrl}
 					target='_blank'
+					rel='noopener noreferrer'
 					{...commonProps}
 					className='card relative flex items-center gap-2 rounded-xl px-3 py-2.5 font-medium whitespace-nowrap'>
-					{hasLabel ? button.label : button.value}
+					{hasLabel ? button.label : linkUrl}
 				</motion.a>
 			)
 		}
 
+		if (!linkUrl) return null
 		return (
 			<motion.a
 				key={button.id}
-				href={button.value}
+				href={linkUrl}
 				target='_blank'
+				rel='noopener noreferrer'
 				{...commonProps}
 				className={`card relative rounded-xl font-medium whitespace-nowrap ${hasLabel ? 'flex items-center gap-2 px-3 py-2.5' : 'p-1.5'}`}>
 				<Icon className={iconSize} />
