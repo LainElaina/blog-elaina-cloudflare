@@ -72,18 +72,27 @@ test('limited JSON request reader ignores negative content-length while enforcin
 	await assert.rejects(() => readLimitedJsonRequest(request, 8), isJsonRequestBodyTooLargeError)
 })
 
-test('limited JSON request reader falls back to request json when no stream body is available', async () => {
-	let jsonCalled = false
+test('limited JSON request reader falls back to request text when no stream body is available', async () => {
+	let textCalled = false
 	const request = {
 		headers: new Headers({ 'Content-Type': 'application/json' }),
-		json: async () => {
-			jsonCalled = true
-			return { ok: true }
+		text: async () => {
+			textCalled = true
+			return '{"ok":true}'
 		}
 	} as Request
 
-	assert.deepEqual(await readLimitedJsonRequest(request, 8), { ok: true })
-	assert.equal(jsonCalled, true)
+	assert.deepEqual(await readLimitedJsonRequest(request, 11), { ok: true })
+	assert.equal(textCalled, true)
+})
+
+test('limited JSON request reader enforces byte limit when falling back to request text', async () => {
+	const request = {
+		headers: new Headers({ 'Content-Type': 'application/json' }),
+		text: async () => JSON.stringify({ value: 'x'.repeat(16) })
+	} as Request
+
+	await assert.rejects(() => readLimitedJsonRequest(request, 8), isJsonRequestBodyTooLargeError)
 })
 
 test('limited JSON request reader keeps malformed JSON as a parse error', async () => {

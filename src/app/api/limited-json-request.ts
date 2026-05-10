@@ -20,6 +20,17 @@ function getJsonRequestContentLength(request: Request) {
 	return Number.isFinite(length) && length >= 0 ? length : null
 }
 
+function getUtf8ByteLength(value: string) {
+	return new TextEncoder().encode(value).byteLength
+}
+
+function parseLimitedJsonText(body: string, maxBytes: number) {
+	if (getUtf8ByteLength(body) > maxBytes) {
+		throw new JsonRequestBodyTooLargeError()
+	}
+	return JSON.parse(body)
+}
+
 export async function readLimitedJsonRequest(request: Request, maxBytes: number): Promise<unknown> {
 	const contentLength = getJsonRequestContentLength(request)
 	if (contentLength !== null && contentLength > maxBytes) {
@@ -27,7 +38,7 @@ export async function readLimitedJsonRequest(request: Request, maxBytes: number)
 	}
 
 	if (!('body' in request) || !request.body) {
-		return request.json()
+		return parseLimitedJsonText(await request.text(), maxBytes)
 	}
 
 	const reader = request.body.getReader()
