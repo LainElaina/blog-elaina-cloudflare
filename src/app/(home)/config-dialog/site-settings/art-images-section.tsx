@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { hashFileSHA256 } from '@/lib/file-utils'
+import { isSafeMarkdownImageUrl } from '@/lib/markdown-url-safety'
 import type { SiteContent } from '../../stores/config-store'
 import type { ArtImageUploads, FileItem } from './types'
 
@@ -127,7 +128,7 @@ export function ArtImagesSection({ formData, setFormData, artImageUploads, setAr
 				{formData.artImages?.map(item => {
 					const isActive = formData.currentArtImageId === item.id
 					const uploadItem = artImageUploads[item.id]
-					const src = uploadItem?.type === 'file' ? uploadItem.previewUrl : item.url
+					const src = uploadItem?.type === 'file' ? uploadItem.previewUrl : isSafeMarkdownImageUrl(item.url) ? item.url : null
 
 					return (
 						<div key={item.id} className='group relative'>
@@ -137,7 +138,7 @@ export function ArtImagesSection({ formData, setFormData, artImageUploads, setAr
 								className={`block w-full overflow-hidden rounded-xl border bg-white/60 transition-all ${
 									isActive ? 'ring-brand shadow-md ring-2' : 'hover:border-brand/60'
 								}`}>
-								<img src={src} alt='art preview' className='h-24 w-full object-cover' />
+								{src && <img src={src} alt='art preview' className='h-24 w-full object-cover' />}
 							</button>
 							{isActive && (
 								<span className='bg-brand pointer-events-none absolute top-1 left-1 rounded-full px-2 py-0.5 text-[10px] text-white shadow'>当前使用</span>

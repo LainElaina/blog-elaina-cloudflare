@@ -121,3 +121,18 @@ test('picture layouts and lightbox render only sanitized image URLs', async () =
 	assert.match(lightbox, /src=\{imageUrl\}/)
 	assert.doesNotMatch(lightbox, /src=\{src\}/)
 })
+
+test('site config dialog previews render only sanitized image URLs', async () => {
+	const backgroundImagesSection = await readSource('./(home)/config-dialog/site-settings/background-images-section.tsx')
+	const artImagesSection = await readSource('./(home)/config-dialog/site-settings/art-images-section.tsx')
+
+	assert.match(backgroundImagesSection, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
+	assert.match(backgroundImagesSection, /const src = uploadItem\?\.type === 'file' \? uploadItem\.previewUrl : isSafeMarkdownImageUrl\(item\.url\) \? item\.url : null/)
+	assert.match(backgroundImagesSection, /\{src && <img src=\{src\} alt='background preview'/)
+	assert.doesNotMatch(backgroundImagesSection, /<img src=\{item\.url\}/)
+
+	assert.match(artImagesSection, /import \{ isSafeMarkdownImageUrl \} from '@\/lib\/markdown-url-safety'/)
+	assert.match(artImagesSection, /const src = uploadItem\?\.type === 'file' \? uploadItem\.previewUrl : isSafeMarkdownImageUrl\(item\.url\) \? item\.url : null/)
+	assert.match(artImagesSection, /\{src && <img src=\{src\} alt='art preview'/)
+	assert.doesNotMatch(artImagesSection, /<img src=\{item\.url\}/)
+})
