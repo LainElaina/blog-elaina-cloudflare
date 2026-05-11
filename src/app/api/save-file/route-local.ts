@@ -1,4 +1,5 @@
 import { assertSafeBlogSlug } from '../../write/services/blog-slug.ts'
+import { isSafeMarkdownImageUrl, isSafeMarkdownLinkUrl } from '../../../lib/markdown-url-safety.ts'
 import { mkdir, realpath, rename, rm, writeFile } from 'fs/promises'
 import { dirname, extname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
@@ -70,6 +71,14 @@ function isFiniteNumber(value: unknown) {
 
 function hasOptionalStringFields(value: Record<string, unknown>, fields: string[]) {
 	return fields.every(field => !(field in value) || typeof value[field] === 'string')
+}
+
+function isSafeImageUrl(value: unknown): value is string {
+	return typeof value === 'string' && isSafeMarkdownImageUrl(value)
+}
+
+function isSafeLinkUrl(value: unknown): value is string {
+	return typeof value === 'string' && isSafeMarkdownLinkUrl(value)
 }
 
 function hasOptionalBooleanFields(value: Record<string, unknown>, fields: string[]) {
@@ -165,8 +174,8 @@ function isShareListItem(value: unknown) {
 	return (
 		isObject(value) &&
 		typeof value.name === 'string' &&
-		typeof value.logo === 'string' &&
-		typeof value.url === 'string' &&
+		isSafeImageUrl(value.logo) &&
+		isSafeLinkUrl(value.url) &&
 		typeof value.description === 'string' &&
 		isStringArray(value.tags) &&
 		isFiniteNumber(value.stars) &&
@@ -199,6 +208,10 @@ function isAboutConfig(value: unknown) {
 	return isObject(value) && typeof value.title === 'string' && typeof value.description === 'string' && typeof value.content === 'string'
 }
 
+function hasOptionalSafeLinkUrlFields(value: Record<string, unknown>, fields: string[]) {
+	return fields.every(field => !(field in value) || isSafeLinkUrl(value[field]))
+}
+
 function isBloggerListConfig(value: unknown) {
 	return (
 		Array.isArray(value) &&
@@ -206,8 +219,8 @@ function isBloggerListConfig(value: unknown) {
 			item =>
 				isObject(item) &&
 				typeof item.name === 'string' &&
-				typeof item.avatar === 'string' &&
-				typeof item.url === 'string' &&
+				isSafeImageUrl(item.avatar) &&
+				isSafeLinkUrl(item.url) &&
 				typeof item.description === 'string' &&
 				isFiniteNumber(item.stars) &&
 				hasOptionalStringFields(item, ['status'])
@@ -238,10 +251,10 @@ function isProjectListConfig(value: unknown) {
 				typeof item.name === 'string' &&
 				isFiniteNumber(item.year) &&
 				typeof item.description === 'string' &&
-				typeof item.image === 'string' &&
-				typeof item.url === 'string' &&
+				isSafeImageUrl(item.image) &&
+				isSafeLinkUrl(item.url) &&
 				isStringArray(item.tags) &&
-				hasOptionalStringFields(item, ['github', 'npm'])
+				hasOptionalSafeLinkUrlFields(item, ['github', 'npm'])
 		)
 	)
 }

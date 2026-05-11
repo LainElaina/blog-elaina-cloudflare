@@ -18,6 +18,22 @@ registerHooks({
 
 const { handleSaveFile } = await import('./route-local.ts')
 
+function createSaveFileRequest(body: unknown) {
+	return new Request('http://localhost/api/save-file', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	}) as any
+}
+
+function createMalformedSaveFileRequest(body: string) {
+	return new Request('http://localhost/api/save-file', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body
+	}) as any
+}
+
 function deferred() {
 	let resolve!: () => void
 	const promise = new Promise<void>(next => {
@@ -108,9 +124,7 @@ test('save-file local route waits for the share content mutation lock before wri
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleSaveFile({
-			json: async () => ({ path: filePath, content: JSON.stringify({ categories: ['新分类'] }) })
-		} as any)
+		const responsePromise = handleSaveFile(createSaveFileRequest({ path: filePath, content: JSON.stringify({ categories: ['新分类'] }) }))
 		await Promise.resolve()
 
 		assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), '{"categories":[]}')
@@ -146,8 +160,8 @@ test('save-file local route waits for the content mutation lock before writing c
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleSaveFile({
-			json: async () => ({
+		const responsePromise = handleSaveFile(
+			createSaveFileRequest({
 				path: filePath,
 				content: JSON.stringify([
 					{
@@ -160,7 +174,7 @@ test('save-file local route waits for the content mutation lock before writing c
 					}
 				])
 			})
-		} as any)
+		)
 		await Promise.resolve()
 
 		assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), '[]')
@@ -196,9 +210,7 @@ test('save-file local route rejects invalid JSON content without replacing exist
 		await writeFile(join(repoDir, 'public/share/storage.json'), '{"ok":true}', 'utf-8')
 		process.chdir(repoDir)
 
-		const response = await handleSaveFile({
-			json: async () => ({ path: 'public/share/storage.json', content: '{bad' })
-		} as any)
+		const response = await handleSaveFile(createSaveFileRequest({ path: 'public/share/storage.json', content: '{bad' }))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: 'JSON 内容格式错误' })
@@ -222,9 +234,90 @@ test('save-file local route rejects invalid allowlisted JSON shapes without repl
 			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
 			process.chdir(repoDir)
 
-			const response = await handleSaveFile({
-				json: async () => ({ path: filePath, content: nextContent })
-			} as any)
+			const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: nextContent }))
+
+			assert.equal(response.status, 400, filePath)
+			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, filePath)
+			assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), previousContent, filePath)
+		} finally {
+			process.chdir(previousCwd)
+			await rm(repoDir, { recursive: true, force: true })
+		}
+	}
+})
+
+test('save-file local route rejects unsafe configurable URLs without replacing existing files', async () => {
+	for (const [filePath, previousContent, nextContent] of [
+		[
+			'public/share/list.json',
+			'[]',
+			JSON.stringify([
+				{
+					name: 'Unsafe Share',
+					logo: 'javascript:alert(1)',
+					url: 'https://example.com',
+					description: 'unsafe',
+					tags: [],
+					stars: 1
+				}
+			])
+		],
+		[
+			'public/share/storage.json',
+			'{"version":1,"updatedAt":"now","shares":{}}',
+			JSON.stringify({
+				version: 1,
+				updatedAt: 'now',
+				shares: {
+					'unsafe-share': {
+						name: 'Unsafe Share',
+						logo: '/safe.png',
+						url: 'javascript:alert(1)',
+						description: 'unsafe',
+						tags: [],
+						stars: 1,
+						slug: 'unsafe-share',
+						status: 'published'
+					}
+				}
+			})
+		],
+		[
+			'src/app/bloggers/list.json',
+			'[]',
+			JSON.stringify([
+				{
+					name: 'Unsafe Blogger',
+					avatar: '/safe.png',
+					url: 'data:text/html,<svg>',
+					description: 'unsafe',
+					stars: 1
+				}
+			])
+		],
+		[
+			'src/app/projects/list.json',
+			'[]',
+			JSON.stringify([
+				{
+					name: 'Unsafe Project',
+					year: 2026,
+					description: 'unsafe',
+					image: 'file:///etc/passwd',
+					url: 'https://example.com',
+					tags: []
+				}
+			])
+		]
+	] as const) {
+		const previousCwd = process.cwd()
+		const repoDir = await mkdtemp(join(tmpdir(), 'save-file-url-shape-'))
+		try {
+			await mkdir(join(repoDir, dirname(filePath)), { recursive: true })
+			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
+			process.chdir(repoDir)
+
+			const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: nextContent }))
 
 			assert.equal(response.status, 400, filePath)
 			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, filePath)
@@ -303,9 +396,7 @@ test('save-file local route rejects unsafe blog artifact slugs without replacing
 			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
 			process.chdir(repoDir)
 
-			const response = await handleSaveFile({
-				json: async () => ({ path: filePath, content: nextContent })
-			} as any)
+			const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: nextContent }))
 
 			assert.equal(response.status, 400, filePath)
 			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, filePath)
@@ -345,9 +436,7 @@ test('save-file local route rejects unsafe share storage slugs without replacing
 			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
 			process.chdir(repoDir)
 
-			const response = await handleSaveFile({
-				json: async () => ({ path: filePath, content: nextContent })
-			} as any)
+			const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: nextContent }))
 
 			assert.equal(response.status, 400, slug)
 			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, slug)
@@ -368,9 +457,7 @@ test('save-file local route rejects allowlisted paths under symlinked parent dir
 		await symlink(outsideDir, join(repoDir, 'public/blogs'))
 		process.chdir(repoDir)
 
-		const response = await handleSaveFile({
-			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'escaped' })
-		} as any)
+		const response = await handleSaveFile(createSaveFileRequest({ path: 'public/blogs/post-a/index.md', content: 'escaped' }))
 
 		assert.equal(response.status, 403)
 		assert.deepEqual(await response.json(), { error: '路径不合法' })
@@ -391,9 +478,7 @@ test('save-file local route rejects allowlisted paths under repo-internal symlin
 		await symlink(join(repoDir, 'public/redirected-blogs'), join(repoDir, 'public/blogs'))
 		process.chdir(repoDir)
 
-		const response = await handleSaveFile({
-			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'redirected' })
-		} as any)
+		const response = await handleSaveFile(createSaveFileRequest({ path: 'public/blogs/post-a/index.md', content: 'redirected' }))
 
 		assert.equal(response.status, 403)
 		assert.deepEqual(await response.json(), { error: '路径不合法' })
@@ -410,9 +495,7 @@ test('save-file local route keeps blog markdown writes outside JSON shape valida
 	try {
 		process.chdir(repoDir)
 
-		const response = await handleSaveFile({
-			json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'not json' })
-		} as any)
+		const response = await handleSaveFile(createSaveFileRequest({ path: 'public/blogs/post-a/index.md', content: 'not json' }))
 
 		assert.equal(response.status, 200)
 		assert.deepEqual(await response.json(), { success: true })
@@ -439,9 +522,7 @@ test('save-file local route returns 413 for oversized request before JSON parsin
 })
 
 test('save-file local route returns 413 for oversized file content after JSON parsing', async () => {
-	const response = await handleSaveFile({
-		json: async () => ({ path: 'public/blogs/post-a/index.md', content: 'x'.repeat(10 * 1024 * 1024 + 1) })
-	} as any)
+	const response = await handleSaveFile(createSaveFileRequest({ path: 'public/blogs/post-a/index.md', content: 'x'.repeat(10 * 1024 * 1024 + 1) }))
 
 	assert.equal(response.status, 413)
 	assert.deepEqual(await response.json(), { error: '文件内容超过 10MB 限制' })
@@ -469,11 +550,7 @@ test('save-file local route limits streamed JSON requests without content-length
 })
 
 test('save-file local route returns 400 when JSON body is malformed', async () => {
-	const response = await handleSaveFile({
-		json: async () => {
-			throw new SyntaxError('bad json')
-		}
-	} as any)
+	const response = await handleSaveFile(createMalformedSaveFileRequest('{bad'))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -481,9 +558,7 @@ test('save-file local route returns 400 when JSON body is malformed', async () =
 
 test('save-file local route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {
-		const response = await handleSaveFile({
-			json: async () => body
-		} as any)
+		const response = await handleSaveFile(createSaveFileRequest(body))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
