@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
-import { mkdir, readFile, rm, stat, writeFile } from 'fs/promises'
+import { mkdir, readFile, realpath, rm, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
-import { join, resolve } from 'path'
+import { join } from 'path'
 
 export type LocalContentMutationScope = 'blog' | 'share' | 'site-config' | 'content'
 
@@ -15,8 +15,8 @@ type FileLockOwner = {
 	createdAt?: unknown
 }
 
-function getLockKey(baseDir: string, scope: LocalContentMutationScope) {
-	return `${resolve(baseDir)}:${scope}`
+async function getLockKey(baseDir: string, scope: LocalContentMutationScope) {
+	return `${await realpath(baseDir)}:${scope}`
 }
 
 function getFileLockDir(lockKey: string) {
@@ -110,7 +110,7 @@ async function acquireFileLock(lockKey: string) {
 }
 
 export async function withLocalContentMutationLock<T>(baseDir: string, scope: LocalContentMutationScope, callback: () => Promise<T>): Promise<T> {
-	const lockKey = getLockKey(baseDir, scope)
+	const lockKey = await getLockKey(baseDir, scope)
 	const previousLock = localContentMutationLocks.get(lockKey) ?? Promise.resolve()
 	let releaseLock!: () => void
 	const currentLock = new Promise<void>(resolve => {

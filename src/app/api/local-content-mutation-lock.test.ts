@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -154,6 +154,45 @@ test('local content mutation lock removes expired file locks even when owner pid
 		assert.deepEqual(events, ['entered'])
 	} finally {
 		await rm(lockDir, { recursive: true, force: true })
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('local content mutation lock serializes symlinked aliases for the same project and scope', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-real-'))
+	const linkDir = join(tmpdir(), `local-content-lock-link-${process.pid}-${Date.now()}`)
+	const releaseFirst = deferred()
+	const firstEntered = deferred()
+	const events: string[] = []
+	let first: Promise<void> | undefined
+	let second: Promise<void> | undefined
+
+	try {
+		await symlink(tmpDir, linkDir, 'dir')
+		first = withLocalContentMutationLock(tmpDir, 'blog', async () => {
+			events.push('first:start')
+			firstEntered.resolve()
+			await releaseFirst.promise
+			events.push('first:end')
+		})
+		await firstEntered.promise
+
+		second = withLocalContentMutationLock(linkDir, 'blog', async () => {
+			events.push('second:start')
+		})
+		await waitForRetry()
+
+		assert.deepEqual(events, ['first:start'])
+
+		releaseFirst.resolve()
+		await Promise.all([first, second])
+
+		assert.deepEqual(events, ['first:start', 'first:end', 'second:start'])
+	} finally {
+		releaseFirst.resolve()
+		await second?.catch(() => undefined)
+		await first?.catch(() => undefined)
+		await rm(linkDir, { recursive: true, force: true })
 		await rm(tmpDir, { recursive: true, force: true })
 	}
 })
