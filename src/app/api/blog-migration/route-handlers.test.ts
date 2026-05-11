@@ -581,4 +581,10 @@ describe('blog migration routes', () => {
 		assert.match(source, /await rename\(write\.backupPath, write\.path\)/)
 		assert.doesNotMatch(source, /Promise\.all\(\[\s*writeFile\(join\(blogsDir, 'index\.json'\)/)
 	})
+
+	it('execute route 的临时文件清理失败不会覆盖成功写回结果', async () => {
+		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
+
+		assert.match(source, /await Promise\.all\(preparedWrites\.flatMap\(write => \[rm\(write\.tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\), rm\(write\.backupPath, \{ force: true \}\)\.catch\(\(\) => undefined\)\]\)\)/)
+	})
 })

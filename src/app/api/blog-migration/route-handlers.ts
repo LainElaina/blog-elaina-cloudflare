@@ -343,7 +343,7 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 		}
 		throw error
 	} finally {
-		await Promise.all(preparedWrites.flatMap(write => [rm(write.tempPath, { force: true }), rm(write.backupPath, { force: true })]))
+		await Promise.all(preparedWrites.flatMap(write => [rm(write.tempPath, { force: true }).catch(() => undefined), rm(write.backupPath, { force: true }).catch(() => undefined)]))
 	}
 }
 
