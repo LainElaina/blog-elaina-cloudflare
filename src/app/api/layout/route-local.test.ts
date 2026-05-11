@@ -14,6 +14,22 @@ registerHooks({
 	}
 })
 
+function createLayoutRequest(body: unknown) {
+	return new Request('http://localhost/api/layout', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	})
+}
+
+function createMalformedLayoutRequest(body: string) {
+	return new Request('http://localhost/api/layout', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body
+	})
+}
+
 const { handleLayoutGet, handleLayoutPost } = await import('./route-local.ts')
 
 test('layout local route uses shared atomic site config writes', async () => {
@@ -60,11 +76,7 @@ test('layout local route writes current cwd layout instead of module-load cwd', 
 })
 
 test('layout local route returns 400 when JSON body is malformed', async () => {
-	const response = await handleLayoutPost({
-		json: async () => {
-			throw new SyntaxError('bad json')
-		}
-	} as any)
+	const response = await handleLayoutPost(createMalformedLayoutRequest('{bad'))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -227,9 +239,7 @@ test('layout local route rejects invalid layout payloads before writing layout',
 	assert.ok(writeIndex > validationIndex)
 
 	for (const payload of [null, [], {}, { badCard: { width: 1, height: 1, order: 1, offsetX: null, offsetY: null, enabled: true } }, { artCard: { width: Number.NaN, height: 1, order: 1, offsetX: null, offsetY: null, enabled: true } }]) {
-		const response = await handleLayoutPost({
-			json: async () => payload
-		} as any)
+		const response = await handleLayoutPost(createLayoutRequest(payload))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '布局配置格式错误' })
