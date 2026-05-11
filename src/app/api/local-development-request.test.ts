@@ -46,7 +46,43 @@ function assertAppearsBefore(source: string, earlier: string, later: string, rou
 	assert.equal(earlierIndex < laterIndex, true, `${routeFile} 必须先生产环境早退再执行后续本地逻辑`)
 }
 
+function getDynamicImportSpecifiers(source: string) {
+	return Array.from(source.matchAll(/import\(['"]([^'"]+)['"]\)/g), match => match[1])
+}
+
+function isLocalOnlyDynamicImportSpecifier(specifier: string) {
+	return specifier.includes('route-local') || specifier.includes('route-handlers') || specifier.includes('site-config-local-shared')
+}
+
+function getLocalOnlyApiModulePattern(source: string) {
+	const match = source.match(/const localOnlyApiModulePattern = \/(.+)\//)
+	assert.ok(match, 'next.config.ts 缺少 localOnlyApiModulePattern')
+	return new RegExp(match[1])
+}
+
 const { isAllowedLocalDevelopmentRequest, rejectNonLocalDevelopmentRequest } = await import('./local-development-request.ts')
+
+test('local-only wrapper dynamic imports are covered by production IgnorePlugin', async () => {
+	const nextConfigSource = await readFile(new URL('../../../next.config.ts', import.meta.url), 'utf-8')
+	const localOnlyApiModulePattern = getLocalOnlyApiModulePattern(nextConfigSource)
+	const uncoveredSpecifiers: string[] = []
+	const localOnlyDynamicImportSpecifiers = new Set<string>()
+
+	assert.match(nextConfigSource, /new webpack\.IgnorePlugin\(\{ resourceRegExp: localOnlyApiModulePattern \}\)/)
+
+	for (const routeFile of localOnlyRouteFiles) {
+		const source = await readFile(new URL(routeFile, import.meta.url), 'utf-8')
+		for (const specifier of getDynamicImportSpecifiers(source).filter(isLocalOnlyDynamicImportSpecifier)) {
+			localOnlyDynamicImportSpecifiers.add(specifier)
+			if (!localOnlyApiModulePattern.test(specifier)) {
+				uncoveredSpecifiers.push(`${routeFile}: ${specifier}`)
+			}
+		}
+	}
+
+	assert.deepEqual([...localOnlyDynamicImportSpecifiers].sort(), ['./route-local', '../route-handlers.ts', '../../site-config-local-shared.ts'].sort())
+	assert.deepEqual(uncoveredSpecifiers, [])
+})
 
 test('development server script binds only to loopback by default', async () => {
 	const packageJson = JSON.parse(await readFile(new URL('../../../package.json', import.meta.url), 'utf-8')) as { scripts?: Record<string, string> }
