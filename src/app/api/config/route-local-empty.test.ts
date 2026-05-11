@@ -136,6 +136,27 @@ test('local config write rejects oversized JSON body before parsing', async () =
 	assert.deepEqual(await response.json(), { error: '请求体过大' })
 })
 
+test('local config write limits streamed JSON requests without content-length', async () => {
+	let pulled = 0
+	const encoder = new TextEncoder()
+	const response = await handleConfigPost(
+		new Request('http://localhost/api/config', {
+			method: 'POST',
+			body: new ReadableStream({
+				pull(controller) {
+					pulled += 1
+					controller.enqueue(encoder.encode('x'.repeat(256 * 1024)))
+				}
+			}),
+			duplex: 'half'
+		} as RequestInit) as any
+	)
+
+	assert.equal(response.status, 413)
+	assert.equal(pulled <= 6, true)
+	assert.deepEqual(await response.json(), { error: '请求体过大' })
+})
+
 test('local config write rejects non-object JSON payloads', async () => {
 	for (const body of [null, [], 'x']) {
 		const response = await handleConfigPost(createConfigRequest(body))
