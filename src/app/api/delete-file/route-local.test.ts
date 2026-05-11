@@ -14,6 +14,22 @@ registerHooks({
 	}
 })
 
+function createDeleteFileRequest(body: unknown) {
+	return new Request('http://localhost/api/delete-file', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	}) as any
+}
+
+function createMalformedDeleteFileRequest(body: string) {
+	return new Request('http://localhost/api/delete-file', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body
+	}) as any
+}
+
 const { handleDeleteFile } = await import('./route-local.ts')
 const { withLocalContentMutationLock } = await import('../local-content-mutation-lock.ts')
 
@@ -58,9 +74,7 @@ test('delete file local route rejects non-file allowlisted paths', async () => {
 
 	await fs.mkdir(filePath, { recursive: true })
 	try {
-		const response = await handleDeleteFile({
-			json: async () => ({ path: filePath })
-		} as any)
+		const response = await handleDeleteFile(createDeleteFileRequest({ path: filePath }))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '只能删除普通文件' })
@@ -79,9 +93,7 @@ test('delete file local route rejects symlink parent directories without deletin
 		await fs.symlink(path.join(tmpDir, 'outside-target'), path.join(tmpDir, 'public/share'), 'dir')
 		process.chdir(tmpDir)
 
-		const response = await handleDeleteFile({
-			json: async () => ({ path: 'public/share/storage.json' })
-		} as any)
+		const response = await handleDeleteFile(createDeleteFileRequest({ path: 'public/share/storage.json' }))
 
 		assert.equal(response.status, 403)
 		assert.deepEqual(await response.json(), { error: '路径不合法' })
@@ -110,9 +122,7 @@ test('delete file local route waits for the share content mutation lock before u
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteFile({
-			json: async () => ({ path: filePath })
-		} as any)
+		const responsePromise = handleDeleteFile(createDeleteFileRequest({ path: filePath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(path.join(repoDir, filePath), 'utf-8'), '{}')
@@ -149,9 +159,7 @@ test('delete file local route waits for the content mutation lock before unlinki
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteFile({
-			json: async () => ({ path: filePath })
-		} as any)
+		const responsePromise = handleDeleteFile(createDeleteFileRequest({ path: filePath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(path.join(repoDir, filePath), 'utf-8'), '[]')
@@ -207,11 +215,7 @@ test('delete file local route limits streamed JSON requests without content-leng
 })
 
 test('delete file local route returns 400 when JSON body is malformed', async () => {
-	const response = await handleDeleteFile({
-		json: async () => {
-			throw new SyntaxError('bad json')
-		}
-	} as any)
+	const response = await handleDeleteFile(createMalformedDeleteFileRequest('{bad'))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -219,9 +223,7 @@ test('delete file local route returns 400 when JSON body is malformed', async ()
 
 test('delete file local route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {
-		const response = await handleDeleteFile({
-			json: async () => body
-		} as any)
+		const response = await handleDeleteFile(createDeleteFileRequest(body))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
