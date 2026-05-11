@@ -14,6 +14,22 @@ registerHooks({
 	}
 })
 
+function createDeleteImageRequest(body: unknown) {
+	return new Request('http://localhost/api/delete-image', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	}) as any
+}
+
+function createMalformedDeleteImageRequest(body: string) {
+	return new Request('http://localhost/api/delete-image', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body
+	}) as any
+}
+
 const { handleDeleteImage, isAllowedDeleteImagePath } = await import('./route-local.ts')
 const { withLocalContentMutationLock } = await import('../local-content-mutation-lock.ts')
 
@@ -96,9 +112,7 @@ test('delete image route rejects non-file allowlisted paths', async () => {
 
 	await fs.mkdir(filePath, { recursive: true })
 	try {
-		const response = await handleDeleteImage({
-			json: async () => ({ path: filePath })
-		} as any)
+		const response = await handleDeleteImage(createDeleteImageRequest({ path: filePath }))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '只能删除普通文件' })
@@ -144,11 +158,7 @@ test('delete image route limits streamed JSON requests without content-length', 
 })
 
 test('delete image route returns 400 when JSON body is malformed', async () => {
-	const response = await handleDeleteImage({
-		json: async () => {
-			throw new SyntaxError('bad json')
-		}
-	} as any)
+	const response = await handleDeleteImage(createMalformedDeleteImageRequest('{bad'))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -173,9 +183,7 @@ test('delete image route waits for the share content mutation lock before unlink
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteImage({
-			json: async () => ({ path: filePath })
-		} as any)
+		const responsePromise = handleDeleteImage(createDeleteImageRequest({ path: filePath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
@@ -213,9 +221,7 @@ test('delete image route waits for the content mutation lock before unlinking co
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteImage({
-			json: async () => ({ path: filePath })
-		} as any)
+		const responsePromise = handleDeleteImage(createDeleteImageRequest({ path: filePath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
@@ -253,9 +259,7 @@ test('delete image route waits for the blog content mutation lock before unlinki
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteImage({
-			json: async () => ({ path: filePath })
-		} as any)
+		const responsePromise = handleDeleteImage(createDeleteImageRequest({ path: filePath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
@@ -293,9 +297,7 @@ test('delete image route waits for the site config mutation lock before unlinkin
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteImage({
-			json: async () => ({ path: filePath })
-		} as any)
+		const responsePromise = handleDeleteImage(createDeleteImageRequest({ path: filePath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
@@ -316,9 +318,7 @@ test('delete image route waits for the site config mutation lock before unlinkin
 
 test('delete image route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {
-		const response = await handleDeleteImage({
-			json: async () => body
-		} as any)
+		const response = await handleDeleteImage(createDeleteImageRequest(body))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
