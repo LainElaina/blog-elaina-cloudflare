@@ -22,11 +22,11 @@ test('markdown url safety rejects active or local protocols and obfuscated white
 	}
 })
 
-test('embed url safety only allows remote http embeds', () => {
-	for (const url of ['https://example.com/embed', 'http://example.com/embed', '//player.example.com/embed']) {
+test('embed url safety only allows absolute http embeds', () => {
+	for (const url of ['https://example.com/embed', 'http://example.com/embed']) {
 		assert.equal(isSafeEmbedUrl(url), true)
 	}
-	for (const url of ['/local/embed', './local', 'blob:preview', 'javascript:alert(1)', 'data:text/html,<iframe>']) {
+	for (const url of ['//player.example.com/embed', '/local/embed', './local', 'blob:preview', 'javascript:alert(1)', 'data:text/html,<iframe>']) {
 		assert.equal(isSafeEmbedUrl(url), false)
 	}
 })

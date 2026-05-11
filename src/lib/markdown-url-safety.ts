@@ -12,13 +12,13 @@ function hasUnsafeMarkdownUrlCharacter(value: string) {
 	return false
 }
 
-function isSafeMarkdownUrl(value: string | undefined, safeProtocols: Set<string>, allowRelative = true): value is string {
+function isSafeMarkdownUrl(value: string | undefined, safeProtocols: Set<string>, allowRelative = true, allowProtocolRelative = true): value is string {
 	const url = value?.trim()
 	if (!url || url !== value || hasUnsafeMarkdownUrlCharacter(url)) {
 		return false
 	}
 	if (url.startsWith('//')) {
-		return true
+		return allowProtocolRelative
 	}
 	const scheme = url.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/)
 	if (!scheme) {
@@ -36,5 +36,5 @@ export function isSafeMarkdownImageUrl(value: string | undefined): value is stri
 }
 
 export function isSafeEmbedUrl(value: string | undefined): value is string {
-	return isSafeMarkdownUrl(value, SAFE_EMBED_PROTOCOLS, false)
+	return isSafeMarkdownUrl(value, SAFE_EMBED_PROTOCOLS, false, false)
 }
