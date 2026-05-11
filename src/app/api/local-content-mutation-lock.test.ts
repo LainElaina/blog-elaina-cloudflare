@@ -131,3 +131,29 @@ test('local content mutation lock removes stale file locks from dead processes',
 		await rm(tmpDir, { recursive: true, force: true })
 	}
 })
+
+test('local content mutation lock removes expired file locks even when owner pid still exists', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-expired-owner-'))
+	const lockDir = getFileLockDir(tmpDir, 'share')
+	const events: string[] = []
+	const timedOut = Symbol('timedOut')
+
+	try {
+		await mkdir(lockDir, { recursive: true })
+		await writeFile(join(lockDir, 'owner.json'), JSON.stringify({ pid: process.pid, createdAt: Date.now() - 10 * 60 * 1000 }))
+
+		const result = await Promise.race([
+			withLocalContentMutationLock(tmpDir, 'share', async () => {
+				events.push('entered')
+				return 'entered'
+			}),
+			new Promise<typeof timedOut>(resolve => setTimeout(() => resolve(timedOut), 100))
+		])
+
+		assert.equal(result, 'entered')
+		assert.deepEqual(events, ['entered'])
+	} finally {
+		await rm(lockDir, { recursive: true, force: true })
+		await rm(tmpDir, { recursive: true, force: true })
+	}
+})

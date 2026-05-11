@@ -59,6 +59,9 @@ async function readFileLockOwner(lockDir: string): Promise<FileLockOwner | null>
 
 async function isFileLockStale(lockDir: string) {
 	const owner = await readFileLockOwner(lockDir)
+	if (typeof owner?.createdAt === 'number' && Date.now() - owner.createdAt > STALE_LOCK_MS) {
+		return true
+	}
 	if (owner?.pid !== undefined) {
 		return !isProcessRunning(owner.pid)
 	}
