@@ -58,12 +58,37 @@ test('markdown renderer keeps only safe raw html tags used by existing content',
 	assert.match(result.html, /&lt;u onclick=&quot;alert\(1\)&quot;&gt;坏属性<\/u>/)
 })
 
+test('markdown renderer escapes malformed raw html tags with slash-separated attributes', async () => {
+	const result = await renderMarkdown('<img/src=x onerror=alert(1)> <svg/onload=alert(1)>')
+
+	assert.doesNotMatch(result.html, /<img/i)
+	assert.doesNotMatch(result.html, /<svg/i)
+	assert.match(result.html, /&lt;img\/src=x onerror=alert\(1\)&gt;/)
+	assert.match(result.html, /&lt;svg\/onload=alert\(1\)&gt;/)
+})
+
+test('markdown renderer escapes iframe and nested raw html inside allowed tags', async () => {
+	const result = await renderMarkdown('<iframe src="javascript:alert(1)"></iframe> <u><img src=x onerror=alert(1)></u>')
+
+	assert.match(result.html, /&lt;iframe src=&quot;javascript:alert\(1\)&quot;&gt;&lt;\/iframe&gt;/)
+	assert.match(result.html, /<u>&lt;img src=x onerror=alert\(1\)&gt;<\/u>/)
+	assert.doesNotMatch(result.html, /<iframe/i)
+	assert.doesNotMatch(result.html, /<img/i)
+})
+
 test('markdown renderer sanitizes raw html inside headings while preserving markdown formatting', async () => {
 	const result = await renderMarkdown('# **标题** <script>alert(1)</script> <u>重点</u>')
 
 	assert.match(result.html, /<h1 id="标题-alert1-重点"><strong>标题<\/strong> &lt;script&gt;alert\(1\)&lt;\/script&gt; <u>重点<\/u><\/h1>/)
 	assert.doesNotMatch(result.html, /<script>/)
 	assert.deepEqual(result.toc, [{ id: '标题-alert1-重点', text: '**标题** <script>alert(1)</script> <u>重点</u>', level: 1 }])
+})
+
+test('markdown renderer does not emit unsafe KaTeX href URLs', async () => {
+	const result = await renderMarkdown('$\\href{javascript:alert(1)}{unsafe}$')
+
+	assert.doesNotMatch(result.html, /href=["']javascript:/i)
+	assert.doesNotMatch(result.html, /javascript:alert/i)
 })
 
 test('markdown renderer filters unsafe link and image protocols', async () => {
