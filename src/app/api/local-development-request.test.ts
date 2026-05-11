@@ -121,6 +121,31 @@ test('local-only route wrappers return in production before parsing or importing
 	}
 })
 
+test('local-only wrappers return in production without consuming request bodies', async () => {
+	const previousNodeEnv = process.env.NODE_ENV
+	try {
+		process.env.NODE_ENV = 'production'
+		for (const routeFile of localOnlyRouteFiles) {
+			const routeModule = await import(`./${routeFile}`)
+			if (typeof routeModule.POST !== 'function') {
+				continue
+			}
+			const request = new Request(`http://localhost:2025/api/${routeFile.replace('/route.ts', '')}`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: '{"confirmed":true}'
+			}) as any
+			const response = await routeModule.POST(request)
+
+			assert.equal(response.status, 403, routeFile)
+			assert.deepEqual(await response.json(), { error: '此接口仅在本地开发环境可用' }, routeFile)
+			assert.equal(request.bodyUsed, false, routeFile)
+		}
+	} finally {
+		process.env.NODE_ENV = previousNodeEnv
+	}
+})
+
 test('local-only migration routes pass real node env to inner handlers', async () => {
 	for (const routeFile of localOnlyMigrationRouteFiles) {
 		const source = await readFile(new URL(routeFile, import.meta.url), 'utf-8')
