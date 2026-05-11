@@ -73,7 +73,7 @@ export function CustomCard({ component, index }: CustomCardProps) {
 				)}
 
 				{iframeUrl && (
-					<iframe src={iframeUrl} sandbox='allow-scripts allow-same-origin allow-popups allow-forms' className='w-full h-full border-0 rounded' />
+					<iframe src={iframeUrl} sandbox='allow-scripts' className='w-full h-full border-0 rounded' />
 				)}
 			</motion.div>
 		</HomeDraggableLayer>
