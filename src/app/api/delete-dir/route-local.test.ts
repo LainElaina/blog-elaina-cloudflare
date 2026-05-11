@@ -14,6 +14,22 @@ registerHooks({
 	}
 })
 
+function createDeleteDirRequest(body: unknown) {
+	return new Request('http://localhost/api/delete-dir', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	}) as any
+}
+
+function createMalformedDeleteDirRequest(body: string) {
+	return new Request('http://localhost/api/delete-dir', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body
+	}) as any
+}
+
 const { handleDeleteDir } = await import('./route-local.ts')
 const { withLocalContentMutationLock } = await import('../local-content-mutation-lock.ts')
 
@@ -57,9 +73,7 @@ test('delete dir route rejects files and nested paths before removing', async ()
 })
 
 test('delete dir route treats missing safe blog directory as already deleted', async () => {
-	const response = await handleDeleteDir({
-		json: async () => ({ path: 'public/blogs/missing-safe-post' })
-	} as any)
+	const response = await handleDeleteDir(createDeleteDirRequest({ path: 'public/blogs/missing-safe-post' }))
 
 	assert.equal(response.status, 200)
 	assert.deepEqual(await response.json(), { success: true })
@@ -75,9 +89,7 @@ test('delete dir route rejects symlink blog directories without removing target 
 		await fs.symlink(path.join(tmpDir, 'outside-target'), path.join(tmpDir, 'public/blogs/post-a'), 'dir')
 		process.chdir(tmpDir)
 
-		const response = await handleDeleteDir({
-			json: async () => ({ path: 'public/blogs/post-a' })
-		} as any)
+		const response = await handleDeleteDir(createDeleteDirRequest({ path: 'public/blogs/post-a' }))
 
 		assert.equal(response.status, 403)
 		assert.deepEqual(await response.json(), { error: '路径不合法，只能删除文章目录' })
@@ -99,9 +111,7 @@ test('delete dir route rejects symlink parent directories without removing targe
 		await fs.symlink(path.join(tmpDir, 'outside-target'), path.join(tmpDir, 'public/blogs'), 'dir')
 		process.chdir(tmpDir)
 
-		const response = await handleDeleteDir({
-			json: async () => ({ path: 'public/blogs/post-a' })
-		} as any)
+		const response = await handleDeleteDir(createDeleteDirRequest({ path: 'public/blogs/post-a' }))
 
 		assert.equal(response.status, 403)
 		assert.deepEqual(await response.json(), { error: '路径不合法，只能删除 public/blogs 下的文章目录' })
@@ -131,9 +141,7 @@ test('delete dir route waits for the blog content mutation lock before removing 
 		})
 		await lockEntered.promise
 
-		const responsePromise = handleDeleteDir({
-			json: async () => ({ path: dirPath })
-		} as any)
+		const responsePromise = handleDeleteDir(createDeleteDirRequest({ path: dirPath }))
 		await Promise.resolve()
 
 		assert.equal(await fs.readFile(markerPath, 'utf-8'), '# Post A')
@@ -189,11 +197,7 @@ test('delete dir route limits streamed JSON requests without content-length', as
 })
 
 test('delete dir route returns 400 when JSON body is malformed', async () => {
-	const response = await handleDeleteDir({
-		json: async () => {
-			throw new SyntaxError('bad json')
-		}
-	} as any)
+	const response = await handleDeleteDir(createMalformedDeleteDirRequest('{bad'))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -201,9 +205,7 @@ test('delete dir route returns 400 when JSON body is malformed', async () => {
 
 test('delete dir route returns 400 when JSON body is not an object', async () => {
 	for (const body of [null, []]) {
-		const response = await handleDeleteDir({
-			json: async () => body
-		} as any)
+		const response = await handleDeleteDir(createDeleteDirRequest(body))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
