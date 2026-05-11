@@ -14,6 +14,22 @@ registerHooks({
 	}
 })
 
+function createConfigRequest(body: unknown) {
+	return new Request('http://localhost/api/config', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	}) as any
+}
+
+function createMalformedConfigRequest(body: string) {
+	return new Request('http://localhost/api/config', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body
+	}) as any
+}
+
 const { handleConfigPost } = await import('./route-local.ts')
 
 async function withTemporaryCwd<T>(callback: (tmpDir: string) => Promise<T>): Promise<T> {
@@ -99,11 +115,7 @@ test('local config write creates layout undo backup under current cwd', async ()
 })
 
 test('local config write returns 400 when JSON body is malformed', async () => {
-	const response = await handleConfigPost({
-		json: async () => {
-			throw new SyntaxError('bad json')
-		}
-	} as any)
+	const response = await handleConfigPost(createMalformedConfigRequest('{bad'))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -126,9 +138,7 @@ test('local config write rejects oversized JSON body before parsing', async () =
 
 test('local config write rejects non-object JSON payloads', async () => {
 	for (const body of [null, [], 'x']) {
-		const response = await handleConfigPost({
-			json: async () => body
-		} as any)
+		const response = await handleConfigPost(createConfigRequest(body))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '请求体格式错误' })
@@ -137,9 +147,7 @@ test('local config write rejects non-object JSON payloads', async () => {
 
 test('local config write rejects invalid card styles payloads', async () => {
 	for (const cardStyles of [[], {}, { musicCard: { width: 120 } }]) {
-		const response = await handleConfigPost({
-			json: async () => ({ cardStyles })
-		} as any)
+		const response = await handleConfigPost(createConfigRequest({ cardStyles }))
 
 		assert.equal(response.status, 400)
 		assert.deepEqual(await response.json(), { error: '卡片布局配置格式错误' })
@@ -293,18 +301,14 @@ test('local config write rejects symlinked formal config files before reading or
 })
 
 test('local config write rejects empty config payloads', async () => {
-	const response = await handleConfigPost({
-		json: async () => ({})
-	} as any)
+	const response = await handleConfigPost(createConfigRequest({}))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '缺少可写配置项' })
 })
 
 test('local config write rejects unknown config fields', async () => {
-	const response = await handleConfigPost({
-		json: async () => ({ siteContent: {}, unexpected: true })
-	} as any)
+	const response = await handleConfigPost(createConfigRequest({ siteContent: {}, unexpected: true }))
 
 	assert.equal(response.status, 400)
 	assert.deepEqual(await response.json(), { error: '请求体包含未知配置项' })
