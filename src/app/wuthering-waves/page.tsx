@@ -34,7 +34,7 @@ export default function Page() {
 			<ul className='text-secondary list-inside list-disc text-sm'>
 				<li>
 					进入{' '}
-					<a href='https://mc.kurogames.com/cloud/#/tools' target='_blank' className='text-brand hover:underline'>
+					<a href='https://mc.kurogames.com/cloud/#/tools' target='_blank' rel='noopener noreferrer' className='text-brand hover:underline'>
 						https://mc.kurogames.com/cloud/#/tools
 					</a>
 					，登录账号。
