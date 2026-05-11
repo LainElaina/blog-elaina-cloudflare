@@ -267,6 +267,7 @@ async function readRuntimeArtifactSnapshot(baseDir: string): Promise<BlogArtifac
 
 async function readRuntimeArtifacts(baseDir: string): Promise<BlogRuntimeArtifactsText> {
 	const blogsDir = resolve(baseDir, 'public/blogs')
+	await assertSafeExistingBlogArtifactsDirectory(baseDir, blogsDir)
 	const [index, categories, folders, storageRaw] = await Promise.all([
 		readRequiredText(baseDir, BLOG_ARTIFACT_PATHS.index),
 		readRequiredText(baseDir, BLOG_ARTIFACT_PATHS.categories),
@@ -381,6 +382,12 @@ export async function previewRoute(params: { nodeEnv: string; baseDir?: string }
 	} catch (error) {
 		if (error instanceof BlogArtifactError) {
 			return buildArtifactFailureResponse(error)
+		}
+		if (error instanceof BlogArtifactPathError) {
+			return {
+				status: 403,
+				body: { message: error.message }
+			}
 		}
 		throw error
 	}
