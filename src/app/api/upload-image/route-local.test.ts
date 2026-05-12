@@ -33,7 +33,7 @@ test('upload image local route writes uploaded image atomically', async () => {
 	assert.match(source, /import \{ mkdir, realpath, rename, rm, writeFile \} from 'fs\/promises'/)
 	assert.match(source, /function buildAtomicUploadTempPath\(fullPath: string\)/)
 	assert.match(source, /async function writeImageAtomically\(fullPath: string, buffer: Buffer\)/)
-	assert.match(source, /await writeFile\(tempPath, buffer\)\n\t\tawait rename\(tempPath, fullPath\)/)
+	assert.match(source, /await writeFile\(tempPath, buffer, \{ flag: 'wx' \}\)\n\t\tawait rename\(tempPath, fullPath\)/)
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 	assert.match(source, /await writeImageAtomically\(fullPath, buffer\)/)
 	assert.match(source, /const mutationScope = getLocalUploadImageMutationScope\(projectDir, fullPath\)/)
@@ -239,6 +239,46 @@ test('upload image local route rejects allowlisted paths under repo-internal sym
 	} finally {
 		process.chdir(previousCwd)
 		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('upload image local route refuses pre-existing symlinked atomic temp paths', async () => {
+	const previousCwd = process.cwd()
+	const previousDateNow = Date.now
+	const previousMathRandom = Math.random
+	const previousConsoleError = console.error
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-temp-symlink-'))
+	const outsideDir = await fs.mkdtemp(join(tmpdir(), 'upload-image-temp-outside-'))
+	const filePath = 'public/images/share/test.png'
+	const fullPath = join(repoDir, filePath)
+	const tempPath = `${fullPath}.tmp-${process.pid}-1700000000000-4fzzzxjylrx`
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/share'), { recursive: true })
+		await fs.writeFile(fullPath, Buffer.from('previous'))
+		await fs.writeFile(join(outsideDir, 'target.txt'), 'outside', 'utf-8')
+		await fs.symlink(join(outsideDir, 'target.txt'), tempPath)
+		Date.now = () => 1700000000000
+		Math.random = () => 0.123456789
+		console.error = () => undefined
+		process.chdir(repoDir)
+
+		const formData = new FormData()
+		formData.set('file', new File([pngBytes], 'test.png', { type: 'image/png' }))
+		formData.set('path', filePath)
+
+		const response = await handleUploadImage({ formData: async () => formData } as any)
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '上传失败' })
+		assert.equal(await fs.readFile(join(outsideDir, 'target.txt'), 'utf-8'), 'outside')
+		assert.deepEqual(await fs.readFile(fullPath), Buffer.from('previous'))
+	} finally {
+		Date.now = previousDateNow
+		Math.random = previousMathRandom
+		console.error = previousConsoleError
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+		await fs.rm(outsideDir, { recursive: true, force: true })
 	}
 })
 

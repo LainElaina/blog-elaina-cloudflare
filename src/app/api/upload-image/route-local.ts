@@ -104,7 +104,7 @@ function buildAtomicUploadTempPath(fullPath: string) {
 async function writeImageAtomically(fullPath: string, buffer: Buffer) {
 	const tempPath = buildAtomicUploadTempPath(fullPath)
 	try {
-		await writeFile(tempPath, buffer)
+		await writeFile(tempPath, buffer, { flag: 'wx' })
 		await rename(tempPath, fullPath)
 	} catch (error) {
 		await rm(tempPath, { force: true }).catch(() => undefined)
