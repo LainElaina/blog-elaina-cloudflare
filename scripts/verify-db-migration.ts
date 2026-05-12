@@ -20,9 +20,8 @@ class VerifyArgumentError extends Error {
 }
 
 class VerifyArtifactError extends Error {
-	failureCode = 'ARTIFACT_INVALID'
-
 	constructor(
+		readonly failureCode: 'ARTIFACT_INVALID' | 'ARTIFACT_MISSING',
 		message: string,
 		readonly artifactPath: string
 	) {
@@ -67,15 +66,26 @@ function parseArgs(argv: string[]): VerifyArgs {
 	return args
 }
 
-function readText(path: string): string {
-	return readFileSync(path, 'utf8')
+function hasErrorCode(error: unknown, code: string) {
+	return error && typeof error === 'object' && 'code' in error && error.code === code
+}
+
+function readText(path: string, artifactPath?: string): string {
+	try {
+		return readFileSync(path, 'utf8')
+	} catch (error) {
+		if (artifactPath && hasErrorCode(error, 'ENOENT')) {
+			throw new VerifyArtifactError('ARTIFACT_MISSING', `缺少博客运行时产物：${artifactPath}`, artifactPath)
+		}
+		throw error
+	}
 }
 
 function readOptionalText(path: string): string | null {
 	try {
 		return readText(path)
 	} catch (error) {
-		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+		if (hasErrorCode(error, 'ENOENT')) {
 			return null
 		}
 		throw error
@@ -87,7 +97,7 @@ function assertJsonArtifact(artifactPath: string, raw: string) {
 		JSON.parse(raw)
 	} catch (error) {
 		if (error instanceof SyntaxError) {
-			throw new VerifyArtifactError(`博客运行时产物 JSON 无效：${artifactPath}`, artifactPath)
+			throw new VerifyArtifactError('ARTIFACT_INVALID', `博客运行时产物 JSON 无效：${artifactPath}`, artifactPath)
 		}
 		throw error
 	}
@@ -96,9 +106,9 @@ function assertJsonArtifact(artifactPath: string, raw: string) {
 function readRuntimeArtifacts(baseDir: string) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	const artifacts = {
-		index: readText(join(blogsDir, 'index.json')),
-		categories: readText(join(blogsDir, 'categories.json')),
-		folders: readText(join(blogsDir, 'folders.json')),
+		index: readText(join(blogsDir, 'index.json'), 'public/blogs/index.json'),
+		categories: readText(join(blogsDir, 'categories.json'), 'public/blogs/categories.json'),
+		folders: readText(join(blogsDir, 'folders.json'), 'public/blogs/folders.json'),
 		storage: readOptionalText(join(blogsDir, 'storage.json'))
 	}
 	assertJsonArtifact('public/blogs/index.json', artifacts.index)
