@@ -395,46 +395,48 @@ export async function previewRoute(params: {
   const baseDir = params.baseDir ?? process.cwd()
   const readText = params.readText ?? defaultReadText
 
-  try {
-    const runtimeSnapshot = await readStrictShareArtifactSnapshot({ baseDir, readText })
-    const synced = syncShareRuntimeArtifactsToLedger({
-      list: runtimeSnapshot.artifacts.list,
-      storage: runtimeSnapshot.artifacts.storage
-    })
-    const verification = verifyShareLedgerAgainstRuntime({
-      storage: synced.storage,
-      runtimeArtifacts: runtimeSnapshot.artifacts
-    })
+  return withLocalContentMutationLock(baseDir, 'share', async () => {
+    try {
+      const runtimeSnapshot = await readStrictShareArtifactSnapshot({ baseDir, readText })
+      const synced = syncShareRuntimeArtifactsToLedger({
+        list: runtimeSnapshot.artifacts.list,
+        storage: runtimeSnapshot.artifacts.storage
+      })
+      const verification = verifyShareLedgerAgainstRuntime({
+        storage: synced.storage,
+        runtimeArtifacts: runtimeSnapshot.artifacts
+      })
 
-    return buildShareMigrationPreviewRouteResponse({
-      summary: buildPreviewSummary(verification.artifactsToRebuild),
-      notice: PREVIEW_NOTICE,
-      artifactsToRebuild: verification.artifactsToRebuild,
-      snapshotHash: runtimeSnapshot.snapshotHash
-    })
-  } catch (error) {
-    if (error instanceof ShareArtifactError) {
-      return buildArtifactFailureResponse({ operation: 'preview', error })
-    }
-
-    if (error instanceof ShareArtifactPathError) {
-      return {
-        status: 403,
-        body: buildShareMigrationFailureResponse({
-          operation: 'preview',
-          code: 'ARTIFACT_PATH_INVALID',
-          message: error.message
-        })
+      return buildShareMigrationPreviewRouteResponse({
+        summary: buildPreviewSummary(verification.artifactsToRebuild),
+        notice: PREVIEW_NOTICE,
+        artifactsToRebuild: verification.artifactsToRebuild,
+        snapshotHash: runtimeSnapshot.snapshotHash
+      })
+    } catch (error) {
+      if (error instanceof ShareArtifactError) {
+        return buildArtifactFailureResponse({ operation: 'preview', error })
       }
-    }
 
-    const artifactError = createArtifactShapeError(error)
-    if (artifactError) {
-      return buildArtifactFailureResponse({ operation: 'preview', error: artifactError })
-    }
+      if (error instanceof ShareArtifactPathError) {
+        return {
+          status: 403,
+          body: buildShareMigrationFailureResponse({
+            operation: 'preview',
+            code: 'ARTIFACT_PATH_INVALID',
+            message: error.message
+          })
+        }
+      }
 
-    throw error
-  }
+      const artifactError = createArtifactShapeError(error)
+      if (artifactError) {
+        return buildArtifactFailureResponse({ operation: 'preview', error: artifactError })
+      }
+
+      throw error
+    }
+  })
 }
 
 export async function executeRoute(params: {

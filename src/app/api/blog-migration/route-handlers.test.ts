@@ -505,6 +505,44 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('preview route 会等待共享博客内容写入锁再读取快照', async () => {
+		const context = await setupBlogArtifactsRepo()
+		const releaseLock = deferred()
+		const lockEntered = deferred()
+		const categoriesPath = join(context.repoDir, 'public/blogs/categories.json')
+		const validCategories = JSON.stringify({ categories: [] }, null, 2)
+
+		try {
+			const lock = withLocalContentMutationLock(context.repoDir, 'blog', async () => {
+				await writeFile(categoriesPath, '{')
+				lockEntered.resolve()
+				await releaseLock.promise
+				await writeFile(categoriesPath, validCategories)
+			})
+			await lockEntered.promise
+
+			const responsePromise = previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+			const responseBeforeRelease = await Promise.race([
+				responsePromise,
+				new Promise<null>(resolve => setTimeout(() => resolve(null), 50))
+			])
+
+			assert.equal(responseBeforeRelease, null)
+
+			releaseLock.resolve()
+			const response = await responsePromise
+			await lock
+
+			assert.equal(response.status, 200)
+		} finally {
+			releaseLock.resolve()
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 会等待共享博客内容写入锁', async () => {
 		const context = await setupBlogArtifactsRepo()
 		const releaseLock = deferred()

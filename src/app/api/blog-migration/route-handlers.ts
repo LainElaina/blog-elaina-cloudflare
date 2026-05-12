@@ -358,39 +358,41 @@ export async function previewRoute(params: { nodeEnv: string; baseDir?: string }
 	}
 
 	const baseDir = params.baseDir ?? process.cwd()
-	try {
-		const runtimeSnapshot = await readRuntimeArtifactSnapshot(baseDir)
-		const synced = syncBlogRuntimeArtifactsToLedger({
-			indexRaw: runtimeSnapshot.artifacts.index,
-			storageRaw: runtimeSnapshot.artifacts.storageRaw
-		})
-		const runtimeStorageArtifact = runtimeSnapshot.artifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
-		const verification = verifyBlogLedgerAgainstRuntime({
-			storageRaw: synced.storageRaw,
-			runtimeArtifacts: {
-				index: runtimeSnapshot.artifacts.index,
-				categories: runtimeSnapshot.artifacts.categories,
-				folders: runtimeSnapshot.artifacts.folders,
-				storage: runtimeStorageArtifact
-			}
-		})
+	return withLocalContentMutationLock(baseDir, 'blog', async () => {
+		try {
+			const runtimeSnapshot = await readRuntimeArtifactSnapshot(baseDir)
+			const synced = syncBlogRuntimeArtifactsToLedger({
+				indexRaw: runtimeSnapshot.artifacts.index,
+				storageRaw: runtimeSnapshot.artifacts.storageRaw
+			})
+			const runtimeStorageArtifact = runtimeSnapshot.artifacts.storageRaw ?? EMPTY_BLOG_STORAGE_ARTIFACT
+			const verification = verifyBlogLedgerAgainstRuntime({
+				storageRaw: synced.storageRaw,
+				runtimeArtifacts: {
+					index: runtimeSnapshot.artifacts.index,
+					categories: runtimeSnapshot.artifacts.categories,
+					folders: runtimeSnapshot.artifacts.folders,
+					storage: runtimeStorageArtifact
+				}
+			})
 
-		return buildPreviewRouteResponse({
-			artifactsToRebuild: verification.artifactsToRebuild,
-			snapshotHash: runtimeSnapshot.snapshotHash
-		})
-	} catch (error) {
-		if (error instanceof BlogArtifactError) {
-			return buildArtifactFailureResponse(error)
-		}
-		if (error instanceof BlogArtifactPathError) {
-			return {
-				status: 403,
-				body: { message: error.message }
+			return buildPreviewRouteResponse({
+				artifactsToRebuild: verification.artifactsToRebuild,
+				snapshotHash: runtimeSnapshot.snapshotHash
+			})
+		} catch (error) {
+			if (error instanceof BlogArtifactError) {
+				return buildArtifactFailureResponse(error)
 			}
+			if (error instanceof BlogArtifactPathError) {
+				return {
+					status: 403,
+					body: { message: error.message }
+				}
+			}
+			throw error
 		}
-		throw error
-	}
+	})
 }
 
 export async function executeRoute(params: { nodeEnv: string; confirmed: boolean; snapshotHash?: string; baseDir?: string; writeRuntimeArtifactsForTest?: WriteBlogRuntimeArtifacts }) {

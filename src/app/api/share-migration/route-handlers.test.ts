@@ -558,6 +558,45 @@ describe('share migration route handlers', () => {
     }
   })
 
+  it('preview waits for the shared share content mutation lock before reading', async () => {
+    const context = await setupShareArtifactsRepo()
+    const releaseLock = deferred()
+    const lockEntered = deferred()
+    const readStarted = deferred()
+
+    try {
+      const lock = withLocalContentMutationLock(context.repoDir, 'share', async () => {
+        lockEntered.resolve()
+        await releaseLock.promise
+      })
+      await lockEntered.promise
+
+      const responsePromise = previewRoute({
+        nodeEnv: 'development',
+        baseDir: context.repoDir,
+        readText: async filePath => {
+          readStarted.resolve()
+          return readFile(filePath, 'utf8')
+        }
+      })
+      const readBeforeRelease = await Promise.race([
+        readStarted.promise.then(() => true),
+        new Promise<false>(resolve => setTimeout(() => resolve(false), 50))
+      ])
+
+      assert.equal(readBeforeRelease, false)
+
+      releaseLock.resolve()
+      const response = await responsePromise
+      await lock
+
+      assert.equal(response.status, 200)
+    } finally {
+      releaseLock.resolve()
+      await context.cleanup()
+    }
+  })
+
   it('execute waits for the shared share content mutation lock before reading and writing', async () => {
     const context = await setupShareArtifactsRepo()
     const releaseLock = deferred()
