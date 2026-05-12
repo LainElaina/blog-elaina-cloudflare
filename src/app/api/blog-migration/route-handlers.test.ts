@@ -671,12 +671,48 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('execute default writer refuses pre-existing symlinked atomic temp paths', async () => {
+		const previousDateNow = Date.now
+		const previousMathRandom = Math.random
+		const context = await setupBlogArtifactsRepo()
+		const outsideDir = await mkdtemp(join(tmpdir(), 'blog-migration-temp-outside-'))
+		const artifactPath = 'public/blogs/index.json'
+		const fullPath = join(context.repoDir, artifactPath)
+		const tempPath = `${fullPath}.1700000000000-1f9add3739635f.tmp`
+
+		try {
+			const previousContent = await readFile(fullPath, 'utf8')
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			await writeFile(join(outsideDir, 'target.txt'), 'outside', 'utf8')
+			await symlink(join(outsideDir, 'target.txt'), tempPath)
+			Date.now = () => 1700000000000
+			Math.random = () => 0.123456789
+
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 500)
+			assert.equal(response.body.code, 'WRITE_FAILED')
+			assert.equal(await readFile(join(outsideDir, 'target.txt'), 'utf8'), 'outside')
+			assert.equal(await readFile(fullPath, 'utf8'), previousContent)
+		} finally {
+			Date.now = previousDateNow
+			Math.random = previousMathRandom
+			await context.cleanup()
+			await rm(outsideDir, { recursive: true, force: true })
+		}
+	})
+
 	it('execute route 先写临时文件并用备份回滚保护正式产物一致性', async () => {
 		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
 
 		assert.match(source, /tempPath: `\$\{write\.path\}\.\$\{timestamp\}\.tmp`/)
 		assert.match(source, /backupPath: `\$\{write\.path\}\.\$\{timestamp\}\.bak`/)
-		assert.match(source, /await writeFile\(write\.tempPath, write\.content\)/)
+		assert.match(source, /await writeFile\(write\.tempPath, write\.content, \{ flag: 'wx' \}\)/)
 		assert.match(source, /await rename\(write\.tempPath, write\.path\)/)
 		assert.match(source, /await rename\(write\.backupPath, write\.path\)/)
 		assert.doesNotMatch(source, /Promise\.all\(\[\s*writeFile\(join\(blogsDir, 'index\.json'\)/)

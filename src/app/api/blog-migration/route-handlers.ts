@@ -320,7 +320,7 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 
 	try {
 		for (const write of preparedWrites) {
-			await writeFile(write.tempPath, write.content)
+			await writeFile(write.tempPath, write.content, { flag: 'wx' })
 		}
 
 		for (const write of preparedWrites) {
