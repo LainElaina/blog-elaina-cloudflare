@@ -237,6 +237,29 @@ describe('verify-cloudflare-worker-size script', () => {
     }
   })
 
+  it('fails when OpenNext handler exposes local development API implementation markers', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-local-api-implementation-fail-'))
+
+    try {
+      await writeDefaultOpenNextArtifacts(
+        tmpDir,
+        'export default { fetch() { return import("./server-functions/default/handler.mjs") } }',
+        'export async function handleSaveFile() { return new Response("local") }'
+      )
+
+      const result = runVerifyScript(['--max-gzip-bytes=1024'], tmpDir)
+      const summary = parseStdoutJson(result)
+
+      assert.equal(result.status, 2)
+      assert.equal(summary.ok, false)
+      assert.equal(summary.code, 'WORKER_FORBIDDEN_MARKER')
+      assert.equal(summary.workerPath, '.open-next/server-functions/default/handler.mjs')
+      assert.equal(summary.marker, 'handleSaveFile')
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('ignores dependency files outside OpenNext emitted server chunks during forbidden marker scanning', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-node-modules-marker-pass-'))
 

@@ -16,7 +16,16 @@ const DEFAULT_FORBIDDEN_MARKERS = [
   'site-config-local-shared',
   'local-content-mutation-lock',
   'blog-migration-route-helper',
-  'share-migration-route-helper'
+  'share-migration-route-helper',
+  'handleConfigPost',
+  'handleDeleteDir',
+  'handleDeleteFile',
+  'handleDeleteImage',
+  'handleLayoutGet',
+  'handleLayoutPost',
+  'handleLayoutUndoPost',
+  'handleSaveFile',
+  'handleUploadImage'
 ]
 
 class VerifyArgumentError extends Error {
