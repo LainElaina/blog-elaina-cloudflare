@@ -101,7 +101,7 @@ test('save-file local route replaces files atomically', async () => {
 
 	assert.match(source, /import \{ mkdir, realpath, rename, rm, writeFile \} from 'fs\/promises'/)
 	assert.match(source, /function buildAtomicSaveTempPath\(fullPath: string\)/)
-	assert.match(source, /await writeFile\(tempPath, content, 'utf-8'\)\n\t\tawait rename\(tempPath, fullPath\)/)
+	assert.match(source, /await writeFile\(tempPath, content, \{ encoding: 'utf-8', flag: 'wx' \}\)\n\t\tawait rename\(tempPath, fullPath\)/)
 	assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 	assert.match(source, /await writeFileAtomically\(fullPath, content\)/)
 	assert.doesNotMatch(source, /await writeFile\(fullPath, content, 'utf-8'\)/)
@@ -486,6 +486,42 @@ test('save-file local route rejects allowlisted paths under repo-internal symlin
 	} finally {
 		process.chdir(previousCwd)
 		await rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('save-file local route refuses pre-existing symlinked atomic temp paths', async () => {
+	const previousCwd = process.cwd()
+	const previousDateNow = Date.now
+	const previousMathRandom = Math.random
+	const previousConsoleError = console.error
+	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-temp-symlink-'))
+	const outsideDir = await mkdtemp(join(tmpdir(), 'save-file-temp-outside-'))
+	const filePath = 'public/blogs/post-a/index.md'
+	const fullPath = join(repoDir, filePath)
+	const tempPath = `${fullPath}.tmp-${process.pid}-1700000000000-4fzzzxjylrx`
+	try {
+		await mkdir(dirname(fullPath), { recursive: true })
+		await writeFile(fullPath, 'previous', 'utf-8')
+		await writeFile(join(outsideDir, 'target.txt'), 'outside', 'utf-8')
+		await symlink(join(outsideDir, 'target.txt'), tempPath)
+		Date.now = () => 1700000000000
+		Math.random = () => 0.123456789
+		console.error = () => undefined
+		process.chdir(repoDir)
+
+		const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: 'new content' }))
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '保存失败' })
+		assert.equal(await readFile(join(outsideDir, 'target.txt'), 'utf-8'), 'outside')
+		assert.equal(await readFile(fullPath, 'utf-8'), 'previous')
+	} finally {
+		Date.now = previousDateNow
+		Math.random = previousMathRandom
+		console.error = previousConsoleError
+		process.chdir(previousCwd)
+		await rm(repoDir, { recursive: true, force: true })
+		await rm(outsideDir, { recursive: true, force: true })
 	}
 })
 

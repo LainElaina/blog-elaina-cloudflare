@@ -19,7 +19,7 @@ function buildAtomicSaveTempPath(fullPath: string) {
 async function writeFileAtomically(fullPath: string, content: string) {
 	const tempPath = buildAtomicSaveTempPath(fullPath)
 	try {
-		await writeFile(tempPath, content, 'utf-8')
+		await writeFile(tempPath, content, { encoding: 'utf-8', flag: 'wx' })
 		await rename(tempPath, fullPath)
 	} catch (error) {
 		await rm(tempPath, { force: true }).catch(() => undefined)
