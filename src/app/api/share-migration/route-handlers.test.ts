@@ -482,9 +482,46 @@ describe('share migration route handlers', () => {
     assert.match(source, /import \{ readFile, realpath, rename, rm, writeFile \} from 'node:fs\/promises'/)
     assert.match(source, /function buildAtomicShareArtifactTempPath\(filePath: string\)/)
     assert.match(source, /const defaultWriteText: WriteText = async \(filePath, content\) => \{/)
-    assert.match(source, /await writeFile\(tempPath, content\)\n    await rename\(tempPath, filePath\)/)
+    assert.match(source, /await writeFile\(tempPath, content, \{ flag: 'wx' \}\)\n    await rename\(tempPath, filePath\)/)
     assert.match(source, /await rm\(tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
     assert.doesNotMatch(source, /const defaultWriteText: WriteText = \(filePath, content\) => writeFile\(filePath, content\)/)
+  })
+
+  it('execute default writer refuses pre-existing symlinked atomic temp paths', async () => {
+    const previousDateNow = Date.now
+    const previousMathRandom = Math.random
+    const context = await setupShareArtifactsRepo()
+    const outsideDir = await mkdtemp(join(tmpdir(), 'share-migration-temp-outside-'))
+    const artifactPath = SHARE_ARTIFACT_PATHS.list
+    const fullPath = join(context.repoDir, artifactPath)
+    const tempPath = `${fullPath}.tmp-${process.pid}-1700000000000-4fzzzxjylrx`
+
+    try {
+      const previousContent = await readFile(fullPath, 'utf8')
+      const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+      await writeFile(join(outsideDir, 'target.txt'), 'outside', 'utf8')
+      await symlink(join(outsideDir, 'target.txt'), tempPath)
+      Date.now = () => 1700000000000
+      Math.random = () => 0.123456789
+
+      const response = await executeRoute({
+        nodeEnv: 'development',
+        confirmed: true,
+        snapshotHash,
+        baseDir: context.repoDir
+      })
+
+      assert.equal(response.status, 500)
+      assert.equal(response.body.code, 'WRITE_FAILED')
+      assert.equal(response.body.details?.artifact, artifactPath)
+      assert.equal(await readFile(join(outsideDir, 'target.txt'), 'utf8'), 'outside')
+      assert.equal(await readFile(fullPath, 'utf8'), previousContent)
+    } finally {
+      Date.now = previousDateNow
+      Math.random = previousMathRandom
+      await context.cleanup()
+      await rm(outsideDir, { recursive: true, force: true })
+    }
   })
 
   it('execute serializes concurrent confirmed migrations', async () => {

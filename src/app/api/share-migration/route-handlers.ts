@@ -73,7 +73,7 @@ const defaultWriteText: WriteText = async (filePath, content) => {
   const tempPath = buildAtomicShareArtifactTempPath(filePath)
 
   try {
-    await writeFile(tempPath, content)
+    await writeFile(tempPath, content, { flag: 'wx' })
     await rename(tempPath, filePath)
   } catch (error) {
     await rm(tempPath, { force: true }).catch(() => undefined)
