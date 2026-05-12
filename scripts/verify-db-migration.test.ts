@@ -32,6 +32,23 @@ async function setupRepoWithoutStorage() {
 }
 
 describe('verify-db-migration script', () => {
+  it('rejects unknown arguments with a structured failure', async () => {
+    await assert.rejects(
+      execa('node', ['--import', 'jiti/register', './scripts/verify-db-migration.ts', '--unexpected'], {
+        cwd: '/app/blog-elaina-cloudflare'
+      }),
+      (error: any) => {
+        const summary = JSON.parse(error.stdout)
+        assert.equal(summary.ok, false)
+        assert.equal(summary.operation, 'verify-db-migration')
+        assert.equal(summary.code, 'ARGUMENT_INVALID')
+        assert.equal(summary.message, '未知参数：--unexpected')
+        assert.match(error.stderr, /未知参数：--unexpected/)
+        return true
+      }
+    )
+  })
+
   it('在 storage.json 缺失时不会因 ENOENT 崩溃，而是输出 verify 结果并报告待重建产物', async () => {
     const context = await setupRepoWithoutStorage()
 
