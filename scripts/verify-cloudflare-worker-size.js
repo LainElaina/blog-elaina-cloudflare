@@ -3,7 +3,11 @@ const { resolve } = require('node:path')
 const { gzipSync } = require('node:zlib')
 
 const DEFAULT_WORKER_PATHS = ['.open-next/worker.js', '.open-next/server-functions/default/handler.mjs']
-const DEFAULT_FORBIDDEN_MARKER_SCAN_ROOTS = ['.open-next/server-functions/default/handler.mjs', '.open-next/server-functions/default/chunks']
+const DEFAULT_FORBIDDEN_MARKER_SCAN_ROOTS = [
+  '.open-next/server-functions/default/handler.mjs',
+  '.open-next/server-functions/default/chunks',
+  '.open-next/server-functions/default/.next/server/chunks'
+]
 const DEFAULT_MAX_GZIP_BYTES = 3 * 1024 * 1024
 const OPERATION = 'verify-cloudflare-worker-size'
 const DEFAULT_FORBIDDEN_MARKERS = [

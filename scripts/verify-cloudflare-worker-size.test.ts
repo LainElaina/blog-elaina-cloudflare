@@ -212,6 +212,31 @@ describe('verify-cloudflare-worker-size script', () => {
     }
   })
 
+  it('fails when OpenNext .next server chunks contain local-only module markers', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-next-chunk-marker-fail-'))
+
+    try {
+      await writeDefaultOpenNextArtifacts(
+        tmpDir,
+        'export default { fetch() { return import("./server-functions/default/handler.mjs") } }',
+        'import "./.next/server/chunks/local-only.js"\nexport default { async fetch() { return new Response("ok") } }'
+      )
+      await mkdir(join(tmpDir, '.open-next/server-functions/default/.next/server/chunks'), { recursive: true })
+      await writeFile(join(tmpDir, '.open-next/server-functions/default/.next/server/chunks/local-only.js'), 'export const marker = "route-local"')
+
+      const result = runVerifyScript(['--max-gzip-bytes=1024'], tmpDir)
+      const summary = parseStdoutJson(result)
+
+      assert.equal(result.status, 2)
+      assert.equal(summary.ok, false)
+      assert.equal(summary.code, 'WORKER_FORBIDDEN_MARKER')
+      assert.equal(summary.workerPath, '.open-next/server-functions/default/.next/server/chunks/local-only.js')
+      assert.equal(summary.marker, 'route-local')
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('ignores dependency files outside OpenNext emitted server chunks during forbidden marker scanning', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-node-modules-marker-pass-'))
 
