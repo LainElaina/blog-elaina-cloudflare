@@ -58,8 +58,15 @@ function isMultipartRequestBodyTooLargeError(error: unknown) {
 	return error instanceof MultipartRequestBodyTooLargeError
 }
 
+function isMultipartRequest(request: NextRequest) {
+	return request.headers?.get('content-type')?.toLowerCase().startsWith('multipart/form-data') === true
+}
+
 async function buildLimitedMultipartRequest(request: NextRequest, maxBytes: number): Promise<Request | NextRequest> {
 	if (!('body' in request) || !request.body) {
+		if (isMultipartRequest(request) && getContentLength(request) === null) {
+			throw new MultipartRequestBodyTooLargeError()
+		}
 		return request
 	}
 
