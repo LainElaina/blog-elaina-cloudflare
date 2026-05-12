@@ -101,6 +101,32 @@ describe('verify-db-migration script', () => {
     }
   })
 
+  it('reports invalid runtime artifact shape as a structured artifact failure', async () => {
+    const context = await setupRepoWithoutStorage()
+
+    try {
+      await writeFile(join(context.repoDir, 'public/blogs/index.json'), JSON.stringify({ blogs: [] }))
+
+      await assert.rejects(
+        execa('node', ['--import', 'jiti/register', './scripts/verify-db-migration.ts', `--base-dir=${context.repoDir}`], {
+          cwd: '/app/blog-elaina-cloudflare'
+        }),
+        (error: any) => {
+          const summary = JSON.parse(error.stdout)
+          assert.equal(summary.ok, false)
+          assert.equal(summary.operation, 'verify-db-migration')
+          assert.equal(summary.code, 'ARTIFACT_INVALID')
+          assert.equal(summary.artifactPath, 'public/blogs/index.json')
+          assert.match(summary.message, /博客运行时产物结构无效/)
+          assert.match(error.stderr, /博客运行时产物结构无效/)
+          return true
+        }
+      )
+    } finally {
+      await context.cleanup()
+    }
+  })
+
   it('在 storage.json 缺失时不会因 ENOENT 崩溃，而是输出 verify 结果并报告待重建产物', async () => {
     const context = await setupRepoWithoutStorage()
 

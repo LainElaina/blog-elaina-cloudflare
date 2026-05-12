@@ -92,14 +92,24 @@ function readOptionalText(path: string): string | null {
 	}
 }
 
-function assertJsonArtifact(artifactPath: string, raw: string) {
+function parseJsonArtifact(artifactPath: string, raw: string) {
 	try {
-		JSON.parse(raw)
+		return JSON.parse(raw) as unknown
 	} catch (error) {
 		if (error instanceof SyntaxError) {
 			throw new VerifyArtifactError('ARTIFACT_INVALID', `博客运行时产物 JSON 无效：${artifactPath}`, artifactPath)
 		}
 		throw error
+	}
+}
+
+function assertJsonArtifact(artifactPath: string, raw: string) {
+	parseJsonArtifact(artifactPath, raw)
+}
+
+function assertIndexArtifactShape(artifactPath: string, raw: string) {
+	if (!Array.isArray(parseJsonArtifact(artifactPath, raw))) {
+		throw new VerifyArtifactError('ARTIFACT_INVALID', `博客运行时产物结构无效：${artifactPath}`, artifactPath)
 	}
 }
 
@@ -111,7 +121,7 @@ function readRuntimeArtifacts(baseDir: string) {
 		folders: readText(join(blogsDir, 'folders.json'), 'public/blogs/folders.json'),
 		storage: readOptionalText(join(blogsDir, 'storage.json'))
 	}
-	assertJsonArtifact('public/blogs/index.json', artifacts.index)
+	assertIndexArtifactShape('public/blogs/index.json', artifacts.index)
 	assertJsonArtifact('public/blogs/categories.json', artifacts.categories)
 	assertJsonArtifact('public/blogs/folders.json', artifacts.folders)
 	if (artifacts.storage !== null) {
