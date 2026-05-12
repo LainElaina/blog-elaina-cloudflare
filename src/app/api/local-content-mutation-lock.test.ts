@@ -18,10 +18,12 @@ function waitForRetry() {
 	return new Promise<void>(resolve => setTimeout(resolve, 50))
 }
 
+const LOCK_ROOT_DIR = join(tmpdir(), 'blog-elaina-content-locks')
+
 function getFileLockDir(baseDir: string, scope: 'blog' | 'share' | 'site-config' | 'content') {
 	const lockKey = `${resolve(baseDir)}:${scope}`
 	const lockId = createHash('sha256').update(lockKey).digest('hex')
-	return join(tmpdir(), 'blog-elaina-content-locks', lockId)
+	return join(LOCK_ROOT_DIR, lockId)
 }
 
 test('local content mutation lock serializes callbacks for the same project and scope', async () => {
@@ -129,6 +131,31 @@ test('local content mutation lock removes stale file locks from dead processes',
 	} finally {
 		await rm(lockDir, { recursive: true, force: true })
 		await rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
+test('local content mutation lock rejects a symlinked lock root without entering callback', async () => {
+	const tmpDir = await mkdtemp(join(tmpdir(), 'local-content-lock-root-'))
+	const outsideDir = await mkdtemp(join(tmpdir(), 'local-content-lock-root-outside-'))
+	const events: string[] = []
+
+	try {
+		await rm(LOCK_ROOT_DIR, { recursive: true, force: true })
+		await symlink(outsideDir, LOCK_ROOT_DIR, 'dir')
+
+		await assert.rejects(
+			() =>
+				withLocalContentMutationLock(tmpDir, 'share', async () => {
+					events.push('entered')
+				}),
+			/unsafe-lock-root/
+		)
+
+		assert.deepEqual(events, [])
+	} finally {
+		await rm(LOCK_ROOT_DIR, { recursive: true, force: true })
+		await rm(tmpDir, { recursive: true, force: true })
+		await rm(outsideDir, { recursive: true, force: true })
 	}
 })
 

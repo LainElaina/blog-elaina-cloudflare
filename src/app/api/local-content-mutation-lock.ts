@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { mkdir, readFile, realpath, rm, stat, writeFile } from 'fs/promises'
+import { lstat, mkdir, readFile, realpath, rm, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -83,8 +83,16 @@ async function removeStaleFileLock(lockDir: string) {
 	}
 }
 
-async function acquireFileLock(lockKey: string) {
+async function assertSafeLockRootDir() {
 	await mkdir(LOCK_ROOT_DIR, { recursive: true })
+	const lockRootStat = await lstat(LOCK_ROOT_DIR)
+	if (!lockRootStat.isDirectory() || lockRootStat.isSymbolicLink()) {
+		throw new Error('unsafe-lock-root')
+	}
+}
+
+async function acquireFileLock(lockKey: string) {
+	await assertSafeLockRootDir()
 	const lockDir = getFileLockDir(lockKey)
 
 	while (true) {
