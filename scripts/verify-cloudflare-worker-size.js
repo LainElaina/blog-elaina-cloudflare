@@ -1,8 +1,9 @@
-const { existsSync, readFileSync } = require('node:fs')
+const { existsSync, readFileSync, readdirSync, statSync } = require('node:fs')
 const { resolve } = require('node:path')
 const { gzipSync } = require('node:zlib')
 
 const DEFAULT_WORKER_PATHS = ['.open-next/worker.js', '.open-next/server-functions/default/handler.mjs']
+const DEFAULT_FORBIDDEN_MARKER_SCAN_ROOTS = ['.open-next/server-functions/default/handler.mjs', '.open-next/server-functions/default/chunks']
 const DEFAULT_MAX_GZIP_BYTES = 3 * 1024 * 1024
 const OPERATION = 'verify-cloudflare-worker-size'
 const DEFAULT_FORBIDDEN_MARKERS = [
@@ -116,6 +117,43 @@ function parseArgs(argv) {
   return { workerPaths, maxGzipBytes, forbiddenMarkers }
 }
 
+function hasDefaultWorkerPaths(workerPaths) {
+  return workerPaths.length === DEFAULT_WORKER_PATHS.length && workerPaths.every((workerPath, index) => workerPath === DEFAULT_WORKER_PATHS[index])
+}
+
+function isScannableWorkerScript(filePath) {
+  return /\.(?:cjs|mjs|js)$/.test(filePath)
+}
+
+function listScannableWorkerScripts(rootPath) {
+  const fullPath = resolve(rootPath)
+  if (!existsSync(fullPath)) {
+    return []
+  }
+
+  const stats = statSync(fullPath)
+  if (!stats.isDirectory()) {
+    return isScannableWorkerScript(rootPath) ? [rootPath] : []
+  }
+
+  return readdirSync(fullPath, { withFileTypes: true }).flatMap(entry => {
+    const childPath = `${rootPath}/${entry.name}`
+    if (entry.isDirectory()) {
+      return listScannableWorkerScripts(childPath)
+    }
+    return entry.isFile() && isScannableWorkerScript(childPath) ? [childPath] : []
+  })
+}
+
+function verifyForbiddenMarkers(workerPath, forbiddenMarkers) {
+  const worker = readFileSync(resolve(workerPath))
+  const source = worker.toString('utf8')
+  const forbiddenMarker = forbiddenMarkers.find(marker => source.includes(marker))
+  if (forbiddenMarker) {
+    throw new WorkerForbiddenMarkerError(workerPath, forbiddenMarker)
+  }
+}
+
 function measureWorkerArtifact(workerPath, maxGzipBytes, forbiddenMarkers) {
   const fullPath = resolve(workerPath)
   if (!existsSync(fullPath)) {
@@ -123,10 +161,8 @@ function measureWorkerArtifact(workerPath, maxGzipBytes, forbiddenMarkers) {
   }
 
   const worker = readFileSync(fullPath)
-  const source = worker.toString('utf8')
-  const forbiddenMarker = forbiddenMarkers.find(marker => source.includes(marker))
-  if (forbiddenMarker) {
-    throw new WorkerForbiddenMarkerError(workerPath, forbiddenMarker)
+  if (forbiddenMarkers.length > 0) {
+    verifyForbiddenMarkers(workerPath, forbiddenMarkers)
   }
 
   const gzipBytes = gzipSync(worker, { level: 9 }).byteLength
@@ -144,6 +180,13 @@ function measureWorkerArtifact(workerPath, maxGzipBytes, forbiddenMarkers) {
 
 function verifyCloudflareWorkerSize(args) {
   const artifacts = args.workerPaths.map(workerPath => measureWorkerArtifact(workerPath, args.maxGzipBytes, args.forbiddenMarkers))
+  if (args.forbiddenMarkers.length > 0 && hasDefaultWorkerPaths(args.workerPaths)) {
+    for (const scanRoot of DEFAULT_FORBIDDEN_MARKER_SCAN_ROOTS) {
+      for (const workerPath of listScannableWorkerScripts(scanRoot)) {
+        verifyForbiddenMarkers(workerPath, args.forbiddenMarkers)
+      }
+    }
+  }
 
   return {
     ok: true,

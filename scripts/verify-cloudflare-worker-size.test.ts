@@ -187,6 +187,53 @@ describe('verify-cloudflare-worker-size script', () => {
     }
   })
 
+  it('fails when OpenNext server chunks contain local-only module markers', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-chunk-marker-fail-'))
+
+    try {
+      await writeDefaultOpenNextArtifacts(
+        tmpDir,
+        'export default { fetch() { return import("./server-functions/default/handler.mjs") } }',
+        'import "./chunks/local-only.mjs"\nexport default { async fetch() { return new Response("ok") } }'
+      )
+      await mkdir(join(tmpDir, '.open-next/server-functions/default/chunks'), { recursive: true })
+      await writeFile(join(tmpDir, '.open-next/server-functions/default/chunks/local-only.mjs'), 'export const marker = "route-local"')
+
+      const result = runVerifyScript(['--max-gzip-bytes=1024'], tmpDir)
+      const summary = parseStdoutJson(result)
+
+      assert.equal(result.status, 2)
+      assert.equal(summary.ok, false)
+      assert.equal(summary.code, 'WORKER_FORBIDDEN_MARKER')
+      assert.equal(summary.workerPath, '.open-next/server-functions/default/chunks/local-only.mjs')
+      assert.equal(summary.marker, 'route-local')
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('ignores dependency files outside OpenNext emitted server chunks during forbidden marker scanning', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-node-modules-marker-pass-'))
+
+    try {
+      await writeDefaultOpenNextArtifacts(
+        tmpDir,
+        'export default { fetch() { return import("./server-functions/default/handler.mjs") } }',
+        'export default { async fetch() { return new Response("ok") } }'
+      )
+      await mkdir(join(tmpDir, '.open-next/server-functions/default/node_modules/next/dist/client/components'), { recursive: true })
+      await writeFile(join(tmpDir, '.open-next/server-functions/default/node_modules/next/dist/client/components/forbidden.js'), 'export const name = "route-handlers"')
+
+      const result = runVerifyScript(['--max-gzip-bytes=1024'], tmpDir)
+      const summary = parseStdoutJson(result)
+
+      assert.equal(result.status, 0)
+      assert.equal(summary.ok, true)
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('can run a manual size-only check without forbidden marker scanning', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'verify-worker-size-marker-skip-'))
     const workerPath = join(tmpDir, 'worker.js')
