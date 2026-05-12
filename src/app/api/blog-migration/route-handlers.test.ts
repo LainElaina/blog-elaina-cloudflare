@@ -644,6 +644,33 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('execute route 写回失败时返回结构化错误并要求重新预检', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest: async () => {
+					throw new Error('simulated write failure')
+				}
+			})
+
+			assert.equal(response.status, 500)
+			assert.deepEqual(response.body, {
+				ok: false,
+				code: 'WRITE_FAILED',
+				message: '写入博客正式产物失败',
+				shouldRepreview: true
+			})
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 先写临时文件并用备份回滚保护正式产物一致性', async () => {
 		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
 

@@ -437,7 +437,19 @@ export async function executeRoute(params: { nodeEnv: string; confirmed: boolean
 			})
 			const rebuilt = rebuildBlogRuntimeArtifactsFromStorage(synced.storageRaw)
 
-			await writeRuntimeArtifactsImpl(baseDir, rebuilt.artifacts)
+			try {
+				await writeRuntimeArtifactsImpl(baseDir, rebuilt.artifacts)
+			} catch {
+				return {
+					status: 500,
+					body: {
+						ok: false,
+						code: 'WRITE_FAILED',
+						message: '写入博客正式产物失败',
+						shouldRepreview: true
+					}
+				}
+			}
 
 			const runtimeArtifactsAfterExecute = await readRuntimeArtifacts(baseDir)
 			validateStrictBlogArtifacts(runtimeArtifactsAfterExecute)
