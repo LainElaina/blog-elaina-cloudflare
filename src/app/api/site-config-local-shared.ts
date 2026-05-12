@@ -91,7 +91,7 @@ function buildAtomicSiteConfigTempPath(fullPath: string) {
 export async function writeSiteConfigFileAtomically(fullPath: string, content: string) {
 	const tempPath = buildAtomicSiteConfigTempPath(fullPath)
 	try {
-		await fs.writeFile(tempPath, content)
+		await fs.writeFile(tempPath, content, { flag: 'wx' })
 		await fs.rename(tempPath, fullPath)
 	} catch (error) {
 		await fs.rm(tempPath, { force: true }).catch(() => undefined)

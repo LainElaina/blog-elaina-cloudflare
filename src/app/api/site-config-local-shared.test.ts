@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { withLocalContentMutationLock } from './local-content-mutation-lock.ts'
-import { withSiteConfigLocalMutationLock } from './site-config-local-shared.ts'
+import { withSiteConfigLocalMutationLock, writeSiteConfigFileAtomically } from './site-config-local-shared.ts'
 
 function deferred() {
 	let resolve!: () => void
@@ -13,6 +13,33 @@ function deferred() {
 	})
 	return { promise, resolve }
 }
+
+test('site config atomic file writes refuse pre-existing symlinked temp paths', async () => {
+	const previousDateNow = Date.now
+	const previousMathRandom = Math.random
+	const tmpDir = await mkdtemp(join(tmpdir(), 'site-config-temp-symlink-'))
+	const outsideDir = await mkdtemp(join(tmpdir(), 'site-config-temp-outside-'))
+	const fullPath = join(tmpDir, 'data/site-config.draft.json')
+	const tempPath = `${fullPath}.tmp-${process.pid}-1700000000000-4fzzzxjylrx`
+	try {
+		await mkdir(dirname(fullPath), { recursive: true })
+		await writeFile(fullPath, 'previous', 'utf-8')
+		await writeFile(join(outsideDir, 'target.txt'), 'outside', 'utf-8')
+		await symlink(join(outsideDir, 'target.txt'), tempPath)
+		Date.now = () => 1700000000000
+		Math.random = () => 0.123456789
+
+		await assert.rejects(() => writeSiteConfigFileAtomically(fullPath, 'next'), /EEXIST/)
+
+		assert.equal(await readFile(join(outsideDir, 'target.txt'), 'utf-8'), 'outside')
+		assert.equal(await readFile(fullPath, 'utf-8'), 'previous')
+	} finally {
+		Date.now = previousDateNow
+		Math.random = previousMathRandom
+		await rm(tmpDir, { recursive: true, force: true })
+		await rm(outsideDir, { recursive: true, force: true })
+	}
+})
 
 test('site config local mutation lock serializes callbacks for the same project directory', async () => {
 	const tmpDir = await mkdtemp(join(tmpdir(), 'site-config-lock-'))
