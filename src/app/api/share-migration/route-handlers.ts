@@ -203,6 +203,8 @@ async function readStrictShareArtifacts(params: {
   baseDir: string
   readText: ReadText
 }): Promise<ShareRuntimeArtifactsText> {
+  await assertSafeExistingShareArtifactsDirectory(params.baseDir)
+
   const list = await readStrictArtifact({
     baseDir: params.baseDir,
     artifactPath: LOCAL_SHARE_SAVE_PATHS.list,
@@ -413,6 +415,17 @@ export async function previewRoute(params: {
   } catch (error) {
     if (error instanceof ShareArtifactError) {
       return buildArtifactFailureResponse({ operation: 'preview', error })
+    }
+
+    if (error instanceof ShareArtifactPathError) {
+      return {
+        status: 403,
+        body: buildShareMigrationFailureResponse({
+          operation: 'preview',
+          code: 'ARTIFACT_PATH_INVALID',
+          message: error.message
+        })
+      }
     }
 
     const artifactError = createArtifactShapeError(error)

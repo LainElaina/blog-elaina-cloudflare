@@ -344,6 +344,37 @@ describe('share migration route handlers', () => {
     }
   })
 
+  it('preview rejects a symlinked share artifact directory before reading external artifacts', async () => {
+    const repoDir = await mkdtemp(join(tmpdir(), 'share-migration-preview-symlink-repo-'))
+    const outsideDir = await mkdtemp(join(tmpdir(), 'share-migration-preview-symlink-outside-'))
+    const artifacts = createBaseArtifacts()
+
+    try {
+      await mkdir(join(repoDir, 'public'), { recursive: true })
+      await symlink(outsideDir, join(repoDir, 'public/share'))
+      await writeFile(join(outsideDir, 'list.json'), artifacts.list)
+      await writeFile(join(outsideDir, 'categories.json'), artifacts.categories)
+      await writeFile(join(outsideDir, 'folders.json'), artifacts.folders)
+      await writeFile(join(outsideDir, 'storage.json'), artifacts.storage)
+
+      const response = await previewRoute({
+        nodeEnv: 'development',
+        baseDir: repoDir
+      })
+
+      assert.equal(response.status, 403)
+      assert.deepEqual(response.body, {
+        ok: false,
+        operation: 'preview',
+        code: 'ARTIFACT_PATH_INVALID',
+        message: 'share 正式产物路径不合法'
+      })
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+      await rm(outsideDir, { recursive: true, force: true })
+    }
+  })
+
   it('execute rejects a symlinked share artifact directory before writing', async () => {
     const repoDir = await mkdtemp(join(tmpdir(), 'share-migration-symlink-repo-'))
     const outsideDir = await mkdtemp(join(tmpdir(), 'share-migration-symlink-outside-'))
@@ -357,11 +388,10 @@ describe('share migration route handlers', () => {
       await writeFile(join(outsideDir, 'folders.json'), artifacts.folders)
       await writeFile(join(outsideDir, 'storage.json'), artifacts.storage)
 
-      const snapshotHash = await readPreviewSnapshotHash(repoDir)
       const response = await executeRoute({
         nodeEnv: 'development',
         confirmed: true,
-        snapshotHash,
+        snapshotHash: 'stale-snapshot',
         baseDir: repoDir
       })
 
