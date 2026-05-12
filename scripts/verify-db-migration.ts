@@ -19,6 +19,18 @@ class VerifyArgumentError extends Error {
 	}
 }
 
+class VerifyArtifactError extends Error {
+	failureCode = 'ARTIFACT_INVALID'
+
+	constructor(
+		message: string,
+		readonly artifactPath: string
+	) {
+		super(message)
+		this.name = 'VerifyArtifactError'
+	}
+}
+
 type BlogStorageRecord = {
 	slug: string
 	title: string
@@ -70,14 +82,32 @@ function readOptionalText(path: string): string | null {
 	}
 }
 
+function assertJsonArtifact(artifactPath: string, raw: string) {
+	try {
+		JSON.parse(raw)
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			throw new VerifyArtifactError(`博客运行时产物 JSON 无效：${artifactPath}`, artifactPath)
+		}
+		throw error
+	}
+}
+
 function readRuntimeArtifacts(baseDir: string) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
-	return {
+	const artifacts = {
 		index: readText(join(blogsDir, 'index.json')),
 		categories: readText(join(blogsDir, 'categories.json')),
 		folders: readText(join(blogsDir, 'folders.json')),
 		storage: readOptionalText(join(blogsDir, 'storage.json'))
 	}
+	assertJsonArtifact('public/blogs/index.json', artifacts.index)
+	assertJsonArtifact('public/blogs/categories.json', artifacts.categories)
+	assertJsonArtifact('public/blogs/folders.json', artifacts.folders)
+	if (artifacts.storage !== null) {
+		assertJsonArtifact('public/blogs/storage.json', artifacts.storage)
+	}
+	return artifacts
 }
 
 function readLedgerStorageFromRuntime(baseDir: string): string | null {
@@ -128,12 +158,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-	if (error instanceof VerifyArgumentError) {
+	if (error instanceof VerifyArgumentError || error instanceof VerifyArtifactError) {
 		const failure = {
 			ok: false,
 			operation: OPERATION,
 			code: error.failureCode,
-			message: error.message
+			message: error.message,
+			artifactPath: error instanceof VerifyArtifactError ? error.artifactPath : undefined
 		}
 		console.log(JSON.stringify(failure, null, 2))
 		console.error(error.message)
