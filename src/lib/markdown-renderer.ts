@@ -211,8 +211,9 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 	}
 
 	const renderMath = (content: string, displayMode: boolean) => {
+		const fallbackContent = escapeHtml(content)
 		if (!katex) {
-			return displayMode ? `$$${content}$$` : `$${content}$`
+			return displayMode ? `$$${fallbackContent}$$` : `$${fallbackContent}$`
 		}
 
 		try {
@@ -223,7 +224,7 @@ export async function renderMarkdown(markdown: string): Promise<MarkdownRenderRe
 				strict: 'ignore'
 			})
 		} catch {
-			return displayMode ? `$$${content}$$` : `$${content}$`
+			return displayMode ? `$$${fallbackContent}$$` : `$${fallbackContent}$`
 		}
 	}
 

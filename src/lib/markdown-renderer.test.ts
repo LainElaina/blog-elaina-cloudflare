@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 
 import { marked } from 'marked'
@@ -89,6 +90,14 @@ test('markdown renderer does not emit unsafe KaTeX href URLs', async () => {
 
 	assert.doesNotMatch(result.html, /href=["']javascript:/i)
 	assert.doesNotMatch(result.html, /javascript:alert/i)
+})
+
+test('markdown renderer escapes math fallback content', async () => {
+	const source = await readFile(new URL('./markdown-renderer.ts', import.meta.url), 'utf-8')
+
+	assert.match(source, /escapeHtml\(content\)/)
+	assert.doesNotMatch(source, /`\$\$\$\{content\}\$\$`/)
+	assert.doesNotMatch(source, /`\$\$\{content\}\$`/)
 })
 
 test('markdown renderer filters unsafe link and image protocols', async () => {
