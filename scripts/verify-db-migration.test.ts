@@ -49,6 +49,23 @@ describe('verify-db-migration script', () => {
     )
   })
 
+  it('rejects empty base-dir arguments with a structured failure', async () => {
+    await assert.rejects(
+      execa('node', ['--import', 'jiti/register', './scripts/verify-db-migration.ts', '--base-dir='], {
+        cwd: '/app/blog-elaina-cloudflare'
+      }),
+      (error: any) => {
+        const summary = JSON.parse(error.stdout)
+        assert.equal(summary.ok, false)
+        assert.equal(summary.operation, 'verify-db-migration')
+        assert.equal(summary.code, 'ARGUMENT_INVALID')
+        assert.equal(summary.message, '--base-dir 需要提供路径值')
+        assert.match(error.stderr, /--base-dir 需要提供路径值/)
+        return true
+      }
+    )
+  })
+
   it('reports malformed runtime JSON as a structured artifact failure', async () => {
     const context = await setupRepoWithoutStorage()
 

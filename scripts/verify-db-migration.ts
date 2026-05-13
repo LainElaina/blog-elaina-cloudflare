@@ -54,7 +54,11 @@ function parseArgs(argv: string[]): VerifyArgs {
 	const args: VerifyArgs = {}
 	for (const entry of argv) {
 		if (entry.startsWith('--base-dir=')) {
-			args.baseDir = entry.slice('--base-dir='.length)
+			const value = entry.slice('--base-dir='.length)
+			if (!value) {
+				throw new VerifyArgumentError('--base-dir 需要提供路径值')
+			}
+			args.baseDir = value
 			continue
 		}
 		if (entry.startsWith('--db-path=')) {
