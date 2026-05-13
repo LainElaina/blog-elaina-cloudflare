@@ -120,6 +120,12 @@ function assertCategoriesArtifactShape(artifactPath: string, raw: string) {
 	}
 }
 
+function assertFoldersArtifactShape(artifactPath: string, raw: string) {
+	if (!Array.isArray(parseJsonArtifact(artifactPath, raw))) {
+		throw new VerifyArtifactError('ARTIFACT_INVALID', `博客运行时产物结构无效：${artifactPath}`, artifactPath)
+	}
+}
+
 function readRuntimeArtifacts(baseDir: string) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	const artifacts = {
@@ -130,7 +136,7 @@ function readRuntimeArtifacts(baseDir: string) {
 	}
 	assertIndexArtifactShape('public/blogs/index.json', artifacts.index)
 	assertCategoriesArtifactShape('public/blogs/categories.json', artifacts.categories)
-	assertJsonArtifact('public/blogs/folders.json', artifacts.folders)
+	assertFoldersArtifactShape('public/blogs/folders.json', artifacts.folders)
 	if (artifacts.storage !== null) {
 		assertJsonArtifact('public/blogs/storage.json', artifacts.storage)
 	}
