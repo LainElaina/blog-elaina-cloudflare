@@ -5,7 +5,6 @@ import { syncBlogRuntimeArtifactsToLedger, verifyBlogLedgerAgainstRuntime } from
 
 type VerifyArgs = {
 	baseDir?: string
-	dbPath?: string
 }
 
 const OPERATION = 'verify-db-migration'
@@ -62,8 +61,7 @@ function parseArgs(argv: string[]): VerifyArgs {
 			continue
 		}
 		if (entry.startsWith('--db-path=')) {
-			args.dbPath = entry.slice('--db-path='.length)
-			continue
+			throw new VerifyArgumentError('verify-db-migration 仅校验运行时产物，不读取数据库；请移除 --db-path')
 		}
 		throw new VerifyArgumentError(`未知参数：${entry}`)
 	}

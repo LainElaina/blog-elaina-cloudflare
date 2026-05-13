@@ -18,8 +18,8 @@ type TempContext = {
 
 const execFileAsync = promisify(execFile)
 
-async function runVerifyScript(repoDir: string, dbPath: string): Promise<{ stdout: string; stderr: string }> {
-	return execFileAsync(process.execPath, ['/app/blog-elaina-cloudflare/scripts/verify-db-migration.ts', `--base-dir=${repoDir}`, `--db-path=${dbPath}`])
+async function runVerifyScript(repoDir: string): Promise<{ stdout: string; stderr: string }> {
+	return execFileAsync(process.execPath, ['--import', 'jiti/register', '/app/blog-elaina-cloudflare/scripts/verify-db-migration.ts', `--base-dir=${repoDir}`])
 }
 
 async function setupTempRepo(): Promise<TempContext> {
@@ -433,7 +433,7 @@ test('verify migration script succeeds when runtime artifacts already agree with
 	const context = await createVerifiedRuntimeRepo()
 
 	try {
-		const result = await runVerifyScript(context.repoDir, context.dbPath)
+		const result = await runVerifyScript(context.repoDir)
 		const summary = parseVerifySummary(result.stdout)
 
 		assert.equal(summary.ledger.blogEntriesCount, 2)
@@ -451,7 +451,7 @@ test('verify migration script fails with rebuild summary when storage.json is mi
 
 	try {
 		await assert.rejects(
-			runVerifyScript(context.repoDir, context.dbPath),
+			runVerifyScript(context.repoDir),
 			(error) => assertVerifyScriptFailure(error, ['public/blogs/storage.json'])
 		)
 		await assert.rejects(readFile(join(context.repoDir, 'public/blogs/storage.json'), 'utf8'), /ENOENT/)
@@ -467,7 +467,7 @@ test('verify migration script reports categories drift without mutating runtime 
 		await writeFile(join(context.repoDir, 'public/blogs/categories.json'), JSON.stringify({ categories: ['错位分类'] }, null, 2))
 
 		await assert.rejects(
-			runVerifyScript(context.repoDir, context.dbPath),
+			runVerifyScript(context.repoDir),
 			(error) => assertVerifyScriptFailure(error, ['public/blogs/categories.json'])
 		)
 		assert.deepEqual(JSON.parse(await readFile(join(context.repoDir, 'public/blogs/categories.json'), 'utf8')), {

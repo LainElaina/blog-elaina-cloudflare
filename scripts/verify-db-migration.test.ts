@@ -66,6 +66,23 @@ describe('verify-db-migration script', () => {
     )
   })
 
+  it('rejects db-path arguments because verification only reads runtime artifacts', async () => {
+    await assert.rejects(
+      execa('node', ['--import', 'jiti/register', './scripts/verify-db-migration.ts', '--db-path=/tmp/content.db'], {
+        cwd: '/app/blog-elaina-cloudflare'
+      }),
+      (error: any) => {
+        const summary = JSON.parse(error.stdout)
+        assert.equal(summary.ok, false)
+        assert.equal(summary.operation, 'verify-db-migration')
+        assert.equal(summary.code, 'ARGUMENT_INVALID')
+        assert.equal(summary.message, 'verify-db-migration 仅校验运行时产物，不读取数据库；请移除 --db-path')
+        assert.match(error.stderr, /不读取数据库/)
+        return true
+      }
+    )
+  })
+
   it('reports malformed runtime JSON as a structured artifact failure', async () => {
     const context = await setupRepoWithoutStorage()
 
