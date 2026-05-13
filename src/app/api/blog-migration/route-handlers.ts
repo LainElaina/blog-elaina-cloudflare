@@ -42,6 +42,7 @@ type BlogRuntimeArtifactsToWrite = {
 }
 
 type WriteBlogRuntimeArtifacts = (baseDir: string, artifacts: BlogRuntimeArtifactsToWrite) => Promise<void>
+type BlogRuntimeWriteError = Error & { rollbackFailedArtifacts?: string[] }
 type BlogArtifactSnapshot = {
 	artifacts: BlogRuntimeArtifactsText
 	snapshotHash: string
@@ -243,6 +244,30 @@ function buildArtifactFailureResponse(error: BlogArtifactError) {
 	}
 }
 
+function buildWriteFailureResponse(error: unknown) {
+	const rollbackFailedArtifacts = error && typeof error === 'object' && 'rollbackFailedArtifacts' in error && Array.isArray(error.rollbackFailedArtifacts)
+		? error.rollbackFailedArtifacts.filter(artifact => typeof artifact === 'string')
+		: []
+
+	return {
+		status: 500,
+		body: {
+			ok: false,
+			code: 'WRITE_FAILED',
+			message: '写入博客正式产物失败',
+			...(rollbackFailedArtifacts.length > 0 ? { writtenArtifactsPartial: rollbackFailedArtifacts } : {}),
+			shouldRepreview: true,
+			...(rollbackFailedArtifacts.length > 0
+				? {
+					details: {
+						rollbackFailedArtifacts
+					}
+				}
+				: {})
+		}
+	}
+}
+
 function createBlogArtifactSnapshotHash(runtimeArtifacts: BlogRuntimeArtifactsText) {
 	return createHash('sha256')
 		.update(
@@ -324,10 +349,10 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	await assertSafeExistingBlogArtifactsDirectory(baseDir, blogsDir)
 	const writes = [
-		{ path: join(blogsDir, 'index.json'), content: artifacts.index },
-		{ path: join(blogsDir, 'categories.json'), content: artifacts.categories },
-		{ path: join(blogsDir, 'folders.json'), content: artifacts.folders },
-		{ path: join(blogsDir, 'storage.json'), content: artifacts.storage }
+		{ artifactPath: BLOG_ARTIFACT_PATHS.index, path: join(blogsDir, 'index.json'), content: artifacts.index },
+		{ artifactPath: BLOG_ARTIFACT_PATHS.categories, path: join(blogsDir, 'categories.json'), content: artifacts.categories },
+		{ artifactPath: BLOG_ARTIFACT_PATHS.folders, path: join(blogsDir, 'folders.json'), content: artifacts.folders },
+		{ artifactPath: BLOG_ARTIFACT_PATHS.storage, path: join(blogsDir, 'storage.json'), content: artifacts.storage }
 	]
 	const timestamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`
 	const preparedWrites = writes.map(write => ({
@@ -335,7 +360,8 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 		tempPath: `${write.path}.${timestamp}.tmp`,
 		backupPath: `${write.path}.${timestamp}.bak`,
 		hadExistingFile: true,
-		reservedBackupPath: false
+		reservedBackupPath: false,
+		preserveBackupPath: false
 	}))
 	const replacedWrites: typeof preparedWrites = []
 
@@ -362,17 +388,26 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 			await rename(write.tempPath, write.path)
 		}
 	} catch (error) {
+		const rollbackFailedArtifacts: string[] = []
 		for (const write of replacedWrites.reverse()) {
 			await rm(write.path, { force: true }).catch(() => undefined)
 			if (write.hadExistingFile) {
-				await rename(write.backupPath, write.path).catch(() => undefined)
+				try {
+					await rename(write.backupPath, write.path)
+				} catch {
+					write.preserveBackupPath = true
+					rollbackFailedArtifacts.push(write.artifactPath)
+				}
 			}
+		}
+		if (rollbackFailedArtifacts.length > 0 && error instanceof Error) {
+			;(error as BlogRuntimeWriteError).rollbackFailedArtifacts = rollbackFailedArtifacts
 		}
 		throw error
 	} finally {
 		await Promise.all(preparedWrites.flatMap(write => [
 			rm(write.tempPath, { force: true }).catch(() => undefined),
-			write.reservedBackupPath ? rm(write.backupPath, { force: true }).catch(() => undefined) : Promise.resolve()
+			write.reservedBackupPath && !write.preserveBackupPath ? rm(write.backupPath, { force: true }).catch(() => undefined) : Promise.resolve()
 		]))
 	}
 }
@@ -468,16 +503,8 @@ export async function executeRoute(params: { nodeEnv: string; confirmed: boolean
 
 			try {
 				await writeRuntimeArtifactsImpl(baseDir, rebuilt.artifacts)
-			} catch {
-				return {
-					status: 500,
-					body: {
-						ok: false,
-						code: 'WRITE_FAILED',
-						message: '写入博客正式产物失败',
-						shouldRepreview: true
-					}
-				}
+			} catch (error) {
+				return buildWriteFailureResponse(error)
 			}
 
 			const runtimeArtifactsAfterExecute = await readRuntimeArtifacts(baseDir)

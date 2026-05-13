@@ -671,6 +671,39 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('execute route 写回失败时结构化报告回滚失败产物', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir,
+				writeRuntimeArtifactsForTest: async () => {
+					const error = new Error('simulated write and rollback failure') as Error & { rollbackFailedArtifacts: string[] }
+					error.rollbackFailedArtifacts = ['public/blogs/categories.json']
+					throw error
+				}
+			})
+
+			assert.equal(response.status, 500)
+			assert.deepEqual(response.body, {
+				ok: false,
+				code: 'WRITE_FAILED',
+				message: '写入博客正式产物失败',
+				writtenArtifactsPartial: ['public/blogs/categories.json'],
+				shouldRepreview: true,
+				details: {
+					rollbackFailedArtifacts: ['public/blogs/categories.json']
+				}
+			})
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute default writer refuses pre-existing symlinked atomic temp paths', async () => {
 		const previousDateNow = Date.now
 		const previousMathRandom = Math.random
@@ -750,6 +783,14 @@ describe('blog migration routes', () => {
 		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
 
 		assert.match(source, /rm\(write\.tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
-		assert.match(source, /write\.reservedBackupPath \? rm\(write\.backupPath, \{ force: true \}\)\.catch\(\(\) => undefined\) : Promise\.resolve\(\)/)
+		assert.match(source, /write\.reservedBackupPath && !write\.preserveBackupPath \? rm\(write\.backupPath, \{ force: true \}\)\.catch\(\(\) => undefined\) : Promise\.resolve\(\)/)
+	})
+
+	it('execute route 的默认 writer 会记录并保留回滚失败的备份产物', async () => {
+		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
+
+		assert.match(source, /rollbackFailedArtifacts\.push\(write\.artifactPath\)/)
+		assert.match(source, /write\.preserveBackupPath = true/)
+		assert.match(source, /write\.reservedBackupPath && !write\.preserveBackupPath \? rm\(write\.backupPath, \{ force: true \}\)\.catch\(\(\) => undefined\) : Promise\.resolve\(\)/)
 	})
 })

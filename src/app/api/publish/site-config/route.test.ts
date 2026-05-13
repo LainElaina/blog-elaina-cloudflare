@@ -350,3 +350,74 @@ test('site config publish accepts object-shaped local asset collections', async 
 		assert.equal(saved.socialButtons.github.value, '/images/social-buttons/github.png')
 	})
 })
+
+test('site config publish reports rollback failures after partial formal writes', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const siteContentPath = path.join(tmpDir, 'src/config/site-content.json')
+		const cardStylesPath = path.join(tmpDir, 'src/config/card-styles.json')
+		const originalRename = fs.rename
+		let siteContentWrites = 0
+		const layout100 = {
+			musicCard: {
+				width: 100,
+				height: 100,
+				order: 1,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			}
+		}
+		const layout120 = {
+			musicCard: {
+				width: 120,
+				height: 100,
+				order: 1,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			}
+		}
+		await fs.writeFile(siteContentPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+		await fs.writeFile(cardStylesPath, JSON.stringify(layout100, null, '\t'))
+		await writeSiteConfigDraft(tmpDir, {
+			siteContent: { meta: { title: 'draft' } },
+			cardStyles: layout120
+		})
+
+		fs.rename = (async (...args: Parameters<typeof fs.rename>) => {
+			const [, target] = args
+			if (target === cardStylesPath) {
+				throw new Error('simulated card styles write failure')
+			}
+			if (target === siteContentPath) {
+				siteContentWrites += 1
+				if (siteContentWrites > 1) {
+					throw new Error('simulated site content rollback failure')
+				}
+			}
+			return originalRename(...args)
+		}) as typeof fs.rename
+
+		try {
+			const response = await POST(
+				new Request('http://localhost/api/publish/site-config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({})
+				})
+			)
+			const payload = await response.json()
+
+			assert.equal(response.status, 500)
+			assert.deepEqual(payload, {
+				error: '发布站点配置草稿失败',
+				touchedFormalPartial: ['site-content.json'],
+				details: {
+					rollbackFailedFormal: ['site-content.json']
+				}
+			})
+		} finally {
+			fs.rename = originalRename
+		}
+	})
+})

@@ -389,7 +389,9 @@ export default function BlogPage() {
 					try {
 						await rollbackLocalBlogPublish(writtenFiles, uploadedFiles)
 					} catch (rollbackError) {
-						console.warn('本地博客保存回滚失败:', rollbackError)
+						const originalMessage = error instanceof Error ? error.message : String(error)
+						const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+						throw new Error(`${originalMessage}；本地博客保存回滚失败：${rollbackMessage}`)
 					}
 					throw error
 				}

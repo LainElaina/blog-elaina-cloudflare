@@ -100,8 +100,10 @@ describe('buildBlogSaveBaseline', () => {
 
 		assert.match(pageSource, /await saveLocalBlogPublishFile\(payload, '保存博客产物', writtenFiles\)/)
 		assert.match(pageSource, /catch \(error\) \{\n\s*try \{\n\s*await rollbackLocalBlogPublish\(writtenFiles, uploadedFiles\)/)
-		assert.match(pageSource, /catch \(rollbackError\) \{\n\s*console\.warn\('本地博客保存回滚失败:', rollbackError\)/)
-		assert.match(pageSource, /console\.warn\('本地博客保存回滚失败:', rollbackError\)[\s\S]*throw error/)
+		assert.match(pageSource, /catch \(rollbackError\) \{\n\s*const originalMessage = error instanceof Error \? error\.message : String\(error\)/)
+		assert.match(pageSource, /const rollbackMessage = rollbackError instanceof Error \? rollbackError\.message : String\(rollbackError\)/)
+		assert.match(pageSource, /throw new Error\(`\$\{originalMessage\}；本地博客保存回滚失败：\$\{rollbackMessage\}`\)/)
+		assert.doesNotMatch(pageSource, /console\.warn\('本地博客保存回滚失败:', rollbackError\)/)
 		assert.match(pageSource, /await assertOk\(\n\s*await fetch\('\/api\/delete-dir'/)
 		assert.match(pageSource, /'删除文章目录'/)
 		assert.match(pageSource, /const savedBaseline = buildBlogSaveBaseline\(savedArtifacts\)/)

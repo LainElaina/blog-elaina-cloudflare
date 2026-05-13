@@ -322,6 +322,11 @@ type SiteConfigFormalBackup = {
 	content: string
 }
 
+type SiteConfigPublishError = Error & {
+	touchedFormalPartial?: string[]
+	rollbackFailedFormal?: string[]
+}
+
 function singleFileAssetRepoPath(publicPath: string, publicPrefix: string, repoPrefix: string): string | null {
 	if (!publicPath.startsWith(publicPrefix)) {
 		return null
@@ -426,13 +431,19 @@ async function readSiteConfigFormalBackup(filePath: string): Promise<SiteConfigF
 }
 
 async function rollbackSiteConfigFormalWrites(backups: SiteConfigFormalBackup[]) {
+	const rollbackFailedFormal: string[] = []
 	for (const backup of backups.reverse()) {
-		if (backup.existed) {
-			await writeSiteConfigFileAtomically(backup.filePath, backup.content).catch(() => undefined)
-		} else {
-			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
+		try {
+			if (backup.existed) {
+				await writeSiteConfigFileAtomically(backup.filePath, backup.content)
+			} else {
+				await fs.rm(backup.filePath, { force: true })
+			}
+		} catch {
+			rollbackFailedFormal.push(path.basename(backup.filePath))
 		}
 	}
+	return rollbackFailedFormal
 }
 
 async function readFormalSiteContent(baseDir: string): Promise<SiteContentWithSocialButtons | null> {
@@ -561,7 +572,13 @@ async function publishSiteConfigDraftUnlocked(baseDir: string, draft: SiteConfig
 
 		await clearPublishedSiteConfigDraftKeys(baseDir, publishedKeys)
 	} catch (error) {
-		await rollbackSiteConfigFormalWrites(backups)
+		const rollbackFailedFormal = await rollbackSiteConfigFormalWrites(backups.slice(0, touchedFormal.length))
+		if (error instanceof Error) {
+			;(error as SiteConfigPublishError).touchedFormalPartial = [...touchedFormal]
+			if (rollbackFailedFormal.length > 0) {
+				;(error as SiteConfigPublishError).rollbackFailedFormal = rollbackFailedFormal
+			}
+		}
 		throw error
 	}
 
