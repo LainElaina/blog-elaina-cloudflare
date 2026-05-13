@@ -29,7 +29,7 @@ test('links opened in a new tab cannot control their opener', async () => {
 		for (const tag of tags) {
 			if (!/target=['"]_blank['"]/.test(tag)) continue
 			const rel = tag.match(/rel=['"]([^'"]*)['"]/)?.[1]
-			if (!rel || !/\b(?:noopener|noreferrer)\b/.test(rel)) {
+			if (!rel || !/\bnoopener\b/.test(rel) || !/\bnoreferrer\b/.test(rel)) {
 				unsafeLinks.push(`${path.relative(SRC_ROOT.pathname, file.pathname)}: ${tag.replace(/\s+/g, ' ').trim()}`)
 			}
 		}

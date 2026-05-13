@@ -185,7 +185,7 @@ export default function Page() {
 						<motion.a
 							href='https://github.com/LainElaina/blog-elaina-cloudflare'
 							target='_blank'
-							rel='noreferrer'
+							rel='noopener noreferrer'
 							initial={{ opacity: 0, scale: 0.6 }}
 							animate={{ opacity: 1, scale: 1 }}
 							transition={{ delay: 0 }}
