@@ -3,11 +3,15 @@ import { join, resolve } from 'node:path'
 
 import { syncBlogRuntimeArtifactsToLedger } from '../src/lib/content-db/migration-contracts.ts'
 
+const OPERATION = 'migrate-legacy-to-db'
+
 type Args = {
 	baseDir?: string
 }
 
 class MigrationCliError extends Error {
+	failureCode = 'ARGUMENT_INVALID'
+
 	constructor(message: string) {
 		super(message)
 		this.name = 'MigrationCliError'
@@ -89,6 +93,18 @@ async function main(): Promise<void> {
 }
 
 main().catch(error => {
+	if (error instanceof MigrationCliError) {
+		const failure = {
+			ok: false,
+			operation: OPERATION,
+			code: error.failureCode,
+			message: error.message
+		}
+		console.log(JSON.stringify(failure, null, 2))
+		console.error(error.message)
+		process.exitCode = 1
+		return
+	}
 	console.error(error instanceof Error ? error.message : String(error))
 	process.exitCode = 1
 })
