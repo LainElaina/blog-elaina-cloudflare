@@ -71,6 +71,26 @@ function isFileNotFoundError(error: unknown) {
 	return error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
 
+function isFileAlreadyExistsError(error: unknown) {
+	return error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST'
+}
+
+async function reserveBackupPath(basePath: string) {
+	for (let attempt = 0; attempt < 100; attempt += 1) {
+		const candidate = attempt === 0 ? basePath : `${basePath}.${attempt}`
+		try {
+			await writeFile(candidate, '', { flag: 'wx' })
+			return candidate
+		} catch (error) {
+			if (!isFileAlreadyExistsError(error)) {
+				throw error
+			}
+		}
+	}
+
+	throw new Error('无法预留博客正式产物备份路径')
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -314,11 +334,17 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 		...write,
 		tempPath: `${write.path}.${timestamp}.tmp`,
 		backupPath: `${write.path}.${timestamp}.bak`,
-		hadExistingFile: true
+		hadExistingFile: true,
+		reservedBackupPath: false
 	}))
 	const replacedWrites: typeof preparedWrites = []
 
 	try {
+		for (const write of preparedWrites) {
+			write.backupPath = await reserveBackupPath(write.backupPath)
+			write.reservedBackupPath = true
+		}
+
 		for (const write of preparedWrites) {
 			await writeFile(write.tempPath, write.content, { flag: 'wx' })
 		}
@@ -344,7 +370,10 @@ async function writeRuntimeArtifacts(baseDir: string, artifacts: BlogRuntimeArti
 		}
 		throw error
 	} finally {
-		await Promise.all(preparedWrites.flatMap(write => [rm(write.tempPath, { force: true }).catch(() => undefined), rm(write.backupPath, { force: true }).catch(() => undefined)]))
+		await Promise.all(preparedWrites.flatMap(write => [
+			rm(write.tempPath, { force: true }).catch(() => undefined),
+			write.reservedBackupPath ? rm(write.backupPath, { force: true }).catch(() => undefined) : Promise.resolve()
+		]))
 	}
 }
 

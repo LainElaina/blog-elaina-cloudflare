@@ -707,6 +707,34 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('execute default writer does not overwrite a pre-existing backup path collision', async () => {
+		const previousDateNow = Date.now
+		const previousMathRandom = Math.random
+		const context = await setupBlogArtifactsRepo()
+		const backupPath = join(context.repoDir, 'public/blogs/index.json.1700000000000-1f9add3739635f.bak')
+
+		try {
+			await writeFile(backupPath, 'pre-existing backup', 'utf8')
+			const snapshotHash = await readPreviewSnapshotHash(context.repoDir)
+			Date.now = () => 1700000000000
+			Math.random = () => 0.123456789
+
+			const response = await executeRoute({
+				nodeEnv: 'development',
+				confirmed: true,
+				snapshotHash,
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 200)
+			assert.equal(await readFile(backupPath, 'utf8'), 'pre-existing backup')
+		} finally {
+			Date.now = previousDateNow
+			Math.random = previousMathRandom
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 先写临时文件并用备份回滚保护正式产物一致性', async () => {
 		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
 
@@ -721,6 +749,7 @@ describe('blog migration routes', () => {
 	it('execute route 的临时文件清理失败不会覆盖成功写回结果', async () => {
 		const source = await readFile(new URL('./route-handlers.ts', import.meta.url), 'utf-8')
 
-		assert.match(source, /await Promise\.all\(preparedWrites\.flatMap\(write => \[rm\(write\.tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\), rm\(write\.backupPath, \{ force: true \}\)\.catch\(\(\) => undefined\)\]\)\)/)
+		assert.match(source, /rm\(write\.tempPath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
+		assert.match(source, /write\.reservedBackupPath \? rm\(write\.backupPath, \{ force: true \}\)\.catch\(\(\) => undefined\) : Promise\.resolve\(\)/)
 	})
 })
