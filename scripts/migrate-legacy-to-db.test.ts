@@ -1,7 +1,33 @@
 import assert from 'node:assert/strict'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import execa from 'execa'
+
+async function setupRepoWithoutStorage() {
+  const repoDir = await mkdtemp(join(tmpdir(), 'migrate-legacy-to-db-'))
+  const blogsDir = join(repoDir, 'public/blogs')
+  await mkdir(blogsDir, { recursive: true })
+  await writeFile(
+    join(blogsDir, 'index.json'),
+    JSON.stringify([
+      {
+        slug: 'post-a',
+        title: 'A',
+        tags: [],
+        date: '2026-04-13T07:00:00.000Z',
+        category: '技术',
+        favorite: false
+      }
+    ], null, 2)
+  )
+  return {
+    repoDir,
+    cleanup: async () => rm(repoDir, { recursive: true, force: true })
+  }
+}
 
 describe('migrate-legacy-to-db script', () => {
   it('rejects unknown arguments with a structured failure', async () => {
@@ -53,5 +79,26 @@ describe('migrate-legacy-to-db script', () => {
         return true
       }
     )
+  })
+
+  it('does not treat storage read failures other than ENOENT as missing storage', async () => {
+    const context = await setupRepoWithoutStorage()
+
+    try {
+      await mkdir(join(context.repoDir, 'public/blogs/storage.json'))
+
+      await assert.rejects(
+        execa('node', ['--import', 'jiti/register', './scripts/migrate-legacy-to-db.ts', `--base-dir=${context.repoDir}`], {
+          cwd: '/app/blog-elaina-cloudflare'
+        }),
+        (error: any) => {
+          assert.equal(error.stdout.trim(), '')
+          assert.match(error.stderr, /EISDIR|illegal operation on a directory/)
+          return true
+        }
+      )
+    } finally {
+      await context.cleanup()
+    }
   })
 })

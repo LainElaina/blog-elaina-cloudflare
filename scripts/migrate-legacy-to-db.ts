@@ -56,6 +56,10 @@ function readText(path: string): string {
 	return readFileSync(path, 'utf8')
 }
 
+function hasErrorCode(error: unknown, code: string) {
+	return error && typeof error === 'object' && 'code' in error && error.code === code
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2))
 	const baseDir = args.baseDir ?? process.cwd()
@@ -64,7 +68,10 @@ async function main(): Promise<void> {
 	let storageRaw: string | null = null
 	try {
 		storageRaw = readText(join(blogsDir, 'storage.json'))
-	} catch {
+	} catch (error) {
+		if (!hasErrorCode(error, 'ENOENT')) {
+			throw error
+		}
 		storageRaw = null
 	}
 
