@@ -130,6 +130,13 @@ function assertFoldersArtifactShape(artifactPath: string, raw: string) {
 	}
 }
 
+function assertStorageArtifactShape(artifactPath: string, raw: string) {
+	const parsed = parseJsonArtifact(artifactPath, raw) as { version?: unknown; updatedAt?: unknown; blogs?: unknown }
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || parsed.version !== 1 || typeof parsed.updatedAt !== 'string' || !parsed.blogs || typeof parsed.blogs !== 'object' || Array.isArray(parsed.blogs)) {
+		throw new VerifyArtifactError('ARTIFACT_INVALID', `博客运行时产物结构无效：${artifactPath}`, artifactPath)
+	}
+}
+
 function readRuntimeArtifacts(baseDir: string) {
 	const blogsDir = resolve(baseDir, 'public/blogs')
 	const artifacts = {
@@ -142,7 +149,7 @@ function readRuntimeArtifacts(baseDir: string) {
 	assertCategoriesArtifactShape('public/blogs/categories.json', artifacts.categories)
 	assertFoldersArtifactShape('public/blogs/folders.json', artifacts.folders)
 	if (artifacts.storage !== null) {
-		assertJsonArtifact('public/blogs/storage.json', artifacts.storage)
+		assertStorageArtifactShape('public/blogs/storage.json', artifacts.storage)
 	}
 	return artifacts
 }
