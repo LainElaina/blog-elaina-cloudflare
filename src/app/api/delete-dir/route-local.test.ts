@@ -44,7 +44,7 @@ function deferred() {
 test('delete dir route only allows deleting single safe blog directories', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /import \{ lstat, realpath, rm \} from 'fs\/promises'/)
+	assert.match(source, /import fs from 'fs\/promises'/)
 	assert.match(source, /import \{ dirname, relative, resolve \} from 'path'/)
 	assert.match(source, /import \{ withLocalContentMutationLock \} from '\.\.\/local-content-mutation-lock\.ts'/)
 	assert.match(source, /const projectDir = resolve\(process\.cwd\(\)\)/)
@@ -55,9 +55,9 @@ test('delete dir route only allows deleting single safe blog directories', async
 	assert.match(source, /只能删除 public\/blogs 下的文章目录/)
 	assert.match(source, /async function assertSafeDeleteDirParent\(fullPath: string\)/)
 	assert.match(source, /const parentDir = dirname\(fullPath\)/)
-	assert.match(source, /\(await realpath\(parentDir\)\) !== parentDir/)
+	assert.match(source, /\(await fs\.realpath\(parentDir\)\) !== parentDir/)
 	assert.match(source, /await assertSafeDeleteDirParent\(fullPath\)/)
-	assert.match(source, /const targetStat = await lstat\(fullPath\)/)
+	assert.match(source, /const targetStat = await fs\.lstat\(fullPath\)/)
 	assert.match(source, /if \(!targetStat\.isDirectory\(\)\) \{/)
 	assert.match(source, /只能删除文章目录/)
 	assert.doesNotMatch(source, /isPathInsideDirectory\(publicDir, fullPath\)/)
@@ -66,10 +66,10 @@ test('delete dir route only allows deleting single safe blog directories', async
 test('delete dir route rejects files and nested paths before removing', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tconst deleteDir = async \(\) => \{\n\t\t\tawait assertSafeDeleteDirParent\(fullPath\)\n\n\t\t\ttry \{\n\t\t\t\tconst targetStat = await lstat\(fullPath\)/)
+	assert.match(source, /if \(!isAllowedBlogDirectoryPath\(blogDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法，只能删除 public\/blogs 下的文章目录' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tconst deleteDir = async \(\) => \{\n\t\t\tawait assertSafeDeleteDirParent\(fullPath\)\n\n\t\t\ttry \{\n\t\t\t\tconst targetStat = await fs\.lstat\(fullPath\)/)
 	assert.match(source, /return await withLocalContentMutationLock\(projectDir, 'blog', deleteDir\)/)
 	assert.match(source, /assertSafeBlogSlug\(relative\(blogDir, fullPath\)\)/)
-	assert.doesNotMatch(source, /await rm\(fullPath, \{ recursive: true, force: true \}\)[\s\S]*?const targetStat = await lstat\(fullPath\)/)
+	assert.doesNotMatch(source, /await fs\.rm\(fullPath, \{ recursive: true, force: true \}\)[\s\S]*?const targetStat = await fs\.lstat\(fullPath\)/)
 })
 
 test('delete dir route treats missing safe blog directory as already deleted', async () => {
@@ -155,6 +155,37 @@ test('delete dir route waits for the blog content mutation lock before removing 
 		await assert.rejects(() => fs.readFile(markerPath, 'utf-8'), /ENOENT/)
 	} finally {
 		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('delete dir route reports rm failure context', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-dir-rm-failure-'))
+	const dirPath = 'public/blogs/delete-failure'
+	const markerPath = path.join(repoDir, dirPath, 'index.md')
+	const originalRm = fs.rm
+
+	try {
+		await fs.mkdir(path.dirname(markerPath), { recursive: true })
+		await fs.writeFile(markerPath, '# Delete failure', 'utf-8')
+		process.chdir(repoDir)
+
+		fs.rm = (async (...args: Parameters<typeof fs.rm>) => {
+			if (args[0] === path.join(repoDir, dirPath)) {
+				throw new Error('simulated rm failure')
+			}
+			return originalRm(...args)
+		}) as typeof fs.rm
+
+		const response = await handleDeleteDir(createDeleteDirRequest({ path: dirPath }))
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '删除失败：simulated rm failure' })
+		assert.equal(await fs.readFile(markerPath, 'utf-8'), '# Delete failure')
+	} finally {
+		fs.rm = originalRm
 		process.chdir(previousCwd)
 		await fs.rm(repoDir, { recursive: true, force: true })
 	}

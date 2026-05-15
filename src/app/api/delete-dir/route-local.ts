@@ -1,4 +1,4 @@
-import { lstat, realpath, rm } from 'fs/promises'
+import fs from 'fs/promises'
 import { dirname, relative, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -32,7 +32,7 @@ function isUnsafeDeleteDirParentError(error: unknown) {
 
 async function assertSafeDeleteDirParent(fullPath: string) {
 	const parentDir = dirname(fullPath)
-	const parentStats = await lstat(parentDir).catch(error => {
+	const parentStats = await fs.lstat(parentDir).catch(error => {
 		if (isFileNotFoundError(error)) {
 			return null
 		}
@@ -44,7 +44,7 @@ async function assertSafeDeleteDirParent(fullPath: string) {
 	if (!parentStats.isDirectory()) {
 		throw new Error('unsafe-delete-dir-parent')
 	}
-	if ((await realpath(parentDir)) !== parentDir) {
+	if ((await fs.realpath(parentDir)) !== parentDir) {
 		throw new Error('unsafe-delete-dir-parent')
 	}
 }
@@ -83,7 +83,7 @@ export async function handleDeleteDir(request: NextRequest) {
 			await assertSafeDeleteDirParent(fullPath)
 
 			try {
-				const targetStat = await lstat(fullPath)
+				const targetStat = await fs.lstat(fullPath)
 				if (!targetStat.isDirectory()) {
 					return NextResponse.json({ error: '路径不合法，只能删除文章目录' }, { status: 403 })
 				}
@@ -94,7 +94,7 @@ export async function handleDeleteDir(request: NextRequest) {
 				throw error
 			}
 
-			await rm(fullPath, { recursive: true, force: true })
+			await fs.rm(fullPath, { recursive: true, force: true })
 
 			return NextResponse.json({ success: true })
 		}
@@ -105,6 +105,7 @@ export async function handleDeleteDir(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法，只能删除 public/blogs 下的文章目录' }, { status: 403 })
 		}
 		console.error('Delete dir error:', error)
-		return NextResponse.json({ error: '删除失败' }, { status: 500 })
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `删除失败：${details}` }, { status: 500 })
 	}
 }
