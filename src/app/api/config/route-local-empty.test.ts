@@ -57,10 +57,17 @@ test('local config write rolls back earlier files when a later write fails', asy
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
 	assert.match(source, /writeSiteConfigFileAtomically\(filePath, write\.content\)/)
-	assert.match(source, /catch \(error\) \{\n\s*await rollbackConfigWrites\(backups\)\n\s*throw error\n\s*\}/)
-	assert.match(source, /for \(const backup of backups\.reverse\(\)\) \{[\s\S]*await writeSiteConfigFileAtomically\(backup\.filePath, backup\.content\)\.catch\(\(\) => undefined\)[\s\S]*await fs\.rm\(backup\.filePath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
+	assert.match(source, /const touchedConfig: string\[\] = \[\]/)
+	assert.match(source, /touchedConfig\.push\(write\.fileName\)/)
+	assert.match(source, /const rollbackFailedConfig = await rollbackConfigWrites\(backups\.slice\(0, touchedConfig\.length\)\)/)
+	assert.match(source, /configWriteError\.touchedConfigPartial = \[\.\.\.touchedConfig\]/)
+	assert.match(source, /configWriteError\.rollbackFailedConfig = rollbackFailedConfig/)
+	assert.match(source, /for \(const backup of backups\.reverse\(\)\) \{[\s\S]*await writeSiteConfigFileAtomically\(backup\.filePath, backup\.content\)[\s\S]*rollbackFailedConfig\.push\(path\.basename\(backup\.filePath\)\)/)
+	assert.match(source, /isSiteConfigLocalValidationError\(error\) \? \{ error: error\.message \} : buildConfigWriteFailureBody\(error\)/)
 	assert.doesNotMatch(source, /function writeFileAtomically/)
 	assert.doesNotMatch(source, /await fs\.writeFile\(filePath, write\.content\)/)
+	assert.doesNotMatch(source, /writeSiteConfigFileAtomically\(backup\.filePath, backup\.content\)\.catch\(\(\) => undefined\)/)
+	assert.doesNotMatch(source, /fs\.rm\(backup\.filePath, \{ force: true \}\)\.catch\(\(\) => undefined\)/)
 })
 
 test('local config write preserves layout undo backup when saving card styles', async () => {
@@ -72,6 +79,74 @@ test('local config write preserves layout undo backup when saving card styles', 
 	assert.match(source, /await writeSiteConfigFileAtomically\(layoutBackupPath, cardStylesBackup\.content\)/)
 	assert.doesNotMatch(source, /const LAYOUT_BACKUP_PATH = path\.join\(process\.cwd\(\), 'data\/layout\.bak\.json'\)/)
 	assert.doesNotMatch(source, /await fs\.writeFile\(layoutBackupPath, cardStylesBackup\.content\)/)
+})
+
+test('local config write reports rollback failures after partial config writes', async () => {
+	await withTemporaryCwd(async tmpDir => {
+		const siteContentPath = path.join(tmpDir, 'src/config/site-content.json')
+		const cardStylesPath = path.join(tmpDir, 'src/config/card-styles.json')
+		const originalRename = fs.rename
+		let siteContentWrites = 0
+		const layout100 = {
+			musicCard: {
+				width: 100,
+				height: 100,
+				order: 1,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			}
+		}
+		const layout120 = {
+			musicCard: {
+				width: 120,
+				height: 100,
+				order: 1,
+				offsetX: null,
+				offsetY: null,
+				enabled: true
+			}
+		}
+
+		await fs.mkdir(path.dirname(siteContentPath), { recursive: true })
+		await fs.writeFile(siteContentPath, JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
+		await fs.writeFile(cardStylesPath, JSON.stringify(layout100, null, '\t'))
+
+		fs.rename = (async (...args: Parameters<typeof fs.rename>) => {
+			const [, target] = args
+			if (target === cardStylesPath) {
+				throw new Error('simulated card styles write failure')
+			}
+			if (target === siteContentPath) {
+				siteContentWrites += 1
+				if (siteContentWrites > 1) {
+					throw new Error('simulated site content rollback failure')
+				}
+			}
+			return originalRename(...args)
+		}) as typeof fs.rename
+
+		try {
+			const response = await handleConfigPost(
+				createConfigRequest({
+					siteContent: { meta: { title: 'draft' } },
+					cardStyles: layout120
+				})
+			)
+			const payload = await response.json()
+
+			assert.equal(response.status, 500)
+			assert.deepEqual(payload, {
+				error: '保存站点配置失败',
+				touchedConfigPartial: ['site-content.json'],
+				details: {
+					rollbackFailedConfig: ['site-content.json']
+				}
+			})
+		} finally {
+			fs.rename = originalRename
+		}
+	})
 })
 
 test('local config write creates layout undo backup under current cwd', async () => {

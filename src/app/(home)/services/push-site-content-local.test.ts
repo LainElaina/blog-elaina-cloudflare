@@ -5,7 +5,7 @@ import fs from 'node:fs/promises'
 test('local site config publish deletes removed assets only after writing config', async () => {
 	const source = await fs.readFile(new URL('./push-site-content-local.ts', import.meta.url), 'utf-8')
 	const configWriteIndex = source.indexOf('await requestLocalEndpoint(\n\t\t\t\tfetch,\n\t\t\t\tgetLocalSiteConfigEndpoint(action)')
-	const rollbackIndex = source.indexOf('await rollbackLocalSiteAssetUploads(uploadedFiles)')
+	const rollbackIndex = source.indexOf('await rollbackLocalSiteAssetUploadsAfterFailure(error, uploadedFiles)')
 	const deleteAssetsIndex = source.indexOf('await cleanupLocalSiteAssets(deleteTasks)')
 
 	assert.notEqual(configWriteIndex, -1)
@@ -16,7 +16,7 @@ test('local site config publish deletes removed assets only after writing config
 	assert.match(source, /const uploadedFiles: LocalSiteAssetUploadBackup\[\] = \[\]/)
 	assert.match(source, /uploadTasks\.push\(\(\) => uploadLocalSiteAsset\(faviconItem\.file, 'public\/favicon\.png', uploadedFiles\)\)/)
 	assert.match(source, /uploadTasks\.push\(\(\) => uploadLocalSiteAsset\(avatarItem\.file, 'public\/images\/avatar\.png', uploadedFiles\)\)/)
-	assert.match(source, /catch \(error\) \{\n\s*await rollbackLocalSiteAssetUploads\(uploadedFiles\)\n\s*throw error\n\s*\}/)
+	assert.match(source, /catch \(error\) \{\n\s*await rollbackLocalSiteAssetUploadsAfterFailure\(error, uploadedFiles\)\n\s*throw error\n\s*\}/)
 	assert.match(source, /const deleteTasks: Array<\(\) => Promise<void>> = \[\]/)
 	assert.match(source, /for \(const path of buildRemovedArtImageDeletePaths\(removedArtImages\)\) \{\n\s*deleteTasks\.push\(\(\) => deleteFile\(path\)\)/)
 	assert.match(source, /for \(const path of buildRemovedBackgroundImageDeletePaths\(removedBackgroundImages\)\) \{\n\s*deleteTasks\.push\(\(\) => deleteFile\(path\)\)/)

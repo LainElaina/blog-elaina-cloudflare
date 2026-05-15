@@ -44,7 +44,7 @@ function deferred() {
 test('delete file local route only deletes save-file allowlisted paths', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /import \{ lstat, realpath, unlink \} from 'fs\/promises'/)
+	assert.match(source, /import fs from 'fs\/promises'/)
 	assert.match(source, /import \{ dirname, resolve \} from 'path'/)
 	assert.match(source, /import \{ withLocalContentMutationLock \} from '\.\.\/local-content-mutation-lock\.ts'/)
 	assert.match(source, /import \{ getSaveFileLocalContentMutationScope, isAllowedSaveFilePath \} from '\.\.\/save-file\/local-save-file-path\.ts'/)
@@ -53,7 +53,7 @@ test('delete file local route only deletes save-file allowlisted paths', async (
 	assert.match(source, /return NextResponse\.json\(\{ error: '路径不合法' \}, \{ status: 403 \}\)/)
 	assert.match(source, /async function assertSafeDeleteFileDirectory\(fullPath: string\)/)
 	assert.match(source, /const parentDir = dirname\(fullPath\)/)
-	assert.match(source, /\(await realpath\(parentDir\)\) !== parentDir/)
+	assert.match(source, /\(await fs\.realpath\(parentDir\)\) !== parentDir/)
 	assert.match(source, /if \(!isAllowedSaveFilePath\(projectDir, fullPath\)\) \{[\s\S]*?return NextResponse\.json\(\{ error: '路径不合法' \}, \{ status: 403 \}\)[\s\S]*?\}\n\n\t\tconst deleteFile = async \(\) => \{\n\t\t\tawait assertSafeDeleteFileDirectory\(fullPath\)/)
 	assert.match(source, /const mutationScope = getSaveFileLocalContentMutationScope\(projectDir, fullPath\)\n\t\tif \(mutationScope\) \{\n\t\t\treturn await withLocalContentMutationLock\(projectDir, mutationScope, deleteFile\)/)
 	assert.doesNotMatch(source, /isPathInsideDirectory\(publicDir, fullPath\)/)
@@ -64,7 +64,7 @@ test('delete file local route treats missing allowlisted files as successful del
 
 	assert.doesNotMatch(source, /existsSync/)
 	assert.match(source, /function isFileNotFoundError\(error: unknown\)/)
-	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(isFileNotFoundError\(error\)\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
+	assert.match(source, /await fs\.lstat\(fullPath\)\.catch\(error => \{\n\s*if \(isFileNotFoundError\(error\)\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
 	assert.match(source, /if \(fileStats === null\) \{\n\s*return NextResponse\.json\(\{ success: true \}\)\n\s*\}/)
 })
 
@@ -173,6 +173,37 @@ test('delete file local route waits for the content mutation lock before unlinki
 		await assert.rejects(() => fs.readFile(path.join(repoDir, filePath), 'utf-8'), /ENOENT/)
 	} finally {
 		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+
+test('delete file local route reports unlink failure context', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-file-unlink-failure-'))
+	const filePath = 'src/app/projects/list.json'
+	const originalUnlink = fs.unlink
+
+	try {
+		await fs.mkdir(path.join(repoDir, 'src/app/projects'), { recursive: true })
+		await fs.writeFile(path.join(repoDir, filePath), '[]', 'utf-8')
+		process.chdir(repoDir)
+
+		fs.unlink = (async (...args: Parameters<typeof fs.unlink>) => {
+			if (args[0] === path.join(repoDir, filePath)) {
+				throw new Error('simulated unlink failure')
+			}
+			return originalUnlink(...args)
+		}) as typeof fs.unlink
+
+		const response = await handleDeleteFile(createDeleteFileRequest({ path: filePath }))
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '删除失败：simulated unlink failure' })
+		assert.equal(await fs.readFile(path.join(repoDir, filePath), 'utf-8'), '[]')
+	} finally {
+		fs.unlink = originalUnlink
 		process.chdir(previousCwd)
 		await fs.rm(repoDir, { recursive: true, force: true })
 	}

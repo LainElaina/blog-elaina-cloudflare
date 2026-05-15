@@ -24,7 +24,7 @@ import { getFileExt } from '@/lib/utils'
 import { revokeFilePreviewUrls, revokeUnusedFilePreviewUrls } from '@/lib/upload-preview-url'
 import {
 	uploadLocalSiteAsset,
-	rollbackLocalSiteAssetUploads,
+	rollbackLocalSiteAssetUploadsAfterFailure,
 	type LocalSiteAssetUploadBackup
 } from '@/app/(home)/services/push-site-content-local-utils'
 import { useRouter } from 'next/navigation'
@@ -265,7 +265,7 @@ export default function Page() {
 						'保存图床列表'
 					)
 				} catch (error) {
-					await rollbackLocalSiteAssetUploads(uploadedFiles)
+					await rollbackLocalSiteAssetUploadsAfterFailure(error, uploadedFiles)
 					throw error
 				}
 

@@ -16,6 +16,7 @@ const {
 	shouldClearLocalPendingAssetUploads,
 	hasPendingLocalFileAssetUploads,
 	rollbackLocalSiteAssetUploads,
+	rollbackLocalSiteAssetUploadsAfterFailure,
 	uploadLocalSiteAsset,
 	assertCanSaveLocalSiteConfigDraft
 } = await import(new URL('./push-site-content-local-utils.ts', import.meta.url).href)
@@ -259,6 +260,18 @@ test('local site asset rollback restores overwritten assets and deletes new uplo
 			['/api/delete-image', 'POST', JSON.stringify({ path: 'public/images/art/new.png' })],
 			['/api/upload-image', 'POST', 'public/favicon.png']
 		]
+	)
+})
+
+test('local site asset rollback preserves original failure when rollback also fails', async () => {
+	const uploadedFiles: LocalSiteAssetUploadBackup[] = [
+		{ path: 'public/favicon.png', existed: true, file: new File(['old icon'], 'favicon.png', { type: 'image/png' }) }
+	]
+	const fetchLocal = async () => new Response('restore failed', { status: 500 })
+
+	await assert.rejects(
+		() => rollbackLocalSiteAssetUploadsAfterFailure(new Error('保存站点配置失败'), uploadedFiles, fetchLocal),
+		/保存站点配置失败；本地站点资源回滚失败：回滚失败：public\/favicon\.png/
 	)
 })
 

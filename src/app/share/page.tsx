@@ -527,7 +527,11 @@ export default function Page() {
 			try {
 				await rollbackLocalShareSave(writtenFiles, uploadedFiles)
 			} catch (rollbackError) {
-				console.warn('本地分享保存回滚失败:', rollbackError)
+				const originalMessage = error instanceof Error ? error.message : String(error)
+				const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+				console.error('Failed to save:', error)
+				toast.error(`保存失败: ${originalMessage}；本地分享保存回滚失败：${rollbackMessage}`)
+				return
 			}
 			console.error('Failed to save:', error)
 			toast.error(`保存失败: ${error?.message || '未知错误'}`)

@@ -1,4 +1,4 @@
-import { lstat, realpath, unlink } from 'fs/promises'
+import fs from 'fs/promises'
 import { dirname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -18,7 +18,7 @@ function isUnsafeDeleteFileDirectoryError(error: unknown) {
 
 async function assertSafeDeleteFileDirectory(fullPath: string) {
 	const parentDir = dirname(fullPath)
-	const parentStats = await lstat(parentDir).catch(error => {
+	const parentStats = await fs.lstat(parentDir).catch(error => {
 		if (isFileNotFoundError(error)) {
 			return null
 		}
@@ -30,7 +30,7 @@ async function assertSafeDeleteFileDirectory(fullPath: string) {
 	if (!parentStats.isDirectory()) {
 		throw new Error('unsafe-delete-file-directory')
 	}
-	if ((await realpath(parentDir)) !== parentDir) {
+	if ((await fs.realpath(parentDir)) !== parentDir) {
 		throw new Error('unsafe-delete-file-directory')
 	}
 }
@@ -67,7 +67,7 @@ export async function handleDeleteFile(request: NextRequest) {
 		const deleteFile = async () => {
 			await assertSafeDeleteFileDirectory(fullPath)
 
-			const fileStats = await lstat(fullPath).catch(error => {
+			const fileStats = await fs.lstat(fullPath).catch(error => {
 				if (isFileNotFoundError(error)) {
 					return null
 				}
@@ -82,7 +82,7 @@ export async function handleDeleteFile(request: NextRequest) {
 				return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
 			}
 
-			await unlink(fullPath).catch(error => {
+			await fs.unlink(fullPath).catch(error => {
 				if (!isFileNotFoundError(error)) {
 					throw error
 				}
@@ -100,6 +100,7 @@ export async function handleDeleteFile(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 		console.error('Delete file error:', error)
-		return NextResponse.json({ error: '删除失败' }, { status: 500 })
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `删除失败：${details}` }, { status: 500 })
 	}
 }

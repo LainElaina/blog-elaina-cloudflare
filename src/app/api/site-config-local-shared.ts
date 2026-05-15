@@ -17,8 +17,19 @@ export class SiteConfigLocalValidationError extends Error {
 	}
 }
 
+export class SiteConfigLocalWriteError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'SiteConfigLocalWriteError'
+	}
+}
+
 export function isSiteConfigLocalValidationError(error: unknown) {
 	return error instanceof SiteConfigLocalValidationError
+}
+
+export function isSiteConfigLocalWriteError(error: unknown) {
+	return error instanceof SiteConfigLocalWriteError
 }
 
 type LocalAssetReference = {
@@ -220,7 +231,12 @@ async function writeSiteConfigDraftUnlocked(baseDir: string, payload: SiteConfig
 	}
 
 	if (!hasSiteConfigDraftPayload(merged)) {
-		await fs.rm(draftPath, { force: true })
+		try {
+			await fs.rm(draftPath, { force: true })
+		} catch (error) {
+			const details = error instanceof Error ? error.message : String(error)
+			throw new SiteConfigLocalWriteError(`清除站点配置草稿失败：${details}`)
+		}
 		return merged
 	}
 

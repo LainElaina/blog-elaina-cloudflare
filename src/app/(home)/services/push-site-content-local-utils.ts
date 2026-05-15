@@ -195,12 +195,36 @@ export async function uploadLocalSiteAsset(
 }
 
 export async function rollbackLocalSiteAssetUploads(uploadedFiles: LocalSiteAssetUploadBackup[], fetchLocal: LocalSiteAssetFetch = fetch) {
+	const rollbackErrors: string[] = []
+
 	for (const backup of [...uploadedFiles].reverse()) {
-		if (backup.existed && backup.file) {
-			await writeLocalSiteAsset(backup.file, backup.path, `恢复 ${backup.path}`, fetchLocal).catch(() => undefined)
-		} else if (!backup.existed) {
-			await deleteLocalSiteAsset(backup.path, fetchLocal).catch(() => undefined)
+		try {
+			if (backup.existed && backup.file) {
+				await writeLocalSiteAsset(backup.file, backup.path, `恢复 ${backup.path}`, fetchLocal)
+			} else if (!backup.existed) {
+				await deleteLocalSiteAsset(backup.path, fetchLocal)
+			}
+		} catch {
+			rollbackErrors.push(backup.path)
 		}
+	}
+
+	if (rollbackErrors.length > 0) {
+		throw new Error(`回滚失败：${rollbackErrors.join(', ')}`)
+	}
+}
+
+export async function rollbackLocalSiteAssetUploadsAfterFailure(
+	originalError: unknown,
+	uploadedFiles: LocalSiteAssetUploadBackup[],
+	fetchLocal: LocalSiteAssetFetch = fetch
+) {
+	try {
+		await rollbackLocalSiteAssetUploads(uploadedFiles, fetchLocal)
+	} catch (rollbackError) {
+		const originalMessage = originalError instanceof Error ? originalError.message : String(originalError)
+		const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+		throw new Error(`${originalMessage}；本地站点资源回滚失败：${rollbackMessage}`)
 	}
 }
 

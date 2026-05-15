@@ -28,7 +28,10 @@ test('share local save rolls back written artifacts and uploaded logos after a l
 	assert.match(pageSource, /await uploadLocalShareLogo\(\{ file: logoItem\.file, path: `public\$\{publicPath\}`, actionName: '上传分享图标', uploadedFiles \}\)/)
 	assert.match(pageSource, /for \(const payload of payloads\) \{\n\s*await saveLocalShareFile\(payload, '保存分享产物', writtenFiles\)/)
 	assert.match(pageSource, /catch \(error: any\) \{\n\s*try \{\n\s*await rollbackLocalShareSave\(writtenFiles, uploadedFiles\)/)
-	assert.match(pageSource, /catch \(rollbackError\) \{\n\s*console\.warn\('本地分享保存回滚失败:', rollbackError\)/)
+	assert.match(pageSource, /catch \(rollbackError\) \{\n\s*const originalMessage = error instanceof Error \? error\.message : String\(error\)/)
+	assert.match(pageSource, /const rollbackMessage = rollbackError instanceof Error \? rollbackError\.message : String\(rollbackError\)/)
+	assert.match(pageSource, /toast\.error\(`保存失败: \$\{originalMessage\}；本地分享保存回滚失败：\$\{rollbackMessage\}`\)/)
+	assert.doesNotMatch(pageSource, /console\.warn\('本地分享保存回滚失败:', rollbackError\)/)
 	assert.match(pageSource, /console\.error\('Failed to save:', error\)[\s\S]*toast\.error\(`保存失败: \$\{error\?\.message \|\| '未知错误'\}`\)/)
 })
 

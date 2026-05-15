@@ -14,7 +14,7 @@ registerHooks({
 	}
 })
 
-const { GET, POST } = await import('./route.ts')
+const { GET, POST, DELETE } = await import('./route.ts')
 
 async function withDevelopmentCwd<T>(callback: (tmpDir: string) => Promise<T>): Promise<T> {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'draft-site-config-route-'))
@@ -145,6 +145,66 @@ test('site config draft ignores unknown keys instead of keeping ghost drafts', a
 		assert.equal(response.status, 200)
 		assert.deepEqual(payload, { success: true, hasDraft: false, items: [] })
 		await assertDraftFileMissing(tmpDir)
+	})
+})
+
+test('site config draft reports delete failure when clearing empty draft payload', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, JSON.stringify({ siteContent: { meta: { title: 'draft' } } }, null, '\t'))
+		const originalRm = fs.rm
+
+		fs.rm = (async (...args: Parameters<typeof fs.rm>) => {
+			if (args[0] === draftPath) {
+				throw new Error('simulated draft delete failure')
+			}
+			return originalRm(...args)
+		}) as typeof fs.rm
+
+		try {
+			const response = await POST(
+				new Request('http://localhost/api/drafts/site-config', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ siteContent: null })
+				})
+			)
+			const payload = await response.json()
+
+			assert.equal(response.status, 500)
+			assert.deepEqual(payload, { error: '清除站点配置草稿失败：simulated draft delete failure' })
+			assert.equal((await fs.readFile(draftPath, 'utf-8')).includes('draft'), true)
+		} finally {
+			fs.rm = originalRm
+		}
+	})
+})
+
+test('site config draft delete reports delete failure context', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')
+		await fs.mkdir(path.dirname(draftPath), { recursive: true })
+		await fs.writeFile(draftPath, JSON.stringify({ siteContent: { meta: { title: 'draft' } } }, null, '\t'))
+		const originalRm = fs.rm
+
+		fs.rm = (async (...args: Parameters<typeof fs.rm>) => {
+			if (args[0] === draftPath) {
+				throw new Error('simulated draft delete failure')
+			}
+			return originalRm(...args)
+		}) as typeof fs.rm
+
+		try {
+			const response = await DELETE(new Request('http://localhost/api/drafts/site-config', { method: 'DELETE' }))
+			const payload = await response.json()
+
+			assert.equal(response.status, 500)
+			assert.deepEqual(payload, { error: '清除站点配置草稿失败：simulated draft delete failure' })
+			assert.equal((await fs.readFile(draftPath, 'utf-8')).includes('draft'), true)
+		} finally {
+			fs.rm = originalRm
+		}
 	})
 })
 

@@ -25,6 +25,11 @@ type ConfigBackup = {
 	content: string
 }
 
+type ConfigWriteError = Error & {
+	touchedConfigPartial?: string[]
+	rollbackFailedConfig?: string[]
+}
+
 function isFileNotFoundError(error: unknown) {
 	return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }
@@ -45,13 +50,21 @@ async function readConfigBackup(filePath: string): Promise<ConfigBackup> {
 }
 
 async function rollbackConfigWrites(backups: ConfigBackup[]) {
+	const rollbackFailedConfig: string[] = []
+
 	for (const backup of backups.reverse()) {
-		if (backup.existed) {
-			await writeSiteConfigFileAtomically(backup.filePath, backup.content).catch(() => undefined)
-		} else {
-			await fs.rm(backup.filePath, { force: true }).catch(() => undefined)
+		try {
+			if (backup.existed) {
+				await writeSiteConfigFileAtomically(backup.filePath, backup.content)
+			} else {
+				await fs.rm(backup.filePath, { force: true })
+			}
+		} catch {
+			rollbackFailedConfig.push(path.basename(backup.filePath))
 		}
 	}
+
+	return rollbackFailedConfig
 }
 
 function hasOnlyConfigWriteKeys(payload: Record<string, unknown>) {
@@ -102,6 +115,35 @@ function buildConfigWrites(payload: ConfigWritePayload): ConfigWrite[] {
 	return writes
 }
 
+function getConfigWriteErrorDetails(error: unknown) {
+	const touchedConfigPartial = error && typeof error === 'object' && 'touchedConfigPartial' in error && Array.isArray(error.touchedConfigPartial)
+		? error.touchedConfigPartial.filter(fileName => typeof fileName === 'string')
+		: []
+	const rollbackFailedConfig = error && typeof error === 'object' && 'rollbackFailedConfig' in error && Array.isArray(error.rollbackFailedConfig)
+		? error.rollbackFailedConfig.filter(fileName => typeof fileName === 'string')
+		: []
+
+	return {
+		touchedConfigPartial,
+		rollbackFailedConfig
+	}
+}
+
+function buildConfigWriteFailureBody(error: unknown) {
+	const { touchedConfigPartial, rollbackFailedConfig } = getConfigWriteErrorDetails(error)
+	return {
+		error: '保存站点配置失败',
+		...(touchedConfigPartial.length > 0 ? { touchedConfigPartial } : {}),
+		...(rollbackFailedConfig.length > 0
+			? {
+				details: {
+					rollbackFailedConfig
+				}
+			}
+			: {})
+	}
+}
+
 async function writeLayoutBackupIfNeeded(writes: ConfigWrite[], backups: ConfigBackup[]) {
 	const cardStylesBackup = backups.find(backup => path.basename(backup.filePath) === CARD_STYLES_FILE_NAME)
 	if (!cardStylesBackup || !cardStylesBackup.existed || !writes.some(write => write.fileName === CARD_STYLES_FILE_NAME)) {
@@ -149,6 +191,7 @@ export async function handleConfigPost(request: NextRequest) {
 			return NextResponse.json({ error: '缺少可写配置项' }, { status: 400 })
 		}
 		const backups: ConfigBackup[] = []
+		const touchedConfig: string[] = []
 
 		await withSiteConfigLocalMutationLock(process.cwd(), async () => {
 			try {
@@ -157,10 +200,18 @@ export async function handleConfigPost(request: NextRequest) {
 					await assertSafeSiteConfigProjectPath(process.cwd(), filePath)
 					backups.push(await readConfigBackup(filePath))
 					await writeSiteConfigFileAtomically(filePath, write.content)
+					touchedConfig.push(write.fileName)
 				}
 				await writeLayoutBackupIfNeeded(writes, backups)
 			} catch (error) {
-				await rollbackConfigWrites(backups)
+				const rollbackFailedConfig = await rollbackConfigWrites(backups.slice(0, touchedConfig.length))
+				if (error instanceof Error) {
+					const configWriteError = error as ConfigWriteError
+					configWriteError.touchedConfigPartial = [...touchedConfig]
+					if (rollbackFailedConfig.length > 0) {
+						configWriteError.rollbackFailedConfig = rollbackFailedConfig
+					}
+				}
 				throw error
 			}
 		})
@@ -168,7 +219,7 @@ export async function handleConfigPost(request: NextRequest) {
 		return NextResponse.json({ success: true })
 	} catch (error: unknown) {
 		return NextResponse.json(
-			{ error: isSiteConfigLocalValidationError(error) ? error.message : '保存站点配置失败' },
+			isSiteConfigLocalValidationError(error) ? { error: error.message } : buildConfigWriteFailureBody(error),
 			{ status: isSiteConfigLocalValidationError(error) ? 400 : 500 }
 		)
 	}

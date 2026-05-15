@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 		return rejected
 	}
 
-	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, writeSiteConfigDraft } = await import('../../site-config-local-shared.ts')
+	const { buildSiteConfigDraftItems, isSiteConfigLocalValidationError, isSiteConfigLocalWriteError, writeSiteConfigDraft } = await import('../../site-config-local-shared.ts')
 
 	try {
 		let payload: unknown
@@ -60,8 +60,9 @@ export async function POST(request: NextRequest) {
 		const items = buildSiteConfigDraftItems(draft)
 		return NextResponse.json({ success: true, hasDraft: items.length > 0, items })
 	} catch (error: any) {
+		const knownErrorMessage = isSiteConfigLocalValidationError(error) || isSiteConfigLocalWriteError(error) ? error.message : null
 		return NextResponse.json(
-			{ error: isSiteConfigLocalValidationError(error) ? error.message : '保存站点配置草稿失败' },
+			{ error: knownErrorMessage ?? '保存站点配置草稿失败' },
 			{ status: isSiteConfigLocalValidationError(error) ? 400 : 500 }
 		)
 	}
@@ -82,7 +83,8 @@ export async function DELETE(request: Request) {
 	try {
 		await clearSiteConfigDraft(process.cwd())
 		return NextResponse.json({ success: true, hasDraft: false, items: [] })
-	} catch {
-		return NextResponse.json({ error: '清除站点配置草稿失败' }, { status: 500 })
+	} catch (error) {
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `清除站点配置草稿失败：${details}` }, { status: 500 })
 	}
 }

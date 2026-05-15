@@ -7,7 +7,7 @@ test('projects local save rolls back uploaded images when list saving fails', as
 
 	assert.match(pageSource, /const uploadedFiles: LocalSiteAssetUploadBackup\[\] = \[\]/)
 	assert.match(pageSource, /await uploadLocalSiteAsset\(imageItem\.file, `public\$\{publicPath\}`, uploadedFiles\)/)
-	assert.match(pageSource, /catch \(error\) \{\n\s*await rollbackLocalSiteAssetUploads\(uploadedFiles\)\n\s*throw error\n\s*\}/)
+	assert.match(pageSource, /catch \(error\) \{\n\s*await rollbackLocalSiteAssetUploadsAfterFailure\(error, uploadedFiles\)\n\s*throw error\n\s*\}/)
 	assert.match(pageSource, /'保存项目列表'/)
 	assert.match(pageSource, /savedProjects = updatedProjects/)
 })

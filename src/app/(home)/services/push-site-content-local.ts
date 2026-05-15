@@ -11,7 +11,7 @@ import {
 	shouldRequestLocalConfigEndpoint,
 	resolveLocalSocialButtonImageUploadPath,
 	uploadLocalSiteAsset,
-	rollbackLocalSiteAssetUploads,
+	rollbackLocalSiteAssetUploadsAfterFailure,
 	type LocalSiteAssetUploadBackup
 } from './push-site-content-local-utils'
 
@@ -122,7 +122,7 @@ export async function pushSiteContentLocal(
 			)
 		}
 	} catch (error) {
-		await rollbackLocalSiteAssetUploads(uploadedFiles)
+		await rollbackLocalSiteAssetUploadsAfterFailure(error, uploadedFiles)
 		throw error
 	}
 
