@@ -190,6 +190,7 @@ export async function handleUploadImage(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法' }, { status: 403 })
 		}
 		console.error('Upload error:', error)
-		return NextResponse.json({ error: '上传失败' }, { status: 500 })
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `上传失败：${details}` }, { status: 500 })
 	}
 }

@@ -268,8 +268,13 @@ test('upload image local route refuses pre-existing symlinked atomic temp paths'
 
 		const response = await handleUploadImage({ formData: async () => formData } as any)
 
+		const payload = await response.json()
+
 		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '上传失败' })
+		assert.equal(typeof payload.error, 'string')
+		assert.match(payload.error, /^上传失败：/)
+		assert.match(payload.error, /EEXIST|file already exists/)
+		assert.equal(payload.error.includes(tempPath), true)
 		assert.equal(await fs.readFile(join(outsideDir, 'target.txt'), 'utf-8'), 'outside')
 		assert.deepEqual(await fs.readFile(fullPath), Buffer.from('previous'))
 	} finally {
