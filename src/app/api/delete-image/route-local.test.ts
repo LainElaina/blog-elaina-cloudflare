@@ -44,7 +44,7 @@ function deferred() {
 test('delete image route keeps extension validation and uses upload-managed path allowlist', async () => {
 	const source = (await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')).replace(/\r\n/g, '\n')
 
-	assert.match(source, /import \{ lstat, realpath, unlink \} from 'fs\/promises'/)
+	assert.match(source, /import fs from 'fs\/promises'/)
 	assert.match(source, /import \{ dirname, extname, resolve \} from 'path'/)
 	assert.match(source, /import \{ ALLOWED_IMAGE_EXTENSIONS \} from '\.\.\/\.\.\/\.\.\/lib\/image-content-validation\.ts'/)
 	assert.match(source, /import \{ withLocalContentMutationLock \} from '\.\.\/local-content-mutation-lock\.ts'/)
@@ -59,7 +59,7 @@ test('delete image route keeps extension validation and uses upload-managed path
 	assert.doesNotMatch(source, /isPathInsideDirectory/)
 	assert.match(source, /async function assertSafeDeleteImageDirectory\(fullPath: string\)/)
 	assert.match(source, /const parentDir = dirname\(fullPath\)/)
-	assert.match(source, /await realpath\(parentDir\)\) !== parentDir/)
+	assert.match(source, /await fs\.realpath\(parentDir\)\) !== parentDir/)
 	assert.doesNotMatch(source, /assertSafeDeleteImageDirectory\(projectDir, fullPath\)/)
 })
 
@@ -102,7 +102,7 @@ test('delete image route treats missing files as successful deletion', async () 
 
 	assert.doesNotMatch(source, /existsSync/)
 	assert.match(source, /function isFileNotFoundError\(error: unknown\)/)
-	assert.match(source, /await lstat\(fullPath\)\.catch\(error => \{\n\s*if \(isFileNotFoundError\(error\)\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
+	assert.match(source, /await fs\.lstat\(fullPath\)\.catch\(error => \{\n\s*if \(isFileNotFoundError\(error\)\) \{\n\s*return null\n\s*\}\n\s*throw error\n\s*\}\)/)
 	assert.match(source, /if \(fileStats === null\) \{\n\s*return NextResponse\.json\(\{ success: true \}\)\n\s*\}/)
 })
 
@@ -311,6 +311,37 @@ test('delete image route waits for the site config mutation lock before unlinkin
 		await assert.rejects(() => fs.readFile(fullPath), /ENOENT/)
 	} finally {
 		releaseLock.resolve()
+		process.chdir(previousCwd)
+		await fs.rm(repoDir, { recursive: true, force: true })
+	}
+})
+
+test('delete image route reports unlink failure context', async () => {
+	const previousCwd = process.cwd()
+	const repoDir = await fs.mkdtemp(join(tmpdir(), 'delete-image-unlink-failure-'))
+	const filePath = 'public/images/share/logo.png'
+	const fullPath = join(repoDir, filePath)
+	const originalUnlink = fs.unlink
+
+	try {
+		await fs.mkdir(join(repoDir, 'public/images/share'), { recursive: true })
+		await fs.writeFile(fullPath, 'image', 'utf-8')
+		process.chdir(repoDir)
+
+		fs.unlink = (async (...args: Parameters<typeof fs.unlink>) => {
+			if (args[0] === fullPath) {
+				throw new Error('simulated image unlink failure')
+			}
+			return originalUnlink(...args)
+		}) as typeof fs.unlink
+
+		const response = await handleDeleteImage(createDeleteImageRequest({ path: filePath }))
+
+		assert.equal(response.status, 500)
+		assert.deepEqual(await response.json(), { error: '删除失败：simulated image unlink failure' })
+		assert.equal(await fs.readFile(fullPath, 'utf-8'), 'image')
+	} finally {
+		fs.unlink = originalUnlink
 		process.chdir(previousCwd)
 		await fs.rm(repoDir, { recursive: true, force: true })
 	}

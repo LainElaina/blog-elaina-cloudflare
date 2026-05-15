@@ -1,4 +1,4 @@
-import { lstat, realpath, unlink } from 'fs/promises'
+import fs from 'fs/promises'
 import { dirname, extname, resolve } from 'path'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -21,7 +21,7 @@ function isUnsafeDeleteImageDirectoryError(error: unknown) {
 
 async function assertSafeDeleteImageDirectory(fullPath: string) {
 	const parentDir = dirname(fullPath)
-	const parentStats = await lstat(parentDir).catch(error => {
+	const parentStats = await fs.lstat(parentDir).catch(error => {
 		if (isFileNotFoundError(error)) {
 			return null
 		}
@@ -33,7 +33,7 @@ async function assertSafeDeleteImageDirectory(fullPath: string) {
 	if (!parentStats.isDirectory()) {
 		throw new Error('unsafe-image-directory')
 	}
-	if ((await realpath(parentDir)) !== parentDir) {
+	if ((await fs.realpath(parentDir)) !== parentDir) {
 		throw new Error('unsafe-image-directory')
 	}
 }
@@ -74,7 +74,7 @@ export async function handleDeleteImage(request: NextRequest) {
 
 		const deleteImage = async () => {
 			await assertSafeDeleteImageDirectory(fullPath)
-			const fileStats = await lstat(fullPath).catch(error => {
+			const fileStats = await fs.lstat(fullPath).catch(error => {
 				if (isFileNotFoundError(error)) {
 					return null
 				}
@@ -89,7 +89,7 @@ export async function handleDeleteImage(request: NextRequest) {
 				return NextResponse.json({ error: '只能删除普通文件' }, { status: 400 })
 			}
 
-			await unlink(fullPath).catch(error => {
+			await fs.unlink(fullPath).catch(error => {
 				if (!isFileNotFoundError(error)) {
 					throw error
 				}
@@ -107,6 +107,7 @@ export async function handleDeleteImage(request: NextRequest) {
 			return NextResponse.json({ error: '路径不合法，只能删除本地上传目录内的图片文件' }, { status: 403 })
 		}
 		console.error('Delete error:', error)
-		return NextResponse.json({ error: '删除失败' }, { status: 500 })
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `删除失败：${details}` }, { status: 500 })
 	}
 }
