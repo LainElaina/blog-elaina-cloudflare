@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { rebuildBlogRuntimeArtifactsFromStorage } from './migration-contracts.ts'
+import { rebuildBlogRuntimeArtifactsFromStorage, verifyBlogLedgerAgainstRuntime } from './migration-contracts.ts'
 
 describe('migration contracts', () => {
 	it('rebuild 会一次性返回四个博客正式产物且不触碰 markdown/image', () => {
@@ -34,5 +34,39 @@ describe('migration contracts', () => {
 		assert.equal(result.touchesMarkdown, false)
 		assert.equal(result.touchesImages, false)
 		assert.equal(result.atomic, true)
+	})
+
+	it('verify 会将相对博客目录树路径标记为需要重建', () => {
+		const storageRaw = JSON.stringify({
+			version: 1,
+			updatedAt: '2026-04-12T10:00:00.000Z',
+			blogs: {
+				'post-a': {
+					slug: 'post-a',
+					title: 'A',
+					tags: ['x'],
+					date: '2026-04-12T09:00:00.000Z',
+					folderPath: '/写作/技术',
+					status: 'published'
+				}
+			}
+		})
+		const rebuilt = rebuildBlogRuntimeArtifactsFromStorage(storageRaw)
+		const folders = JSON.parse(rebuilt.artifacts.folders) as Array<{ path: string; children: Array<{ path: string }> }>
+		folders[0] = {
+			...folders[0],
+			path: '写作',
+			children: folders[0].children.map(child => ({ ...child, path: '写作/技术' }))
+		}
+
+		const result = verifyBlogLedgerAgainstRuntime({
+			storageRaw,
+			runtimeArtifacts: {
+				...rebuilt.artifacts,
+				folders: JSON.stringify(folders, null, 2)
+			}
+		})
+
+		assert.deepEqual(result.artifactsToRebuild, ['public/blogs/folders.json'])
 	})
 })

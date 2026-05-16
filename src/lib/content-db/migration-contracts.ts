@@ -73,6 +73,10 @@ function normalizeFolderPath(input: string): string {
 	return `/${parts.join('/')}`
 }
 
+function isSafeFolderPath(input: unknown): input is string {
+	return typeof input === 'string' && input.startsWith('/') && !input.includes('\\') && !input.split('/').includes('..')
+}
+
 function parseBlogStorageDB(raw: string): BlogStorageDB {
 	const parsed = JSON.parse(raw) as BlogStorageDB
 	return {
@@ -145,11 +149,16 @@ function parseCategoriesArtifact(raw: string): { categories: string[] } {
 
 function sortFolderNodes(nodes: BlogFolderNode[]): BlogFolderNode[] {
 	return [...nodes]
-		.map(node => ({
-			name: node.name,
-			path: normalizeFolderPath(node.path),
-			children: sortFolderNodes(Array.isArray(node.children) ? node.children : [])
-		}))
+		.map(node => {
+			if (!isSafeFolderPath(node.path)) {
+				throw new Error('invalid blog folders artifact')
+			}
+			return {
+				name: node.name,
+				path: normalizeFolderPath(node.path),
+				children: sortFolderNodes(Array.isArray(node.children) ? node.children : [])
+			}
+		})
 		.sort((left, right) => left.path.localeCompare(right.path) || left.name.localeCompare(right.name))
 }
 
@@ -264,7 +273,11 @@ export function verifyBlogLedgerAgainstRuntime(params: {
 	if (!artifactsAreEquivalent(parseCategoriesArtifact(params.runtimeArtifacts.categories), parseCategoriesArtifact(rebuilt.artifacts.categories))) {
 		artifactsToRebuild.push('public/blogs/categories.json')
 	}
-	if (!artifactsAreEquivalent(parseFoldersArtifact(params.runtimeArtifacts.folders), parseFoldersArtifact(rebuilt.artifacts.folders))) {
+	try {
+		if (!artifactsAreEquivalent(parseFoldersArtifact(params.runtimeArtifacts.folders), parseFoldersArtifact(rebuilt.artifacts.folders))) {
+			artifactsToRebuild.push('public/blogs/folders.json')
+		}
+	} catch {
 		artifactsToRebuild.push('public/blogs/folders.json')
 	}
 	if (!artifactsAreEquivalent(parseStorageArtifact(params.runtimeArtifacts.storage), parseStorageArtifact(rebuilt.artifacts.storage))) {
