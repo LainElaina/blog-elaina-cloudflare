@@ -95,3 +95,40 @@ test('layout undo local route rejects invalid backup without replacing current l
 		await fs.rm(tmpDir, { recursive: true, force: true })
 	}
 })
+
+
+test('layout undo local route reports restore failure context', async () => {
+	const previousCwd = process.cwd()
+	const previousDateNow = Date.now
+	const previousMathRandom = Math.random
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-undo-restore-failure-'))
+	const backupLayout = { musicCard: { width: 180, height: 100, order: 1, offsetX: null, offsetY: null, enabled: true } }
+	const layoutPath = path.join(tmpDir, 'src/config/card-styles.json')
+	const backupPath = path.join(tmpDir, 'data/layout.bak.json')
+	const tempPath = `${layoutPath}.tmp-${process.pid}-1700000000000-4fzzzxjylrx`
+
+	try {
+		await fs.mkdir(path.dirname(layoutPath), { recursive: true })
+		await fs.mkdir(path.dirname(backupPath), { recursive: true })
+		await fs.writeFile(layoutPath, JSON.stringify({ musicCard: { width: 100, height: 100, order: 1, offsetX: null, offsetY: null, enabled: true } }, null, '	'))
+		await fs.writeFile(backupPath, JSON.stringify(backupLayout, null, '	'))
+		await fs.writeFile(tempPath, 'occupied', 'utf-8')
+		Date.now = () => 1700000000000
+		Math.random = () => 0.123456789
+		process.chdir(tmpDir)
+
+		const response = await handleLayoutUndoPost()
+		const payload = await response.json()
+
+		assert.equal(response.status, 500)
+		assert.equal(typeof payload.error, 'string')
+		assert.match(payload.error, /^Failed to undo: /)
+		assert.match(payload.error, /EEXIST|file already exists/)
+		assert.equal(payload.error.includes(tempPath), true)
+	} finally {
+		process.chdir(previousCwd)
+		Date.now = previousDateNow
+		Math.random = previousMathRandom
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
