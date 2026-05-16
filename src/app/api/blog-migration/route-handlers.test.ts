@@ -252,6 +252,27 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('preview route 拒绝不安全博客目录树路径', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/folders.json'),
+				JSON.stringify([{ name: 'Unsafe Blog Folder', path: '../private', children: [] }], null, 2)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/folders.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 拒绝非法博客正式产物结构且不会写回', async () => {
 		const context = await setupBlogArtifactsRepo()
 

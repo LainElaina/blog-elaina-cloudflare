@@ -177,8 +177,12 @@ function validateBlogCategoriesArtifact(raw: string) {
 	}
 }
 
+function isSafeBlogFolderPath(value: unknown) {
+	return typeof value === 'string' && value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
+}
+
 function isBlogFolderNode(value: unknown): value is { name: string; path: string; children: unknown[] } {
-	return isObject(value) && typeof value.name === 'string' && typeof value.path === 'string' && Array.isArray(value.children)
+	return isObject(value) && typeof value.name === 'string' && isSafeBlogFolderPath(value.path) && Array.isArray(value.children)
 }
 
 function validateBlogFolderNodes(nodes: unknown[]): boolean {
