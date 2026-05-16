@@ -24,7 +24,11 @@ export async function handleLayoutGet() {
 		const data = fs.readFileSync(layoutPath, 'utf-8')
 		return NextResponse.json(JSON.parse(data))
 	} catch (error) {
-		return NextResponse.json({ error: 'Failed to read layout' }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
+		if (isSiteConfigLocalValidationError(error)) {
+			return NextResponse.json({ error: 'Failed to read layout' }, { status: 400 })
+		}
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `Failed to read layout: ${details}` }, { status: 500 })
 	}
 }
 

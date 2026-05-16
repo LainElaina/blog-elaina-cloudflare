@@ -266,6 +266,27 @@ test('layout local route rejects symlinked layout file before reading it', async
 	}
 })
 
+test('layout local route reports read failure context for malformed saved layout', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-malformed-'))
+	const previousCwd = process.cwd()
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'src/config/card-styles.json'), '{bad json', 'utf-8')
+		process.chdir(tmpDir)
+
+		const response = await handleLayoutGet()
+		const payload = await response.json()
+
+		assert.equal(response.status, 500)
+		assert.equal(typeof payload.error, 'string')
+		assert.match(payload.error, /^Failed to read layout: /)
+		assert.match(payload.error, /JSON|Expected property name|Unexpected token/)
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
