@@ -22,7 +22,11 @@ export async function handleLayoutGet() {
 		const layoutPath = getLayoutPath()
 		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
 		const data = fs.readFileSync(layoutPath, 'utf-8')
-		return NextResponse.json(JSON.parse(data))
+		const layout = JSON.parse(data)
+		if (!isValidLayoutConfig(layout)) {
+			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })
+		}
+		return NextResponse.json(layout)
 	} catch (error) {
 		if (isSiteConfigLocalValidationError(error)) {
 			return NextResponse.json({ error: 'Failed to read layout' }, { status: 400 })

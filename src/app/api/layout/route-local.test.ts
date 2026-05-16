@@ -287,6 +287,24 @@ test('layout local route reports read failure context for malformed saved layout
 	}
 })
 
+test('layout local route rejects invalid saved layout shape', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-invalid-shape-'))
+	const previousCwd = process.cwd()
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		await fs.writeFile(path.join(tmpDir, 'src/config/card-styles.json'), JSON.stringify({ badCard: true }, null, '\t'))
+		process.chdir(tmpDir)
+
+		const response = await handleLayoutGet()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '布局配置格式错误' })
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('layout local route rejects invalid layout payloads before writing layout', async () => {
 	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
 
