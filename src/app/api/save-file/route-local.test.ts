@@ -511,8 +511,13 @@ test('save-file local route refuses pre-existing symlinked atomic temp paths', a
 
 		const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: 'new content' }))
 
+		const payload = await response.json()
+
 		assert.equal(response.status, 500)
-		assert.deepEqual(await response.json(), { error: '保存失败' })
+		assert.equal(typeof payload.error, 'string')
+		assert.match(payload.error, /^保存失败：/)
+		assert.match(payload.error, /EEXIST|file already exists/)
+		assert.equal(payload.error.includes(tempPath), true)
 		assert.equal(await readFile(join(outsideDir, 'target.txt'), 'utf-8'), 'outside')
 		assert.equal(await readFile(fullPath, 'utf-8'), 'previous')
 	} finally {
