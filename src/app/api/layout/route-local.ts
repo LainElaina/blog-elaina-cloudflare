@@ -62,6 +62,10 @@ export async function handleLayoutPost(request: Request) {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		return NextResponse.json({ error: 'Failed to save layout' }, { status: isSiteConfigLocalValidationError(error) ? 400 : 500 })
+		if (isSiteConfigLocalValidationError(error)) {
+			return NextResponse.json({ error: 'Failed to save layout' }, { status: 400 })
+		}
+		const details = error instanceof Error ? error.message : String(error)
+		return NextResponse.json({ error: `Failed to save layout: ${details}` }, { status: 500 })
 	}
 }
