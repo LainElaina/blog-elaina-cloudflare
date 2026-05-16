@@ -448,6 +448,37 @@ test('save-file local route rejects unsafe share storage slugs without replacing
 	}
 })
 
+test('save-file local route rejects unsafe folder tree paths without replacing existing files', async () => {
+	for (const [filePath, nextContent] of [
+		[
+			'public/blogs/folders.json',
+			JSON.stringify([{ name: 'Unsafe Blog Folder', path: '../private', children: [] }])
+		],
+		[
+			'public/share/folders.json',
+			JSON.stringify([{ name: 'Unsafe Share Folder', path: 'relative/path', children: [] }])
+		]
+	] as const) {
+		const previousCwd = process.cwd()
+		const repoDir = await mkdtemp(join(tmpdir(), 'save-file-folder-path-'))
+		const previousContent = '[]'
+		try {
+			await mkdir(join(repoDir, dirname(filePath)), { recursive: true })
+			await writeFile(join(repoDir, filePath), previousContent, 'utf-8')
+			process.chdir(repoDir)
+
+			const response = await handleSaveFile(createSaveFileRequest({ path: filePath, content: nextContent }))
+
+			assert.equal(response.status, 400, filePath)
+			assert.deepEqual(await response.json(), { error: 'JSON 内容结构错误' }, filePath)
+			assert.equal(await readFile(join(repoDir, filePath), 'utf-8'), previousContent, filePath)
+		} finally {
+			process.chdir(previousCwd)
+			await rm(repoDir, { recursive: true, force: true })
+		}
+	}
+})
+
 test('save-file local route rejects allowlisted paths under symlinked parent directories', async () => {
 	const previousCwd = process.cwd()
 	const repoDir = await mkdtemp(join(tmpdir(), 'save-file-symlink-'))

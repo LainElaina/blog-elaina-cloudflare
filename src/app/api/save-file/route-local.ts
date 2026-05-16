@@ -102,8 +102,12 @@ function isCategoryConfig(value: unknown) {
 	return isObject(value) && isStringArray(value.categories)
 }
 
+function isSafeFolderPath(value: unknown) {
+	return typeof value === 'string' && value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
+}
+
 function isFolderNode(value: unknown): value is { name: string; path: string; children: unknown[] } {
-	return isObject(value) && typeof value.name === 'string' && typeof value.path === 'string' && Array.isArray(value.children)
+	return isObject(value) && typeof value.name === 'string' && isSafeFolderPath(value.path) && Array.isArray(value.children)
 }
 
 function isFolderNodeArray(value: unknown): value is unknown[] {
