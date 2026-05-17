@@ -266,7 +266,7 @@ test('layout local route rejects symlinked layout file before reading it', async
 	}
 })
 
-test('layout local route reports read failure context for malformed saved layout', async () => {
+test('layout local route returns 400 when saved layout JSON is malformed', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-malformed-'))
 	const previousCwd = process.cwd()
 	try {
@@ -275,12 +275,9 @@ test('layout local route reports read failure context for malformed saved layout
 		process.chdir(tmpDir)
 
 		const response = await handleLayoutGet()
-		const payload = await response.json()
 
-		assert.equal(response.status, 500)
-		assert.equal(typeof payload.error, 'string')
-		assert.match(payload.error, /^Failed to read layout: /)
-		assert.match(payload.error, /JSON|Expected property name|Unexpected token/)
+		assert.equal(response.status, 400)
+		assert.deepEqual(await response.json(), { error: '布局配置解析失败，请修复 src/config/card-styles.json 后重试' })
 	} finally {
 		process.chdir(previousCwd)
 		await fs.rm(tmpDir, { recursive: true, force: true })

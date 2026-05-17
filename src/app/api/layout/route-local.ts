@@ -22,7 +22,15 @@ export async function handleLayoutGet() {
 		const layoutPath = getLayoutPath()
 		await assertSafeSiteConfigProjectPath(process.cwd(), layoutPath)
 		const data = fs.readFileSync(layoutPath, 'utf-8')
-		const layout = JSON.parse(data)
+		let layout: unknown
+		try {
+			layout = JSON.parse(data)
+		} catch (error) {
+			if (error instanceof SyntaxError) {
+				return NextResponse.json({ error: '布局配置解析失败，请修复 src/config/card-styles.json 后重试' }, { status: 400 })
+			}
+			throw error
+		}
 		if (!isValidLayoutConfig(layout)) {
 			return NextResponse.json({ error: '布局配置格式错误' }, { status: 400 })
 		}
