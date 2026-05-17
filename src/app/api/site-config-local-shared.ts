@@ -573,6 +573,7 @@ async function publishSiteConfigDraftUnlocked(baseDir: string, draft: SiteConfig
 	}
 
 	await assertSiteConfigDraftLocalAssetsExist(baseDir, draft)
+	await readSiteConfigDraft(baseDir)
 
 	const originalSiteContent = draft.siteContent ? await readFormalSiteContent(baseDir) : null
 	const removedSocialButtonImagePaths = buildRemovedSiteConfigSocialButtonImagePaths(
