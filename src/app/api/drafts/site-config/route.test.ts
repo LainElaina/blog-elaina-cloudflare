@@ -181,6 +181,27 @@ test('site config draft reports delete failure when clearing empty draft payload
 	})
 })
 
+test('site config draft delete rejects symlinked data directory without touching outside draft', async () => {
+	const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'draft-site-config-outside-'))
+	try {
+		await withDevelopmentCwd(async tmpDir => {
+			const outsideDraft = path.join(outsideDir, 'site-config.draft.json')
+			await fs.mkdir(path.join(tmpDir), { recursive: true })
+			await fs.writeFile(outsideDraft, JSON.stringify({ siteContent: { meta: { title: 'outside' } } }, null, '\t'))
+			await fs.symlink(outsideDir, path.join(tmpDir, 'data'), 'dir')
+
+			const response = await DELETE(new Request('http://localhost/api/drafts/site-config', { method: 'DELETE' }))
+			const payload = await response.json()
+
+			assert.equal(response.status, 400)
+			assert.deepEqual(payload, { error: '站点配置写入路径不合法' })
+			assert.equal((await fs.readFile(outsideDraft, 'utf-8')).includes('outside'), true)
+		})
+	} finally {
+		await fs.rm(outsideDir, { recursive: true, force: true })
+	}
+})
+
 test('site config draft delete reports delete failure context', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		const draftPath = path.join(tmpDir, 'data/site-config.draft.json')

@@ -78,12 +78,15 @@ export async function DELETE(request: Request) {
 		return rejected
 	}
 
-	const { clearSiteConfigDraft } = await import('../../site-config-local-shared.ts')
+	const { clearSiteConfigDraft, isSiteConfigLocalValidationError } = await import('../../site-config-local-shared.ts')
 
 	try {
 		await clearSiteConfigDraft(process.cwd())
 		return NextResponse.json({ success: true, hasDraft: false, items: [] })
 	} catch (error) {
+		if (isSiteConfigLocalValidationError(error)) {
+			return NextResponse.json({ error: error.message }, { status: 400 })
+		}
 		const details = error instanceof Error ? error.message : String(error)
 		return NextResponse.json({ error: `清除站点配置草稿失败：${details}` }, { status: 500 })
 	}
