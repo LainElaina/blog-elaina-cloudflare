@@ -92,6 +92,39 @@ describe('share migration contracts', () => {
 		assert.equal(result.normalized.storage.updatedAt, undefined)
 	})
 
+	it('verify 会将相对分享目录树路径标记为需要重建', () => {
+		const storageRaw = createStorageRaw({
+			alpha: {
+				slug: 'alpha',
+				name: 'Alpha',
+				logo: '/alpha.png',
+				url: 'https://alpha.dev',
+				description: 'alpha',
+				tags: ['tool'],
+				stars: 4,
+				folderPath: '/design/tools',
+				status: 'published'
+			}
+		})
+		const rebuilt = rebuildShareRuntimeArtifactsFromStorage(storageRaw)
+		const folders = JSON.parse(rebuilt.artifacts.folders) as Array<{ path: string; children: Array<{ path: string }> }>
+		folders[0] = {
+			...folders[0],
+			path: 'design',
+			children: folders[0].children.map(child => ({ ...child, path: 'design/tools' }))
+		}
+
+		const result = verifyShareLedgerAgainstRuntime({
+			storage: storageRaw,
+			runtimeArtifacts: {
+				...rebuilt.artifacts,
+				folders: JSON.stringify(folders, null, 2)
+			}
+		})
+
+		assert.deepEqual(result.artifactsToRebuild, ['public/share/folders.json'])
+	})
+
 	it('runtime -> sync -> rebuild -> verify 往返后无 drift，且保留非 published 记录', () => {
 		const synced = syncShareRuntimeArtifactsToLedger({
 			list: JSON.stringify([

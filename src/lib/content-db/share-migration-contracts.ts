@@ -54,6 +54,10 @@ function normalizeFolderPath(value: unknown): string | undefined {
 	return parts.length > 0 ? `/${parts.join('/')}` : undefined
 }
 
+function isSafeFolderPath(value: unknown): value is string {
+	return typeof value === 'string' && value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -266,6 +270,9 @@ function parseFolderNode(value: unknown, label: string): BlogFolderNode {
 	if (typeof raw.path !== 'string') {
 		throw createInvalidShapeError(`${label}.path`, '期望字符串')
 	}
+	if (!isSafeFolderPath(raw.path)) {
+		throw createInvalidShapeError(`${label}.path`, '期望安全绝对文件夹路径')
+	}
 	const path = normalizeFolderPath(raw.path)
 	if (!path) {
 		throw createInvalidShapeError(`${label}.path`, '期望非空文件夹路径')
@@ -428,6 +435,23 @@ function normalizeArtifactsForCompare(params: {
 	return { list, categories, folders, storage }
 }
 
+function normalizeArtifactsForCompareWithFolderRebuild(params: {
+	list: ShareMigrationListItem[] | string
+	categories: { categories?: unknown } | string
+	folders: BlogFolderNode[] | string
+	storage: ShareMigrationStorage | string
+}) {
+	try {
+		return { normalized: normalizeArtifactsForCompare(params), shouldRebuildFolders: false }
+	} catch (error) {
+		if (error instanceof Error && error.message.startsWith('runtimeArtifacts.folders')) {
+			const normalized = normalizeArtifactsForCompare({ ...params, folders: [] })
+			return { normalized, shouldRebuildFolders: true }
+		}
+		throw error
+	}
+}
+
 export function syncShareRuntimeArtifactsToLedger(params: {
 	list: ShareMigrationListItem[] | string
 	storage: ShareMigrationStorage | string
@@ -477,7 +501,7 @@ export function verifyShareLedgerAgainstRuntime(params: {
 }) {
 	const storage = parseStorage(params.storage, 'storage')
 	const rebuilt = rebuildShareRuntimeArtifactsFromStorage(storage)
-	const normalizedRuntime = normalizeArtifactsForCompare({
+	const { normalized: normalizedRuntime, shouldRebuildFolders } = normalizeArtifactsForCompareWithFolderRebuild({
 		list: params.runtimeArtifacts.list,
 		categories: params.runtimeArtifacts.categories,
 		folders: params.runtimeArtifacts.folders,
@@ -497,7 +521,7 @@ export function verifyShareLedgerAgainstRuntime(params: {
 	if (stringifyStable(normalizedRuntime.categories) !== stringifyStable(normalizedRebuilt.categories)) {
 		artifactsToRebuild.push(SHARE_ARTIFACT_PATHS.categories)
 	}
-	if (stringifyStable(normalizedRuntime.folders) !== stringifyStable(normalizedRebuilt.folders)) {
+	if (shouldRebuildFolders || stringifyStable(normalizedRuntime.folders) !== stringifyStable(normalizedRebuilt.folders)) {
 		artifactsToRebuild.push(SHARE_ARTIFACT_PATHS.folders)
 	}
 	if (stringifyStable(normalizedRuntime.storage) !== stringifyStable(normalizedRebuilt.storage)) {
