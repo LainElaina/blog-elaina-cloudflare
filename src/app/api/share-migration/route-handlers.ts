@@ -101,6 +101,29 @@ function mapContractErrorToArtifactPath(message: string): string | null {
   return null
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isSafeShareFolderPath(value: unknown) {
+  return typeof value === 'string' && value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
+}
+
+function isShareFolderNode(value: unknown): value is { name: string; path: string; children: unknown[] } {
+  return isObject(value) && typeof value.name === 'string' && isSafeShareFolderPath(value.path) && Array.isArray(value.children)
+}
+
+function validateShareFolderNodes(nodes: unknown[]): boolean {
+  return nodes.every(node => isShareFolderNode(node) && validateShareFolderNodes(node.children))
+}
+
+function validateShareFoldersArtifact(raw: string) {
+  const parsed = JSON.parse(raw) as unknown
+  if (!Array.isArray(parsed) || !validateShareFolderNodes(parsed)) {
+    throw new ShareArtifactError('ARTIFACT_INVALID_SHAPE', LOCAL_SHARE_SAVE_PATHS.folders, LOCAL_SHARE_SAVE_PATHS.folders + ' 的内容结构不合法')
+  }
+}
+
 function createArtifactShapeError(error: unknown): ShareArtifactError | null {
   const message = error instanceof Error ? error.message : String(error)
   const artifactPath = mapContractErrorToArtifactPath(message)
@@ -180,6 +203,8 @@ async function readStrictArtifact(params: {
 }
 
 function validateStrictArtifactShape(runtimeArtifacts: ShareRuntimeArtifactsText) {
+  validateShareFoldersArtifact(runtimeArtifacts.folders)
+
   try {
     const synced = syncShareRuntimeArtifactsToLedger({
       list: runtimeArtifacts.list,

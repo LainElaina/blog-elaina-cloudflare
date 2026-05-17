@@ -213,6 +213,32 @@ describe('share migration route handlers', () => {
     }
   })
 
+  it('preview rejects unsafe share folder tree paths as invalid shape', async () => {
+    const context = await setupShareArtifactsRepo({
+      malformedArtifacts: {
+        folders: JSON.stringify([{ name: 'Unsafe Share Folder', path: '../private', children: [] }], null, 2)
+      }
+    })
+
+    try {
+      const response = await previewRoute({
+        nodeEnv: 'development',
+        baseDir: context.repoDir
+      })
+
+      assert.equal(response.status, 400)
+      assert.equal(response.body.ok, false)
+      assert.equal(response.body.operation, 'preview')
+      assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+      assert.equal(response.body.message, 'public/share/folders.json 的内容结构不合法')
+      assert.deepEqual(response.body.details, {
+        artifact: SHARE_ARTIFACT_PATHS.folders
+      })
+    } finally {
+      await context.cleanup()
+    }
+  })
+
   it('preview returns a structured storage slug mismatch error', async () => {
     const context = await setupShareArtifactsRepo({
       malformedArtifacts: {
