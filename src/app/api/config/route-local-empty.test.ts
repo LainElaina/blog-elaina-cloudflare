@@ -317,6 +317,16 @@ test('local config write rejects symlinked src config directory', async () => {
 		await fs.rm(outsideDir, { recursive: true, force: true })
 	}
 })
+test('local config write validates site content local assets inside mutation lock', async () => {
+	const source = await fs.readFile(new URL('./route-local.ts', import.meta.url), 'utf-8')
+	const lockStart = source.indexOf('await withSiteConfigLocalMutationLock(process.cwd(), async () => {')
+	const assetValidation = source.indexOf('await assertSiteConfigDraftLocalAssetsExist(process.cwd(), { siteContent: configPayload.siteContent })')
+
+	assert.notEqual(lockStart, -1)
+	assert.notEqual(assetValidation, -1)
+	assert.ok(assetValidation > lockStart, 'asset validation must run inside the site-config mutation lock')
+})
+
 test('local config write rejects missing site content local assets without touching formal config', async () => {
 	await withTemporaryCwd(async tmpDir => {
 		const formalPath = path.join(tmpDir, 'src/config/site-content.json')

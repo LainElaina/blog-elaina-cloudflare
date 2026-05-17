@@ -181,10 +181,6 @@ export async function handleConfigPost(request: NextRequest) {
 			return shapeErrorResponse
 		}
 
-		if (configPayload.siteContent !== undefined) {
-			await assertSiteConfigDraftLocalAssetsExist(process.cwd(), { siteContent: configPayload.siteContent })
-		}
-
 		const configDir = path.join(process.cwd(), 'src/config')
 		const writes = buildConfigWrites(configPayload)
 		if (writes.length === 0) {
@@ -194,6 +190,10 @@ export async function handleConfigPost(request: NextRequest) {
 		const touchedConfig: string[] = []
 
 		await withSiteConfigLocalMutationLock(process.cwd(), async () => {
+			if (configPayload.siteContent !== undefined) {
+				await assertSiteConfigDraftLocalAssetsExist(process.cwd(), { siteContent: configPayload.siteContent })
+			}
+
 			try {
 				for (const write of writes) {
 					const filePath = path.join(configDir, write.fileName)
