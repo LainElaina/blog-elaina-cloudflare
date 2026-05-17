@@ -465,14 +465,19 @@ async function rollbackSiteConfigFormalWrites(backups: SiteConfigFormalBackup[])
 async function readFormalSiteContent(baseDir: string): Promise<SiteContentWithSocialButtons | null> {
 	const siteContentPath = path.join(baseDir, 'src/config/site-content.json')
 	await assertSafeSiteConfigProjectPath(baseDir, siteContentPath)
+	let raw: string
 	try {
-		const raw = await fs.readFile(siteContentPath, 'utf-8')
-		return JSON.parse(raw) as SiteContentWithSocialButtons
+		raw = await fs.readFile(siteContentPath, 'utf-8')
 	} catch (error) {
 		if (isFileNotFoundError(error)) {
 			return null
 		}
 		throw error
+	}
+	try {
+		return JSON.parse(raw) as SiteContentWithSocialButtons
+	} catch {
+		throw new SiteConfigLocalValidationError('站点配置正式配置解析失败，请修复 src/config/site-content.json 后重试')
 	}
 }
 

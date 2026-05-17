@@ -285,6 +285,28 @@ test('site config publish rejects invalid saved draft values without touching fo
 	})
 })
 
+test('site config publish rejects malformed formal site content before publishing draft', async () => {
+	await withDevelopmentCwd(async tmpDir => {
+		const formalPath = path.join(tmpDir, 'src/config/site-content.json')
+		await fs.writeFile(formalPath, '{invalid json')
+		await writeSiteConfigDraft(tmpDir, { siteContent: { meta: { title: 'saved draft' } } })
+
+		const response = await POST(
+			new Request('http://localhost/api/publish/site-config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ siteContent: { meta: { title: 'current publish' } } })
+			})
+		)
+		const payload = await response.json()
+
+		assert.equal(response.status, 400)
+		assert.deepEqual(payload, { error: '站点配置正式配置解析失败，请修复 src/config/site-content.json 后重试' })
+		assert.equal(await fs.readFile(formalPath, 'utf-8'), '{invalid json')
+		assert.equal((await fs.readFile(path.join(tmpDir, 'data/site-config.draft.json'), 'utf-8')).includes('saved draft'), true)
+	})
+})
+
 test('site config publish keeps unrelated saved draft keys after explicit partial publish', async () => {
 	await withDevelopmentCwd(async tmpDir => {
 		await fs.writeFile(path.join(tmpDir, 'src/config/site-content.json'), JSON.stringify({ meta: { title: 'formal' } }, null, '\t'))
