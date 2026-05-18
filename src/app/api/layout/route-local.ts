@@ -17,6 +17,10 @@ function getBackupPath() {
 	return path.join(process.cwd(), 'data/layout.bak.json')
 }
 
+function isFileNotFoundError(error: unknown) {
+	return error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+}
+
 export async function handleLayoutGet() {
 	try {
 		const layoutPath = getLayoutPath()
@@ -38,6 +42,9 @@ export async function handleLayoutGet() {
 	} catch (error) {
 		if (isSiteConfigLocalValidationError(error)) {
 			return NextResponse.json({ error: 'Failed to read layout' }, { status: 400 })
+		}
+		if (isFileNotFoundError(error)) {
+			return NextResponse.json({ error: '布局配置文件不存在' }, { status: 404 })
 		}
 		const details = error instanceof Error ? error.message : String(error)
 		return NextResponse.json({ error: `Failed to read layout: ${details}` }, { status: 500 })

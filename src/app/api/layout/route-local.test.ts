@@ -284,6 +284,23 @@ test('layout local route returns 400 when saved layout JSON is malformed', async
 	}
 })
 
+test('layout local route returns 404 when saved layout file is missing', async () => {
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-missing-'))
+	const previousCwd = process.cwd()
+	try {
+		await fs.mkdir(path.join(tmpDir, 'src/config'), { recursive: true })
+		process.chdir(tmpDir)
+
+		const response = await handleLayoutGet()
+
+		assert.equal(response.status, 404)
+		assert.deepEqual(await response.json(), { error: '布局配置文件不存在' })
+	} finally {
+		process.chdir(previousCwd)
+		await fs.rm(tmpDir, { recursive: true, force: true })
+	}
+})
+
 test('layout local route rejects invalid saved layout shape', async () => {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'layout-route-get-invalid-shape-'))
 	const previousCwd = process.cwd()
