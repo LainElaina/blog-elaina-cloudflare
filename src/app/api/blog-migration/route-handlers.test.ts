@@ -273,6 +273,77 @@ describe('blog migration routes', () => {
 		}
 	})
 
+	it('preview route 拒绝不安全博客索引 folderPath', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/index.json'),
+				JSON.stringify(
+					[
+						{
+							slug: 'post-a',
+							title: 'A',
+							tags: [],
+							date: '2026-04-13T07:00:00.000Z',
+							folderPath: '../private'
+						}
+					],
+					null,
+					2
+				)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/index.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
+	it('preview route 拒绝不安全博客 storage folderPath', async () => {
+		const context = await setupBlogArtifactsRepo()
+
+		try {
+			await writeFile(
+				join(context.repoDir, 'public/blogs/storage.json'),
+				JSON.stringify(
+					{
+						version: 1,
+						updatedAt: '2026-04-13T07:00:00.000Z',
+						blogs: {
+							'post-draft': {
+								slug: 'post-draft',
+								title: 'Draft',
+								tags: [],
+								date: '2026-04-13T07:00:00.000Z',
+								folderPath: '../private',
+								status: 'draft'
+							}
+						}
+					},
+					null,
+					2
+				)
+			)
+			const response = await previewRoute({
+				nodeEnv: 'development',
+				baseDir: context.repoDir
+			})
+
+			assert.equal(response.status, 400)
+			assert.equal(response.body.code, 'ARTIFACT_INVALID_SHAPE')
+			assert.deepEqual(response.body.details, { artifact: 'public/blogs/storage.json' })
+		} finally {
+			await context.cleanup()
+		}
+	})
+
 	it('execute route 拒绝非法博客正式产物结构且不会写回', async () => {
 		const context = await setupBlogArtifactsRepo()
 

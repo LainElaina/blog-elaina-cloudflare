@@ -159,7 +159,7 @@ function validateBlogIndexArtifact(raw: string) {
 			('cover' in item && typeof item.cover !== 'string') ||
 			('hidden' in item && typeof item.hidden !== 'boolean') ||
 			('category' in item && typeof item.category !== 'string') ||
-			('folderPath' in item && typeof item.folderPath !== 'string') ||
+			('folderPath' in item && !isSafeBlogFolderPath(item.folderPath)) ||
 			('favorite' in item && typeof item.favorite !== 'boolean')
 		) {
 			throwInvalidShape(artifactPath)
@@ -220,7 +220,7 @@ function validateBlogStorageArtifact(raw: string | null) {
 			('cover' in record && typeof record.cover !== 'string') ||
 			('hidden' in record && typeof record.hidden !== 'boolean') ||
 			('category' in record && typeof record.category !== 'string') ||
-			('folderPath' in record && typeof record.folderPath !== 'string') ||
+			('folderPath' in record && !isSafeBlogFolderPath(record.folderPath)) ||
 			('favorite' in record && typeof record.favorite !== 'boolean')
 		) {
 			throwInvalidShape(artifactPath)
