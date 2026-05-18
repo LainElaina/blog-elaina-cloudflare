@@ -148,12 +148,20 @@ function parseSlug(value: unknown, label: string): string {
 	return slug
 }
 
+function parseFolderPathField(value: unknown, label: string): string | undefined {
+	const folderPath = normalizeFolderPath(expectString(value, label))
+	if (folderPath && !isSafeFolderPath(folderPath)) {
+		throw createInvalidShapeError(label, '期望安全绝对文件夹路径')
+	}
+	return folderPath
+}
+
 function parseCanonicalFolderPath(raw: Record<string, unknown>, label: string): string | undefined {
 	if (hasOwn(raw, 'folderPath') && raw.folderPath !== undefined) {
-		return normalizeFolderPath(expectString(raw.folderPath, `${label}.folderPath`))
+		return parseFolderPathField(raw.folderPath, `${label}.folderPath`)
 	}
 	if (hasOwn(raw, 'folder') && raw.folder !== undefined) {
-		return normalizeFolderPath(expectString(raw.folder, `${label}.folder`))
+		return parseFolderPathField(raw.folder, `${label}.folder`)
 	}
 	return undefined
 }

@@ -307,6 +307,49 @@ describe('share migration contracts', () => {
 		assert.equal(Object.prototype.hasOwnProperty.call(listItem, 'folderPath'), false)
 	})
 
+	it('sync 拒绝不安全 runtime list folderPath', () => {
+		assert.throws(
+			() =>
+				syncShareRuntimeArtifactsToLedger({
+					list: JSON.stringify([
+						{
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							folderPath: '../private'
+						}
+					]),
+					storage: createStorageRaw({})
+				}),
+			/list\[0\]\.folderPath.*非法 shape/
+		)
+	})
+
+	it('rebuild 拒绝不安全 storage folderPath', () => {
+		assert.throws(
+			() =>
+				rebuildShareRuntimeArtifactsFromStorage(
+					createStorageRaw({
+						alpha: {
+							slug: 'alpha',
+							name: 'Alpha',
+							logo: '/alpha.png',
+							url: 'https://alpha.dev',
+							description: 'alpha',
+							tags: ['tool'],
+							stars: 4,
+							folderPath: '../private',
+							status: 'published'
+						}
+					})
+				),
+			/storage\.shares\.alpha\.folderPath.*非法 shape/
+		)
+	})
+
 	it('显式空白 folderPath 会清空 canonical folderPath，且不会复活 legacy folder', () => {
 		const synced = syncShareRuntimeArtifactsToLedger({
 			list: JSON.stringify([
