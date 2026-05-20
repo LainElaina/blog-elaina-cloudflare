@@ -62,7 +62,7 @@ export default function Page() {
 						onClick={() => handleCopy(label, key)}
 						title={'Click to copy import command'}
 						type='button'
-						className='bg-background group relative flex flex-col items-center rounded-md border p-3 text-left transition-colors hover:bg-slate-800/5'>
+						className='bg-background group virtual-scroll-item relative flex flex-col items-center rounded-md border p-3 text-left transition-colors hover:bg-slate-800/5'>
 						<div className='flex h-12 items-center justify-center'>
 							<Component className='h-8 w-8' />
 						</div>

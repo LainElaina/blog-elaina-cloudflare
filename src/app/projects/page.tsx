@@ -217,7 +217,9 @@ export default function Page() {
 			<div className='flex flex-col items-center justify-center px-6 pt-32 pb-12'>
 				<div className='grid w-full max-w-[1200px] grid-cols-2 gap-6 max-md:grid-cols-1'>
 					{projects.map((project, index) => (
-						<ProjectCard key={project.url} project={project} isEditMode={isEditMode} onUpdate={handleUpdate} onDelete={() => handleDelete(project)} />
+						<div key={project.url} className='virtual-scroll-item'>
+							<ProjectCard project={project} isEditMode={isEditMode} onUpdate={handleUpdate} onDelete={() => handleDelete(project)} />
+						</div>
 					))}
 				</div>
 			</div>

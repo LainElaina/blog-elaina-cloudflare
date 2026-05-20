@@ -12,6 +12,11 @@
 	}
 }
 
+@utility virtual-scroll-item {
+	content-visibility: auto;
+	contain-intrinsic-size: auto var(--virtual-scroll-item-size, 320px);
+}
+
 @layer base {
 	html {
 		@apply text-primary bg-bg h-full leading-tight;

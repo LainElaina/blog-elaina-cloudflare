@@ -568,7 +568,7 @@ export default function BlogPage() {
 											key={it.slug}
 											onClick={event => handleItemClick(event, it.slug)}
 											className={cn(
-												'group flex min-h-10 items-center gap-3 py-3 transition-all',
+												'group virtual-scroll-item flex min-h-10 items-center gap-3 py-3 transition-all',
 												editMode
 													? cn(
 															'rounded-lg border px-3',

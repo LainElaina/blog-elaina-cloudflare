@@ -346,7 +346,7 @@ export default function Page() {
 							{images.map((item, index) => {
 								const { file, preview, converted, converting } = item
 								return (
-									<li key={`${file.name}-${index}`} className='flex items-center gap-4 py-3'>
+									<li key={`${file.name}-${index}`} className='virtual-scroll-item flex items-center gap-4 py-3'>
 										<div className='h-12 w-12 overflow-hidden rounded-xl border border-slate-200 bg-slate-50'>
 											<img src={preview} alt={file.name} className='h-full w-full object-cover' />
 										</div>

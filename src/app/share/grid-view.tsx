@@ -67,7 +67,9 @@ export default function GridView({
 
 			<div className='grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3'>
 				{shares.map(share => (
-					<ShareCard key={getShareKey(share)} share={share} isEditMode={isEditMode} onUpdate={onUpdate} onDelete={() => onDelete?.(share)} />
+					<div key={getShareKey(share)} className='virtual-scroll-item'>
+						<ShareCard share={share} isEditMode={isEditMode} onUpdate={onUpdate} onDelete={() => onDelete?.(share)} />
+					</div>
 				))}
 			</div>
 

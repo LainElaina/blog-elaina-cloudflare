@@ -215,7 +215,7 @@ export default function Page() {
 					<div className='max-h-[320px] space-y-2 overflow-y-auto pr-1'>
 						{draftSnippets.length === 0 && <p className='text-secondary py-6 text-center text-sm'>暂无内容</p>}
 						{draftSnippets.map((item, index) => (
-							<div key={`${item}-${index}`} className='group flex items-start gap-3 rounded-lg px-3 py-2 text-sm'>
+							<div key={`${item}-${index}`} className='group virtual-scroll-item flex items-start gap-3 rounded-lg px-3 py-2 text-sm'>
 								<p className='flex-1 leading-relaxed text-gray-800'>{item}</p>
 								<button onClick={() => handleRemoveDraft(index)} className='text-gray-400 transition-colors hover:text-red-500'>
 									<X className='h-4 w-4' />

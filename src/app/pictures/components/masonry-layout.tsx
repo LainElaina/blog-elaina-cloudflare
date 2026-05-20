@@ -70,7 +70,7 @@ export function MasonryLayout({ pictures, isEditMode = false, onDeleteSingle }: 
 						initial={{ opacity: 0, y: 16 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
-						className='group relative mb-4 break-inside-avoid overflow-hidden'
+						className='group virtual-scroll-item relative mb-4 break-inside-avoid overflow-hidden'
 						style={{
 							borderRadius: 'var(--card-inner-radius)',
 							background: 'var(--card-bg)',
