@@ -11,7 +11,7 @@ type CodeBlockProps = {
 
 export function CodeBlock({ children, code }: CodeBlockProps) {
 	const [copied, setCopied] = useState(false)
-	const [wrapped, setWrapped] = useState(false)
+	const [wrapped, setWrapped] = useState(true)
 	const [fullscreen, setFullscreen] = useState(false)
 
 	const handleCopy = async () => {

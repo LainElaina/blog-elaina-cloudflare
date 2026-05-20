@@ -250,7 +250,7 @@
 	height: 100%;
 	overflow: auto;
 	margin: 0;
-	padding-top: 3.25rem;
+	padding: 3.25rem 1.25rem 1.25rem;
 }
 
 /* Images */
