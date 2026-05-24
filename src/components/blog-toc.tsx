@@ -72,7 +72,7 @@ export function BlogToc({ toc, delay = 0 }: BlogTocProps) {
 					<a
 						key={item.id + item.level}
 						href={`#${item.id}`}
-						className={clsx('text-secondary/90 hover:text-brand relative block font-medium pl-3 transition-colors', item.id === minActiveId && 'text-brand')}
+						className={clsx('text-foreground/90 hover:text-brand relative block font-medium pl-3 transition-colors', item.id === minActiveId && 'text-brand')}
 						style={{ paddingLeft: (item.level - 1) * 8 }}>
 						{item.text}
 					</a>

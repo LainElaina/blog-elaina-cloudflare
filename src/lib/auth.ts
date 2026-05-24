@@ -1,6 +1,5 @@
 import { createInstallationToken, getInstallationId, signAppJwt, type InstallationToken } from './github-client'
 import { assertGitHubWriteConfigAvailable, GITHUB_CONFIG } from '@/consts'
-import { useAuthStore } from '@/hooks/use-auth'
 import { toast } from 'sonner'
 import { decrypt,encrypt } from './aes256-util'
 
@@ -113,6 +112,7 @@ export async function getAuthToken(): Promise<string> {
 	}
 
 	// 2. 获取私钥（从缓存）
+	const { useAuthStore } = await import('@/hooks/use-auth')
 	const privateKey = useAuthStore.getState().privateKey
 	if (!privateKey) {
 		throw new Error('需要先设置私钥。请使用 useAuth().setPrivateKey()')

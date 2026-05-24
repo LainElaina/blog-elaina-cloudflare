@@ -1,14 +1,14 @@
 'use client'
 
-import { useAuthStore } from '@/hooks/use-auth'
 import { KJUR, KEYUTIL } from 'jsrsasign'
 import { toast } from 'sonner'
 
 export const GH_API = 'https://api.github.com'
 
-function handle401Error(): void {
+async function handle401Error(): Promise<void> {
 	if (typeof sessionStorage === 'undefined') return
 	try {
+		const { useAuthStore } = await import('@/hooks/use-auth')
 		useAuthStore.getState().clearAuth()
 	} catch (error) {
 		console.error('Failed to clear auth cache:', error)
@@ -72,7 +72,7 @@ export async function getInstallationId(jwt: string, owner: string, repo: string
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw new Error(`installation lookup failed: ${res.status}`)
 	const data = await res.json()
@@ -93,7 +93,7 @@ export async function createInstallationToken(jwt: string, installationId: numbe
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw new Error(`create token failed: ${res.status}`)
 	const data = await res.json()
@@ -111,7 +111,7 @@ export async function getFileSha(token: string, owner: string, repo: string, pat
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (res.status === 404) return undefined
 	if (!res.ok) throw await buildGitHubApiError('get file sha', res)
@@ -131,7 +131,7 @@ export async function putFile(token: string, owner: string, repo: string, path: 
 		},
 		body: JSON.stringify({ message, content: contentBase64, branch, ...(sha ? { sha } : {}) })
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw await buildGitHubApiError('put file', res)
 	return res.json()
@@ -147,7 +147,7 @@ export async function getRef(token: string, owner: string, repo: string, ref: st
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw await buildGitHubApiError('get ref', res)
 	const data = await res.json()
@@ -165,7 +165,7 @@ export async function getCommit(token: string, owner: string, repo: string, comm
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw await buildGitHubApiError('get commit', res)
 	const data = await res.json()
@@ -195,7 +195,7 @@ export async function createTree(token: string, owner: string, repo: string, tre
 		},
 		body: JSON.stringify({ tree, base_tree: baseTree })
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw await buildGitHubApiError('create tree', res)
 	const data = await res.json()
@@ -213,7 +213,7 @@ export async function createCommit(token: string, owner: string, repo: string, m
 		},
 		body: JSON.stringify({ message, tree, parents })
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw await buildGitHubApiError('create commit', res)
 	const data = await res.json()
@@ -260,7 +260,7 @@ export async function updateRef(token: string, owner: string, repo: string, ref:
 		},
 		body: JSON.stringify({ sha, force })
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) {
 		const error = new GitHubUpdateRefError(res.status, await readGitHubErrorMessage(res))
 		if (!isGitHubUpdateRefConflictError(error)) {
@@ -279,7 +279,7 @@ export async function readTextFileFromRepo(token: string, owner: string, repo: s
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (res.status === 404) return null
 	if (!res.ok) throw await buildGitHubApiError('read file', res)
@@ -306,7 +306,7 @@ export async function listRepoFilesRecursive(token: string, owner: string, repo:
 				'X-GitHub-Api-Version': '2022-11-28'
 			}
 		})
-		if (res.status === 401) handle401Error()
+		if (res.status === 401) await handle401Error()
 		if (res.status === 422) handle422Error()
 		if (res.status === 404) return []
 		if (!res.ok) throw await buildGitHubApiError('read directory', res)
@@ -356,7 +356,7 @@ export async function createBlob(
 		},
 		body: JSON.stringify({ content, encoding })
 	})
-	if (res.status === 401) handle401Error()
+	if (res.status === 401) await handle401Error()
 	if (res.status === 422) handle422Error()
 	if (!res.ok) throw await buildGitHubApiError('create blob', res)
 	const data = await res.json()

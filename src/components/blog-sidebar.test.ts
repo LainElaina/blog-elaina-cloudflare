@@ -21,5 +21,5 @@ test('blog table of contents uses stronger glass blur', () => {
 test('blog table of contents improves title and item readability', () => {
 	assert.match(tocSource, /className='[^']*bg-card\/95[^']*backdrop-blur-lg[^']*'/)
 	assert.match(tocSource, /<h2 className='text-foreground mb-2 font-semibold'>目录<\/h2>/)
-	assert.match(tocSource, /className=\{clsx\('text-secondary\/90 hover:text-brand relative block font-medium pl-3 transition-colors'/)
+	assert.match(tocSource, /className=\{clsx\('text-foreground\/90 hover:text-brand relative block font-medium pl-3 transition-colors'/)
 })
