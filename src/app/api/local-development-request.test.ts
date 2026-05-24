@@ -84,32 +84,57 @@ test('local-only wrapper dynamic imports are covered by production IgnorePlugin'
 	assert.deepEqual(uncoveredSpecifiers, [])
 })
 
-test('development server script binds only to loopback by default', async () => {
+test('development server script supports localhost browser access from containerized dev environments', async () => {
 	const packageJson = JSON.parse(await readFile(new URL('../../../package.json', import.meta.url), 'utf-8')) as { scripts?: Record<string, string> }
 	const devScript = packageJson.scripts?.dev ?? ''
 
-	assert.match(devScript, /(?:^|\s)-H\s+127\.0\.0\.1(?:\s|$)/)
-	assert.doesNotMatch(devScript, /(?:^|\s)-H\s+0\.0\.0\.0(?:\s|$)/)
+	assert.match(devScript, /(?:^|\s)-H\s+0\.0\.0\.0(?:\s|$)/)
 })
 
 function request(url: string, headers?: Record<string, string>) {
 	return new Request(url, { headers })
 }
 
-test('local development request guard allows same-origin localhost requests', () => {
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://localhost:2025/api/save-file')), true)
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://127.0.0.1:2025/api/save-file', { origin: 'http://127.0.0.1:2025' })), true)
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://[::1]:2025/api/save-file', { 'sec-fetch-site': 'same-origin' })), true)
+test('local development request guard allows same-origin localhost requests in development', () => {
+	const previousNodeEnv = process.env.NODE_ENV
+	try {
+		process.env.NODE_ENV = 'development'
+		assert.equal(isAllowedLocalDevelopmentRequest(request('http://localhost:2025/api/save-file')), true)
+		assert.equal(isAllowedLocalDevelopmentRequest(request('http://127.0.0.1:2025/api/save-file', { origin: 'http://127.0.0.1:2025' })), true)
+		assert.equal(isAllowedLocalDevelopmentRequest(request('http://[::1]:2025/api/save-file', { 'sec-fetch-site': 'same-origin' })), true)
+	} finally {
+		process.env.NODE_ENV = previousNodeEnv
+	}
 })
 
-test('local development request guard rejects non-loopback request targets and hosts', () => {
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://192.168.1.10:2025/api/save-file')), false)
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://localhost:2025/api/save-file', { host: '192.168.1.10:2025' })), false)
+test('local development request guard allows development access through virtual network hosts', () => {
+	const previousNodeEnv = process.env.NODE_ENV
+	try {
+		process.env.NODE_ENV = 'development'
+		assert.equal(
+			isAllowedLocalDevelopmentRequest(
+				request('http://192.168.1.10:2025/api/upload-image', {
+					host: '100.93.11.70:2025',
+					origin: 'http://100.93.11.70:2025',
+					'sec-fetch-site': 'same-origin'
+				})
+			),
+			true
+		)
+		assert.equal(isAllowedLocalDevelopmentRequest(request('http://100.93.11.70:2025/api/save-file', { origin: 'http://100.93.11.70:2025' })), true)
+	} finally {
+		process.env.NODE_ENV = previousNodeEnv
+	}
 })
 
-test('local development request guard rejects cross-origin browser submissions', () => {
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://localhost:2025/api/save-file', { origin: 'http://evil.test' })), false)
-	assert.equal(isAllowedLocalDevelopmentRequest(request('http://localhost:2025/api/save-file', { 'sec-fetch-site': 'cross-site' })), false)
+test('rejectNonLocalDevelopmentRequest allows non-loopback development calls', () => {
+	const previousNodeEnv = process.env.NODE_ENV
+	try {
+		process.env.NODE_ENV = 'development'
+		assert.equal(rejectNonLocalDevelopmentRequest(request('http://192.168.1.10:2025/api/save-file')), null)
+	} finally {
+		process.env.NODE_ENV = previousNodeEnv
+	}
 })
 
 test('rejectNonLocalDevelopmentRequest keeps production blocked before host checks', async () => {
@@ -124,13 +149,12 @@ test('rejectNonLocalDevelopmentRequest keeps production blocked before host chec
 	}
 })
 
-test('rejectNonLocalDevelopmentRequest rejects LAN-origin development calls', async () => {
+test('rejectNonLocalDevelopmentRequest allows virtual network development calls', () => {
 	const previousNodeEnv = process.env.NODE_ENV
 	try {
 		process.env.NODE_ENV = 'development'
-		const response = rejectNonLocalDevelopmentRequest(request('http://192.168.1.10:2025/api/save-file'))
-		assert.equal(response?.status, 403)
-		assert.deepEqual(await response?.json(), { error: '此接口仅允许本机开发页面调用' })
+		assert.equal(rejectNonLocalDevelopmentRequest(request('http://192.168.1.10:2025/api/save-file')), null)
+		assert.equal(rejectNonLocalDevelopmentRequest(request('http://100.93.11.70:2025/api/save-file')), null)
 	} finally {
 		process.env.NODE_ENV = previousNodeEnv
 	}
