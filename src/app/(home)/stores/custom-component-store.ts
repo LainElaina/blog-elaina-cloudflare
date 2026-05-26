@@ -72,14 +72,21 @@ export function normalizeCustomComponents(value: unknown): CustomComponent[] {
 	return Array.isArray(value) ? value.filter(isCustomComponent) : []
 }
 
-// 初始化：优先用 localStorage（本地编辑缓存），否则用项目 JSON 文件（部署数据源）
+export function mergeCustomComponentsWithDefaults(saved: unknown, defaults: unknown): CustomComponent[] {
+	const savedComponents = normalizeCustomComponents(saved)
+	const defaultComponents = normalizeCustomComponents(defaults)
+	const savedIds = new Set(savedComponents.map(component => component.id))
+	return [...savedComponents, ...defaultComponents.filter(component => !savedIds.has(component.id))]
+}
+
+// 初始化：合并 localStorage 本地编辑缓存与项目 JSON 文件（部署数据源），避免旧缓存遮蔽新部署组件
 const getInitialComponents = (): CustomComponent[] => {
 	if (typeof window === 'undefined') return normalizeCustomComponents(customComponentsDefault)
 	try {
 		const saved = localStorage.getItem('custom-components')
 		if (saved) {
 			const parsed = JSON.parse(saved)
-			if (Array.isArray(parsed)) return normalizeCustomComponents(parsed)
+			if (Array.isArray(parsed)) return mergeCustomComponentsWithDefaults(parsed, customComponentsDefault)
 		}
 	} catch {}
 	return normalizeCustomComponents(customComponentsDefault)
