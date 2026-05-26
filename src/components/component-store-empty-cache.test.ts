@@ -7,9 +7,9 @@ test('component store hydrates explicit empty cached lists', async () => {
 
 	assert.match(
 		source,
-		/const savedCustom = readCachedList\('custom-components'\)\n\s*if \(savedCustom\) \{\n\s*useCustomComponentStore\.setState\(\{ components: normalizeCustomComponents\(savedCustom\) \}\)/
+		/const savedCustom = readCachedList\('custom-components'\)\n\s*if \(savedCustom\) \{\n\s*useCustomComponentStore\.setState\(\{ components: mergeCustomComponentsWithDefaults\(savedCustom, customComponentsDefault\) \}\)/
 	)
-	assert.match(source, /import \{ normalizeCustomComponents, useCustomComponentStore \}/)
+	assert.match(source, /import \{ mergeCustomComponentsWithDefaults, normalizeCustomComponents, useCustomComponentStore \}/)
 	assert.match(source, /import \{ normalizeTemplates, useTemplateStore \}/)
 	assert.match(source, /import \{ normalizeComponentFavoriteImports, normalizeComponentFavorites, useComponentFavoriteStore \}/)
 	assert.doesNotMatch(source, /Array\.isArray\(parsed\) && parsed\.length > 0/)

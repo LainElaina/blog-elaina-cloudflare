@@ -3,7 +3,7 @@
 import { Store, X, Plus, Star, Copy, Save } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { normalizeTemplates, useTemplateStore } from '../app/(home)/stores/template-store'
-import { normalizeCustomComponents, useCustomComponentStore } from '../app/(home)/stores/custom-component-store'
+import { mergeCustomComponentsWithDefaults, normalizeCustomComponents, useCustomComponentStore } from '../app/(home)/stores/custom-component-store'
 import { normalizeComponentFavoriteImports, normalizeComponentFavorites, useComponentFavoriteStore } from '../app/(home)/stores/component-favorite-store'
 import { useConfigStore } from '../app/(home)/stores/config-store'
 import { useLayoutEditStore } from '../app/(home)/stores/layout-edit-store'
@@ -135,10 +135,10 @@ export function ComponentStore() {
 			useTemplateStore.setState({ templates: normalizeTemplates(savedTemplates) })
 		}
 
-		// 加载自定义组件（localStorage 有数据则用，否则用项目 JSON 文件）
+		// 加载自定义组件（合并 localStorage 编辑缓存与项目 JSON 文件，避免旧缓存遮蔽部署数据）
 		const savedCustom = readCachedList('custom-components')
 		if (savedCustom) {
-			useCustomComponentStore.setState({ components: normalizeCustomComponents(savedCustom) })
+			useCustomComponentStore.setState({ components: mergeCustomComponentsWithDefaults(savedCustom, customComponentsDefault) })
 		}
 
 		// 加载收藏
