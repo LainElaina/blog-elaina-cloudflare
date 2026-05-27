@@ -8,6 +8,8 @@ import { useCenterStore } from '@/hooks/use-center'
 import { toast } from 'sonner'
 import DraggerSVG from '@/svgs/dragger.svg'
 import { InfoDialog } from './info-dialog'
+import customComponentsDefault from '@/config/custom-components.json'
+import { mergeCustomComponentsWithDefaults } from '../app/(home)/stores/custom-component-store'
 
 function readCachedList(key: string): unknown[] {
 	try {
@@ -78,7 +80,7 @@ export function ExportLayoutButton() {
 	}
 
 	const handleConfirmExport = () => {
-		const customComponents = readCachedList('custom-components')
+		const customComponents = mergeCustomComponentsWithDefaults(readCachedList('custom-components'), customComponentsDefault)
 		const componentFavorites = readCachedList('component-favorites')
 		const templates = readCachedList('templates')
 		const config = {
