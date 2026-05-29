@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { RotateCcw, Pencil, Trash2, Save } from 'lucide-react'
 import { useConfigStore } from '../stores/config-store'
-import { useCustomComponentStore, type CustomComponent } from '../stores/custom-component-store'
+import { mergeCustomComponentsWithDefaults, useCustomComponentStore, type CustomComponent } from '../stores/custom-component-store'
+import customComponentsDefault from '@/config/custom-components.json'
 import { useLogStore } from '../stores/log-store'
 import { toast } from 'sonner'
 
@@ -87,8 +88,9 @@ export function LayoutHistory() {
 		if (confirm(`确定要加载布局"${snapshot.name}"吗？`)) {
 			setCardStyles(snapshot.data)
 			if (Array.isArray(snapshot.customComponents)) {
-				useCustomComponentStore.setState({ components: snapshot.customComponents })
-				localStorage.setItem('custom-components', JSON.stringify(snapshot.customComponents))
+				const components = mergeCustomComponentsWithDefaults(snapshot.customComponents, customComponentsDefault)
+				useCustomComponentStore.setState({ components })
+				localStorage.setItem('custom-components', JSON.stringify(components))
 			}
 			toast.success('布局已加载')
 			addLog('success', 'history', '加载历史布局', { name: snapshot.name })
