@@ -71,7 +71,8 @@ export const useLayoutEditStore = create<LayoutEditState>((set, get) => ({
 	saveEditing: () => {
 		set({
 			editing: false,
-			snapshot: null
+			snapshot: null,
+			customComponentsSnapshot: null
 		})
 		useLogStore.getState().addLog('success', 'layout', '保存编辑布局')
 	},
