@@ -3,6 +3,7 @@
 import { Upload } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useConfigStore, type CardStyles } from '../app/(home)/stores/config-store'
+import { isCustomComponentData } from '../app/(home)/stores/custom-component-store'
 import { useLayoutEditStore } from '../app/(home)/stores/layout-edit-store'
 import { useCenterStore } from '@/hooks/use-center'
 import { toast } from 'sonner'
@@ -55,34 +56,15 @@ function sanitizeCardStyles(value: unknown, currentCardStyles: CardStyles): Card
 	return hasValidStyle ? nextCardStyles : null
 }
 
-function isComponentLike(value: unknown): boolean {
-	if (!isObject(value)) return false
-
-	const style = value.style
-	const content = value.content
-	const type = value.type
-	return typeof value.name === 'string' &&
-		typeof value.templateId === 'string' &&
-		(type === 'text' || type === 'image' || type === 'link' || type === 'iframe' || type === 'custom') &&
-		isObject(style) &&
-		isFiniteNumber(style.width) &&
-		isFiniteNumber(style.height) &&
-		isFiniteNumber(style.order) &&
-		(isFiniteNumber(style.offsetX) || style.offsetX === null) &&
-		(isFiniteNumber(style.offsetY) || style.offsetY === null) &&
-		typeof style.enabled === 'boolean' &&
-		isObject(content)
-}
-
 function sanitizeCustomComponents(value: unknown): unknown[] | null {
 	if (!Array.isArray(value)) return null
-	return value.filter(component => isObject(component) && typeof component.id === 'string' && isComponentLike(component))
+	return value.filter(component => isObject(component) && typeof component.id === 'string' && isCustomComponentData(component))
 }
 
 function sanitizeComponentFavorites(value: unknown): unknown[] | null {
 	if (!Array.isArray(value)) return null
 	return value
-		.filter(favorite => isObject(favorite) && typeof favorite.name === 'string' && isComponentLike(favorite.component))
+		.filter(favorite => isObject(favorite) && typeof favorite.name === 'string' && isCustomComponentData(favorite.component))
 		.map((favorite, index) => ({
 			id: typeof favorite.id === 'string' ? favorite.id : `fav-import-${index}`,
 			name: favorite.name,

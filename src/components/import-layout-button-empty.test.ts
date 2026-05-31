@@ -41,8 +41,9 @@ test('layout config import sanitizes card styles before writing config', async (
 test('layout config import filters invalid cached item arrays', async () => {
 	const source = await fs.readFile(new URL('./import-layout-button.tsx', import.meta.url), 'utf-8')
 
-	assert.match(source, /function sanitizeCustomComponents\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\.filter\(component => isObject\(component\) && typeof component\.id === 'string' && isComponentLike\(component\)\)/)
-	assert.match(source, /function sanitizeComponentFavorites\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\n\s*\.filter\(favorite => isObject\(favorite\) && typeof favorite\.name === 'string' && isComponentLike\(favorite\.component\)\)\n\s*\.map\(\(favorite, index\) => \(\{\n\s*id: typeof favorite\.id === 'string' \? favorite\.id : `fav-import-\$\{index\}`/)
+	assert.match(source, /import \{ isCustomComponentData \} from '\.\.\/app\/\(home\)\/stores\/custom-component-store'/)
+	assert.match(source, /function sanitizeCustomComponents\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\.filter\(component => isObject\(component\) && typeof component\.id === 'string' && isCustomComponentData\(component\)\)/)
+	assert.match(source, /function sanitizeComponentFavorites\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\n\s*\.filter\(favorite => isObject\(favorite\) && typeof favorite\.name === 'string' && isCustomComponentData\(favorite\.component\)\)\n\s*\.map\(\(favorite, index\) => \(\{\n\s*id: typeof favorite\.id === 'string' \? favorite\.id : `fav-import-\$\{index\}`/)
 	assert.match(source, /name: favorite\.name,\n\s*component: favorite\.component,\n\s*\.\.\.\(typeof favorite\.preview === 'string' \? \{ preview: favorite\.preview \} : \{\}\)/)
 	assert.match(source, /function sanitizeTemplates\(value: unknown\): unknown\[\] \| null \{\n\s*if \(!Array\.isArray\(value\)\) return null\n\s*return value\.filter\(template => isObject\(template\) && typeof template\.id === 'string' && typeof template\.name === 'string' && isObject\(template\.styles\)\)/)
 	assert.doesNotMatch(source, /JSON\.stringify\(config\.customComponents\)/)
@@ -55,8 +56,9 @@ test('layout config import rejects non-finite style numbers', async () => {
 
 	assert.match(source, /function isFiniteNumber\(value: unknown\): value is number \{\n\s*return typeof value === 'number' && Number\.isFinite\(value\)\n\}/)
 	assert.match(source, /return isFiniteNumber\(value\.width\) &&\n\s*isFiniteNumber\(value\.height\) &&\n\s*isFiniteNumber\(value\.order\) &&\n\s*\(isFiniteNumber\(value\.offsetX\) \|\| value\.offsetX === null\) &&\n\s*\(isFiniteNumber\(value\.offsetY\) \|\| value\.offsetY === null\)/)
-	assert.match(source, /isFiniteNumber\(style\.width\) &&\n\s*isFiniteNumber\(style\.height\) &&\n\s*isFiniteNumber\(style\.order\) &&\n\s*\(isFiniteNumber\(style\.offsetX\) \|\| style\.offsetX === null\) &&\n\s*\(isFiniteNumber\(style\.offsetY\) \|\| style\.offsetY === null\)/)
-	assert.match(source, /'offset' in currentStyle && isFiniteNumber\(style\.offset\)/)
+	assert.match(source, /import \{ isCustomComponentData \} from '\.\.\/app\/\(home\)\/stores\/custom-component-store'/)
+	assert.match(source, /isCustomComponentData\(component\)/)
+	assert.match(source, /isCustomComponentData\(favorite\.component\)/)
 	assert.doesNotMatch(source, /typeof value\.width === 'number'/)
 	assert.doesNotMatch(source, /typeof style\.width === 'number'/)
 	assert.doesNotMatch(source, /typeof style\.offset === 'number'/)
